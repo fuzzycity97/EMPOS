@@ -10,6 +10,7 @@ class MessageRoutes {
   static const String saleCompleted = 'sale.completed';
   static const String orderRefunded = 'order.refunded';
   static const String drawerShiftUpdated = 'shift.updated';
+  static const String customerUpdated = 'customer.updated';
 
   // Bookings & Work Orders Routes
   static const String bookingCreated = 'booking.created';
@@ -38,6 +39,7 @@ class MessageRoutes {
     saleCompleted,
     orderRefunded,
     drawerShiftUpdated,
+    customerUpdated,
     bookingCreated,
     bookingUpdated,
     bookingCancelled,

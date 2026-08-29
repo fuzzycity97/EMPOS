@@ -1,4 +1,9 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../core/network/lan_sync/data/message_routes.dart';
+import '../../../../core/network/lan_sync/domain/entities/sync_envelope.dart';
+import '../../../../core/network/lan_sync/domain/repositories/lan_sync_repository.dart';
+import '../../data/models/customer_model.dart';
 import '../../domain/entities/customer.dart';
 import '../../domain/usecases/charge_customer_debt_usecase.dart';
 import '../../domain/usecases/get_customer_by_id_usecase.dart';
@@ -16,6 +21,9 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
   final ChargeCustomerDebtUseCase chargeCustomerDebtUseCase;
   final ProcessDebtPaymentUseCase processDebtPaymentUseCase;
   final GetCustomerLedgerUseCase getCustomerLedgerUseCase;
+  final LanSyncRepository? lanSyncRepository;
+
+  StreamSubscription<SyncEnvelope>? _lanSyncSubscription;
 
   CustomerBloc({
     required this.getCustomersUseCase,
@@ -24,6 +32,7 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
     required this.chargeCustomerDebtUseCase,
     required this.processDebtPaymentUseCase,
     required this.getCustomerLedgerUseCase,
+    this.lanSyncRepository,
   }) : super(const CustomerInitial()) {
     on<LoadCustomersEvent>(_onLoadCustomers);
     on<SearchCustomersEvent>(_onSearchCustomers);
@@ -31,6 +40,27 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
     on<SaveCustomerEvent>(_onSaveCustomer);
     on<ProcessDebtPaymentEvent>(_onProcessDebtPayment);
     on<ChargeDebtEvent>(_onChargeDebt);
+
+    _initLanSyncListener();
+  }
+
+  void _initLanSyncListener() {
+    _lanSyncSubscription = lanSyncRepository?.incomingEvents.listen((envelope) {
+      final type = envelope.type;
+      if (type == MessageRoutes.customerUpdated ||
+          type == MessageRoutes.syncFullStateResponse ||
+          type == MessageRoutes.patientCheckedIn ||
+          type == MessageRoutes.syncVisitUpdated ||
+          type == MessageRoutes.visitCompleted) {
+        add(const LoadCustomersEvent());
+      }
+    });
+  }
+
+  @override
+  Future<void> close() {
+    _lanSyncSubscription?.cancel();
+    return super.close();
   }
 
   Future<void> _onLoadCustomers(
@@ -148,6 +178,18 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
               searchQuery: query,
               toastMessage: 'Customer "${savedCustomer.name}" saved successfully.',
             ));
+
+            // Broadcast customer update to all LAN peers
+            final envelope = SyncEnvelope.create(
+              type: MessageRoutes.customerUpdated,
+              scope: 'crm',
+              senderId: 'crm_station',
+              senderRole: 'staff',
+              payload: {
+                'customer': CustomerModel.fromEntity(savedCustomer).toJson(),
+              },
+            );
+            lanSyncRepository?.broadcast(envelope);
           },
         );
       },
@@ -190,6 +232,19 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
         Customer? updatedCust;
         allRes.fold((_) {}, (list) => allCustomers = list);
         customerRes.fold((_) {}, (c) => updatedCust = c);
+
+        if (updatedCust != null) {
+          final envelope = SyncEnvelope.create(
+            type: MessageRoutes.customerUpdated,
+            scope: 'crm',
+            senderId: 'crm_station',
+            senderRole: 'staff',
+            payload: {
+              'customer': CustomerModel.fromEntity(updatedCust!).toJson(),
+            },
+          );
+          lanSyncRepository?.broadcast(envelope);
+        }
 
         final query = state is CustomersLoaded
             ? (state as CustomersLoaded).searchQuery

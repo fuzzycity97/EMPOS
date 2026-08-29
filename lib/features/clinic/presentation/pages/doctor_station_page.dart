@@ -10,6 +10,7 @@ import '../bloc/clinic_event.dart';
 import '../bloc/clinic_state.dart';
 import '../widgets/dental_tooth_matrix_widget.dart';
 import '../widgets/doctor_attachments_lightbox.dart';
+import '../widgets/historical_visit_details_dialog.dart';
 import '../widgets/vitals_input_dialog.dart';
 
 class DoctorStationPage extends StatelessWidget {
@@ -401,7 +402,7 @@ class DoctorStationPage extends StatelessWidget {
                     ),
                     icon: const Icon(Icons.history, size: 16),
                     label: const Text('View Patient History', style: TextStyle(fontSize: 12)),
-                    onPressed: () => _showPatientHistoryDialog(context, visit, allVisits),
+                    onPressed: () => _showPatientHistoryDialog(context, visit, patient, allVisits),
                   ),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
@@ -446,6 +447,7 @@ class DoctorStationPage extends StatelessWidget {
   void _showPatientHistoryDialog(
     BuildContext context,
     ClinicVisit currentVisit,
+    PatientProfile? patient,
     List<ClinicVisit> allVisits,
   ) {
     final historicalVisits = allVisits
@@ -469,7 +471,7 @@ class DoctorStationPage extends StatelessWidget {
           ],
         ),
         content: SizedBox(
-          width: 520,
+          width: 580,
           child: historicalVisits.isEmpty
               ? const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
@@ -482,45 +484,78 @@ class DoctorStationPage extends StatelessWidget {
                   ),
                 )
               : SizedBox(
-                  height: 380,
+                  height: 420,
                   child: ListView.separated(
                     itemCount: historicalVisits.length,
-                    separatorBuilder: (context, index) => const Divider(height: 16),
+                    separatorBuilder: (context, index) => const SizedBox(height: 10),
                     itemBuilder: (context, idx) {
                       final hVisit = historicalVisits[idx];
                       final dateStr = DateFormat('yyyy-MM-dd • hh:mm a').format(hVisit.checkInTime);
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (dCtx) => HistoricalVisitDetailsDialog(
+                              visit: hVisit,
+                              blueprint: blueprint,
+                              patient: patient,
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white12),
+                            color: Colors.white.withValues(alpha: 0.03),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                dateStr,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    dateStr,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          hVisit.status.name.toUpperCase(),
+                                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                                    ],
+                                  ),
+                                ],
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  hVisit.status.name.toUpperCase(),
-                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
-                                ),
+                              const SizedBox(height: 4),
+                              Text('Chief Complaint: ${hVisit.chiefComplaint}', style: const TextStyle(fontSize: 12)),
+                              if (hVisit.diagnosis != null && hVisit.diagnosis!.isNotEmpty)
+                                Text('Diagnosis: ${hVisit.diagnosis}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal)),
+                              if (hVisit.prescriptions.isNotEmpty)
+                                Text('Prescriptions: ${hVisit.prescriptions.join(", ")}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                              if (hVisit.totalFee > 0)
+                                Text('Total Fee: ${hVisit.totalFee.toStringAsFixed(2)} EGP', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Tap to view full consultation record & odontogram >',
+                                style: TextStyle(fontSize: 10, color: Colors.blueAccent, fontStyle: FontStyle.italic),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Text('Chief Complaint: ${hVisit.chiefComplaint}', style: const TextStyle(fontSize: 12)),
-                          if (hVisit.diagnosis != null && hVisit.diagnosis!.isNotEmpty)
-                            Text('Diagnosis: ${hVisit.diagnosis}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal)),
-                          if (hVisit.prescriptions.isNotEmpty)
-                            Text('Prescriptions: ${hVisit.prescriptions.join(", ")}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                          if (hVisit.totalFee > 0)
-                            Text('Total Fee: ${hVisit.totalFee.toStringAsFixed(2)} EGP', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                        ],
+                        ),
                       );
                     },
                   ),

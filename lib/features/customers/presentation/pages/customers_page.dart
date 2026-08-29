@@ -136,7 +136,9 @@ class _CustomersView extends StatelessWidget {
       }
     } catch (_) {}
 
-    final isReceptionist = role == UserRole.receptionist;
+    // Admin and Manager roles have unrestricted financial access.
+    // Restricted roles (Doctor, Receptionist, etc.) see masked values.
+    final isPrivileged = role == null || role == UserRole.admin || role == UserRole.manager;
 
     return Row(
       children: [
@@ -149,14 +151,14 @@ class _CustomersView extends StatelessWidget {
         const SizedBox(width: AppDimensions.space12),
         _metricCard(
           title: 'Active Debtors',
-          value: isReceptionist ? '***' : '${state.totalDebtorCount}',
+          value: isPrivileged ? '${state.totalDebtorCount}' : '***',
           icon: LucideIcons.userX,
           color: AppColors.warning,
         ),
         const SizedBox(width: AppDimensions.space12),
         _metricCard(
           title: 'Total Outstanding Debt',
-          value: isReceptionist ? 'Restricted' : CurrencyFormatter.format(state.totalOutstandingDebt),
+          value: isPrivileged ? CurrencyFormatter.format(state.totalOutstandingDebt) : 'Restricted',
           icon: LucideIcons.badgeAlert,
           color: AppColors.danger,
         ),

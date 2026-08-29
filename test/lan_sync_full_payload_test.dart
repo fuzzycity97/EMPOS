@@ -1260,5 +1260,82 @@ void main() {
 
       await clinicBloc.close();
     });
+
+    test('19. Full CRM Synchronization: Host includes all customers in sync.full_state_response and client batch-upserts them', () async {
+      final mockCustomerRepo = MockCustomerRepository();
+      final streamController = StreamController<SyncEnvelope>.broadcast();
+      when(() => mockLanSyncRepo.incomingEvents).thenAnswer((_) => streamController.stream);
+      when(() => mockLanSyncRepo.isHost).thenReturn(false);
+      when(() => mockGetQueue.call(doctorName: any(named: 'doctorName')))
+          .thenAnswer((_) async => const Right([]));
+      when(() => mockGetPatients.call()).thenAnswer((_) async => const Right([]));
+      when(() => mockCustomerRepo.saveCustomer(any())).thenAnswer((inv) async => Right(inv.positionalArguments[0] as Customer));
+
+      final clinicBloc = ClinicBloc(
+        getClinicQueueUseCase: mockGetQueue,
+        checkInPatientUseCase: mockCheckIn,
+        updateVisitStatusUseCase: mockUpdateVisit,
+        completeVisitUseCase: mockCompleteVisit,
+        getPatientToothChartUseCase: mockGetToothChart,
+        saveToothChartUseCase: mockSaveToothChart,
+        getPatientsUseCase: mockGetPatients,
+        searchPatientsUseCase: mockSearchPatients,
+        getRollingMeanWaitUseCase: mockGetWait,
+        clinicRepository: mockClinicRepo,
+        customerRepository: mockCustomerRepo,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+
+      final fullStateEnvelope = SyncEnvelope.create(
+        type: MessageRoutes.syncFullStateResponse,
+        scope: 'clinic',
+        senderId: 'hub_host',
+        senderRole: 'host',
+        payload: {
+          'visits': [],
+          'patients': [],
+          'customers': [
+            {
+              'id': 'cust_sync_1',
+              'name': 'Synced Client One',
+              'phone': '+20 111 222 3333',
+              'totalDebt': 150.0,
+              'loyaltyPoints': 50,
+              'createdAt': DateTime.now().toIso8601String(),
+            },
+            {
+              'id': 'cust_sync_2',
+              'name': 'Synced Client Two',
+              'phone': '+20 122 333 4444',
+              'totalDebt': 0.0,
+              'loyaltyPoints': 10,
+              'createdAt': DateTime.now().toIso8601String(),
+            },
+          ],
+        },
+      );
+
+      streamController.add(fullStateEnvelope);
+      await Future.delayed(const Duration(milliseconds: 150));
+
+      verify(() => mockCustomerRepo.saveCustomer(any(that: isA<Customer>().having(
+            (c) => c.name,
+            'name',
+            equals('Synced Client One'),
+          ).having(
+            (c) => c.totalDebt,
+            'totalDebt',
+            equals(150.0),
+          )))).called(1);
+
+      verify(() => mockCustomerRepo.saveCustomer(any(that: isA<Customer>().having(
+            (c) => c.name,
+            'name',
+            equals('Synced Client Two'),
+          )))).called(1);
+
+      await clinicBloc.close();
+      await streamController.close();
+    });
   });
 }

@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/network/lan_sync/data/message_routes.dart';
 import '../../../../core/network/lan_sync/domain/entities/sync_envelope.dart';
 import '../../../../core/network/lan_sync/domain/repositories/lan_sync_repository.dart';
+import '../../../customers/data/models/customer_model.dart';
 import '../../../customers/domain/entities/customer.dart';
 import '../../../customers/domain/repositories/customer_repository.dart';
 import '../../data/models/clinic_visit_model.dart';
@@ -91,6 +92,16 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           createdAt: patient.createdAt,
         );
         await customerRepository!.saveCustomer(customer);
+        final envelope = SyncEnvelope.create(
+          type: MessageRoutes.customerUpdated,
+          scope: 'crm',
+          senderId: lanSyncRepository?.isHost == true ? 'hub_host' : 'clinic_station',
+          senderRole: 'clinic',
+          payload: {
+            'customer': CustomerModel.fromEntity(customer).toJson(),
+          },
+        );
+        await lanSyncRepository?.broadcast(envelope);
       } catch (_) {}
     }
   }
@@ -149,6 +160,18 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         } catch (_) {}
       }
 
+      // Collect all CRM customers to guarantee complete CRM reconciliation
+      final List<Map<String, dynamic>> customersJson = [];
+      if (customerRepository != null) {
+        try {
+          final custRes = await customerRepository!.getCustomers();
+          final allCusts = custRes.getOrElse(() => []);
+          for (final c in allCusts) {
+            customersJson.add(CustomerModel.fromEntity(c).toJson());
+          }
+        } catch (_) {}
+      }
+
       final responseEnvelope = SyncEnvelope.create(
         type: MessageRoutes.syncFullStateResponse,
         scope: 'clinic',
@@ -157,6 +180,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         payload: {
           'visits': visitsJson,
           'patients': patientsJson,
+          'customers': customersJson,
         },
       );
 
@@ -247,7 +271,26 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         }
       }
 
-      // 3. ONLY AFTER the database writes are complete, dispatch LoadClinicQueueEvent()
+      // 3. Batch upsert full CRM customers directory
+      if (payload['customers'] != null && payload['customers'] is List && customerRepository != null) {
+        final customersList = payload['customers'] as List;
+        for (final item in customersList) {
+          try {
+            Map<String, dynamic>? customerMap;
+            if (item is Map) {
+              customerMap = Map<String, dynamic>.from(item);
+            } else if (item is String) {
+              customerMap = Map<String, dynamic>.from(jsonDecode(item) as Map);
+            }
+            if (customerMap != null) {
+              final customerModel = CustomerModel.fromJson(customerMap);
+              await customerRepository!.saveCustomer(customerModel);
+            }
+          } catch (_) {}
+        }
+      }
+
+      // 4. ONLY AFTER the database writes are complete, dispatch LoadClinicQueueEvent()
       add(const LoadClinicQueueEvent());
     } catch (_) {
       add(const LoadClinicQueueEvent());
@@ -262,6 +305,22 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         await _handleSyncRequestActiveState(envelope);
       } else if (type == MessageRoutes.syncFullStateResponse) {
         await _handleSyncFullStateResponse(envelope);
+      } else if (type == MessageRoutes.customerUpdated) {
+        final payload = envelope.payload;
+        if (payload != null && payload['customer'] != null && customerRepository != null) {
+          try {
+            Map<String, dynamic>? customerMap;
+            if (payload['customer'] is Map) {
+              customerMap = Map<String, dynamic>.from(payload['customer'] as Map);
+            } else if (payload['customer'] is String) {
+              customerMap = Map<String, dynamic>.from(jsonDecode(payload['customer'] as String) as Map);
+            }
+            if (customerMap != null) {
+              final customerModel = CustomerModel.fromJson(customerMap);
+              await customerRepository!.saveCustomer(customerModel);
+            }
+          } catch (_) {}
+        }
       } else if (type == MessageRoutes.syncVisitUpdated ||
           type == MessageRoutes.visitCompleted ||
           type == MessageRoutes.patientCheckedIn ||
@@ -640,21 +699,33 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
             orElse: () => null,
           );
 
+          Customer savedCust;
           if (existingCust != null) {
-            final updatedCust = existingCust.copyWith(
+            savedCust = existingCust.copyWith(
               totalDebt: existingCust.totalDebt + remainingDebt,
             );
-            await customerRepository!.saveCustomer(updatedCust);
+            await customerRepository!.saveCustomer(savedCust);
           } else {
-            final newCust = Customer(
+            savedCust = Customer(
               id: visit.patientId,
               name: visit.patientName,
               phone: patient?.phone ?? '',
               totalDebt: remainingDebt,
               createdAt: DateTime.now(),
             );
-            await customerRepository!.saveCustomer(newCust);
+            await customerRepository!.saveCustomer(savedCust);
           }
+
+          final crmEnvelope = SyncEnvelope.create(
+            type: MessageRoutes.customerUpdated,
+            scope: 'crm',
+            senderId: lanSyncRepository?.isHost == true ? 'hub_host' : 'reception_station',
+            senderRole: 'receptionist',
+            payload: {
+              'customer': CustomerModel.fromEntity(savedCust).toJson(),
+            },
+          );
+          await lanSyncRepository?.broadcast(crmEnvelope);
         } catch (_) {}
       }
 
