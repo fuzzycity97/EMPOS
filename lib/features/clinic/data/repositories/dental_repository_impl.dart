@@ -1,0 +1,117 @@
+import 'package:dartz/dartz.dart';
+import '../../../../core/error/exceptions.dart';
+import '../../../../core/error/failures.dart';
+import '../../domain/entities/dental_treatment_plan.dart';
+import '../../domain/entities/tooth_chart_entry.dart';
+import '../../domain/repositories/dental_repository.dart';
+import '../datasources/clinic_local_data_source.dart';
+import '../models/dental_treatment_plan_model.dart';
+import '../models/tooth_chart_entry_model.dart';
+
+class DentalRepositoryImpl implements DentalRepository {
+  final ClinicLocalDataSource localDataSource;
+
+  DentalRepositoryImpl({required this.localDataSource});
+
+  @override
+  Future<Either<Failure, List<ToothChartEntry>>> getPatientToothChart(
+    String patientId, {
+    DateTime? dateOfBirth,
+  }) async {
+    try {
+      final entries = await localDataSource.getToothChart(patientId);
+      if (entries.isNotEmpty) {
+        return Right(entries);
+      }
+
+      // Check patient profile if DOB not supplied directly
+      DateTime? effectiveDob = dateOfBirth;
+      if (effectiveDob == null) {
+        final patient = await localDataSource.getPatientById(patientId);
+        if (patient?.dateOfBirth != null) {
+          effectiveDob = DateTime.tryParse(patient!.dateOfBirth!);
+        }
+      }
+
+      // Pediatric (< 12 years old) gets 20 Deciduous Teeth (A through T)
+      bool isPediatric = false;
+      if (effectiveDob != null) {
+        final ageInDays = DateTime.now().difference(effectiveDob).inDays;
+        isPediatric = ageInDays < (12 * 365.25);
+      }
+
+      if (isPediatric) {
+        final primaryTeeth = ToothChartEntry.primaryToothCodes.asMap().entries.map((entry) {
+          return ToothChartEntry(
+            toothNumber: entry.key + 1,
+            toothCode: entry.value,
+            isDeciduous: true,
+            state: ToothState.healthy,
+          );
+        }).toList();
+        return Right(primaryTeeth);
+      }
+
+      // Adult (>= 12 years old or unspecified) gets 32 Permanent Teeth (1 through 32)
+      final adultTeeth = List.generate(
+        32,
+        (index) => ToothChartEntry(
+          toothNumber: index + 1,
+          toothCode: (index + 1).toString(),
+          isDeciduous: false,
+          state: ToothState.healthy,
+        ),
+      );
+      return Right(adultTeeth);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(message: e.message));
+    } catch (e) {
+      return Left(CacheFailure(message: 'Unexpected error getting tooth chart: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> saveToothChart(
+    String patientId,
+    List<ToothChartEntry> entries,
+  ) async {
+    try {
+      final models = entries
+          .map((e) => e is ToothChartEntryModel ? e : ToothChartEntryModel.fromEntity(e))
+          .toList();
+      await localDataSource.saveToothChart(patientId, models);
+      return const Right(null);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(message: e.message));
+    } catch (e) {
+      return Left(CacheFailure(message: 'Unexpected error saving tooth chart: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<DentalTreatmentPlan>>> getTreatmentPlans(String patientId) async {
+    try {
+      final plans = await localDataSource.getDentalPlans(patientId);
+      return Right(plans);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(message: e.message));
+    } catch (e) {
+      return Left(CacheFailure(message: 'Unexpected error getting treatment plans: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, DentalTreatmentPlan>> saveTreatmentPlan(DentalTreatmentPlan plan) async {
+    try {
+      final model = plan is DentalTreatmentPlanModel
+          ? plan
+          : DentalTreatmentPlanModel.fromEntity(plan);
+      await localDataSource.saveDentalPlan(model);
+      return Right(model);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(message: e.message));
+    } catch (e) {
+      return Left(CacheFailure(message: 'Unexpected error saving treatment plan: $e'));
+    }
+  }
+}
