@@ -39,8 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Returning Patient Intake Search (`PatientIntakeDialog`)**: Integrated search and autocomplete by phone number and patient name to quickly lookup existing patient files and prefill intake fields while preserving `patientId`.
 - **Dynamic Pediatric vs. Adult Odontogram (`DoctorStationPage`)**: Automatically selects 20-tooth primary dentition for patients under 12 years old and 32-tooth permanent dentition for older patients based on `calculatedAge`.
 - **Interactive Clinical Vitals Monitoring (`DoctorStationPage`, `VitalsInputDialog` & `ClinicBloc`)**: Added clickable vitals chips allowing doctors to live-edit Blood Pressure, Heart Rate, SpO2, Temperature, and Respiration with `UpdateVisitVitalsEvent` and LAN synchronization.
-- **Medical Imaging File Upload (`DoctorAttachmentsLightbox`)**: Integrated OS file picker (`file_picker`) and custom attachment title metadata dialog for attaching diagnostic radiographs and DICOM scans.
 - **Patient File 12-Hour AM/PM Time Formatting (`ClinicReceptionPage`)**: Formatted check-in timestamps with `intl` 12-hour AM/PM notation and mapped raw status enums to user-friendly titles.
+- **Historical Patient Records Dialog (`DoctorStationPage`)**: Added "View Patient History" action button on Doctor Station vitals dock to open historical consultation records for the active patient (filtering previous visits, chief complaints, diagnoses, prescriptions, and fees).
+- **Dental Tooth Matrix Model Subtype Crash (`DentalToothMatrixWidget`)**: Replaced generic `firstWhere(..., orElse: () => ToothChartEntry)` with a type-safe loop in `_findEntry`, preventing covariance subtype runtime exceptions when matching `ToothChartEntryModel` lists.
+- **Customer Edit Phone Number & Notes Persistence (`CustomerFormDialog`)**: Ensured customer form dialog properly binds `customer.phone` and saves updated phone, address, and notes to `CustomerRepository`.
+- **Patient Intake Phone Number Autofill (`PatientIntakeDialog` & `ClinicBloc`)**: Added `phone` parameter to `CheckInPatientEvent` and `ClinicBloc._onCheckInPatient`, properly populating `phoneController.text` upon selecting a returning patient in `Autocomplete` and persisting contact details to both patient profiles and CRM customer records.
 
 ---
 

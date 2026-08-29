@@ -1200,5 +1200,65 @@ void main() {
 
       await clinicBloc.close();
     });
+
+    test('18. Patient Phone Persistence & Safe Tooth Model Matching: CheckInPatient preserves phone in patient and customer', () async {
+      final mockCustomerRepo = MockCustomerRepository();
+      final testVisit = ClinicVisit(
+        id: 'vis_phone_1',
+        patientId: 'pat_phone_test',
+        patientName: 'Phone Verified Patient',
+        doctorName: 'usr_doctor',
+        queueNumber: 1,
+        status: ClinicVisitStatus.waiting,
+        checkInTime: DateTime.now(),
+      );
+      when(() => mockCheckIn.call(any())).thenAnswer((_) async => Right(testVisit));
+      when(() => mockGetQueue.call(doctorName: any(named: 'doctorName')))
+          .thenAnswer((_) async => const Right([]));
+      when(() => mockGetPatients.call()).thenAnswer((_) async => const Right([]));
+      when(() => mockClinicRepo.savePatient(any())).thenAnswer((inv) async => Right(inv.positionalArguments[0] as PatientProfile));
+      when(() => mockCustomerRepo.saveCustomer(any())).thenAnswer((inv) async => Right(inv.positionalArguments[0] as Customer));
+      when(() => mockLanSyncRepo.broadcast(any())).thenAnswer((_) async {});
+
+      final clinicBloc = ClinicBloc(
+        getClinicQueueUseCase: mockGetQueue,
+        checkInPatientUseCase: mockCheckIn,
+        updateVisitStatusUseCase: mockUpdateVisit,
+        completeVisitUseCase: mockCompleteVisit,
+        getPatientToothChartUseCase: mockGetToothChart,
+        saveToothChartUseCase: mockSaveToothChart,
+        getPatientsUseCase: mockGetPatients,
+        searchPatientsUseCase: mockSearchPatients,
+        getRollingMeanWaitUseCase: mockGetWait,
+        clinicRepository: mockClinicRepo,
+        customerRepository: mockCustomerRepo,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+
+      clinicBloc.add(
+        const CheckInPatientEvent(
+          patientId: 'pat_phone_test',
+          patientName: 'Phone Verified Patient',
+          phone: '+20 100 999 8888',
+          doctorName: 'usr_doctor',
+          chiefComplaint: 'Checkup',
+        ),
+      );
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      verify(() => mockClinicRepo.savePatient(any(that: isA<PatientProfile>().having(
+            (p) => p.phone,
+            'phone',
+            equals('+20 100 999 8888'),
+          )))).called(1);
+
+      verify(() => mockCustomerRepo.saveCustomer(any(that: isA<Customer>().having(
+            (c) => c.phone,
+            'phone',
+            equals('+20 100 999 8888'),
+          )))).called(1);
+
+      await clinicBloc.close();
+    });
   });
 }

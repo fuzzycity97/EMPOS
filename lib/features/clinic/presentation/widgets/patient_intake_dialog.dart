@@ -120,14 +120,10 @@ class PatientIntakeDialog extends StatelessWidget {
                     selectedPatientIdNotifier.value = patient.id;
                     nameController.text = patient.name;
                     phoneController.text = patient.phone;
-                    if (patient.dateOfBirth != null) {
-                      try {
-                        final dob = DateTime.parse(patient.dateOfBirth!);
-                        final age = (DateTime.now().difference(dob).inDays / 365.25).floor();
-                        ageController.text = age.toString();
-                      } catch (_) {
-                        ageController.text = patient.dateOfBirth!;
-                      }
+                    if (patient.calculatedAge != null) {
+                      ageController.text = patient.calculatedAge.toString();
+                    } else if (patient.dateOfBirth != null) {
+                      ageController.text = patient.dateOfBirth!;
                     }
                   },
                   fieldViewBuilder: (context, searchController, focusNode, onFieldSubmitted) {
@@ -295,6 +291,7 @@ class PatientIntakeDialog extends StatelessWidget {
                         CheckInPatientEvent(
                           patientId: targetPatientId,
                           patientName: name,
+                          phone: phone,
                           doctorName: doctorId,
                           chiefComplaint: fullComplaint,
                         ),

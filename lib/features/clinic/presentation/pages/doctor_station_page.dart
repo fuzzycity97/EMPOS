@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
 import '../../domain/entities/clinic_visit.dart';
 import '../../domain/entities/patient_profile.dart';
@@ -231,7 +232,7 @@ class DoctorStationPage extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 // Patient Profile Card & Vitals
-                                _buildPatientVitalsCard(context, activeVisit, activePatient, isDark),
+                                _buildPatientVitalsCard(context, activeVisit, activePatient, loadedState.queue, isDark),
                                 const SizedBox(height: 20),
 
                                 // Dental vs General Workspace
@@ -338,6 +339,7 @@ class DoctorStationPage extends StatelessWidget {
     BuildContext context,
     ClinicVisit visit,
     PatientProfile? patient,
+    List<ClinicVisit> allVisits,
     bool isDark,
   ) {
     return Container(
@@ -350,32 +352,34 @@ class DoctorStationPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.start,
+            spacing: 12,
+            runSpacing: 12,
             children: [
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      visit.patientName,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    visit.patientName,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    'Chief Complaint: ${visit.chiefComplaint}',
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : Colors.black87,
+                      fontSize: 13,
                     ),
-                    Text(
-                      'Chief Complaint: ${visit.chiefComplaint}',
-                      style: TextStyle(
-                        color: isDark ? Colors.white70 : Colors.black87,
-                        fontSize: 13,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   if (patient?.insuranceProvider != null) ...[
                     Container(
@@ -390,8 +394,15 @@ class DoctorStationPage extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 8),
                   ],
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    ),
+                    icon: const Icon(Icons.history, size: 16),
+                    label: const Text('View Patient History', style: TextStyle(fontSize: 12)),
+                    onPressed: () => _showPatientHistoryDialog(context, visit, allVisits),
+                  ),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -426,6 +437,99 @@ class DoctorStationPage extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPatientHistoryDialog(
+    BuildContext context,
+    ClinicVisit currentVisit,
+    List<ClinicVisit> allVisits,
+  ) {
+    final historicalVisits = allVisits
+        .where((v) => v.patientId == currentVisit.patientId && v.id != currentVisit.id)
+        .toList()
+      ..sort((a, b) => b.checkInTime.compareTo(a.checkInTime));
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.history_edu, color: Colors.blue),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Medical History: ${currentVisit.patientName}',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 520,
+          child: historicalVisits.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text(
+                      'No prior historical visits recorded for this patient.\n(First recorded consultation)',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ),
+                )
+              : SizedBox(
+                  height: 380,
+                  child: ListView.separated(
+                    itemCount: historicalVisits.length,
+                    separatorBuilder: (context, index) => const Divider(height: 16),
+                    itemBuilder: (context, idx) {
+                      final hVisit = historicalVisits[idx];
+                      final dateStr = DateFormat('yyyy-MM-dd • hh:mm a').format(hVisit.checkInTime);
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                dateStr,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  hVisit.status.name.toUpperCase(),
+                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text('Chief Complaint: ${hVisit.chiefComplaint}', style: const TextStyle(fontSize: 12)),
+                          if (hVisit.diagnosis != null && hVisit.diagnosis!.isNotEmpty)
+                            Text('Diagnosis: ${hVisit.diagnosis}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal)),
+                          if (hVisit.prescriptions.isNotEmpty)
+                            Text('Prescriptions: ${hVisit.prescriptions.join(", ")}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                          if (hVisit.totalFee > 0)
+                            Text('Total Fee: ${hVisit.totalFee.toStringAsFixed(2)} EGP', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
           ),
         ],
       ),

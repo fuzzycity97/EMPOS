@@ -21,6 +21,7 @@ class LoadClinicQueueEvent extends ClinicEvent {
 class CheckInPatientEvent extends ClinicEvent {
   final String patientId;
   final String patientName;
+  final String phone;
   final String doctorName;
   final String chiefComplaint;
   final String roomNumber;
@@ -28,13 +29,14 @@ class CheckInPatientEvent extends ClinicEvent {
   const CheckInPatientEvent({
     required this.patientId,
     required this.patientName,
+    this.phone = '',
     required this.doctorName,
     required this.chiefComplaint,
     this.roomNumber = 'Room 1',
   });
 
   @override
-  List<Object?> get props => [patientId, patientName, doctorName, chiefComplaint, roomNumber];
+  List<Object?> get props => [patientId, patientName, phone, doctorName, chiefComplaint, roomNumber];
 }
 
 class UpdateVisitStatusEvent extends ClinicEvent {

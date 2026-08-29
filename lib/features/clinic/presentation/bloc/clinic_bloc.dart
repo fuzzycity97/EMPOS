@@ -417,9 +417,12 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           patient = PatientProfile(
             id: event.patientId,
             name: event.patientName,
-            phone: '',
+            phone: event.phone,
             createdAt: DateTime.now(),
           );
+          await _savePatientLocally(patient);
+        } else if (event.phone.isNotEmpty && patient.phone != event.phone) {
+          patient = patient.copyWith(phone: event.phone, name: event.patientName);
           await _savePatientLocally(patient);
         }
 

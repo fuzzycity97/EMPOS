@@ -132,13 +132,15 @@ class DentalToothMatrixWidget extends StatelessWidget {
   }
 
   ToothChartEntry _findEntry(String code) {
-    return toothChart.firstWhere(
-      (t) => t.effectiveToothCode.toUpperCase() == code.toUpperCase(),
-      orElse: () => ToothChartEntry(
-        toothNumber: int.tryParse(code) ?? 1,
-        toothCode: code,
-        isDeciduous: isPediatric,
-      ),
+    for (final t in toothChart) {
+      if (t.effectiveToothCode.toUpperCase() == code.toUpperCase()) {
+        return t;
+      }
+    }
+    return ToothChartEntry(
+      toothNumber: int.tryParse(code) ?? 1,
+      toothCode: code,
+      isDeciduous: isPediatric,
     );
   }
 
