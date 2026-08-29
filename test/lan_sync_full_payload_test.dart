@@ -27,8 +27,12 @@ import 'package:empos/features/clinic/presentation/bloc/clinic_bloc.dart';
 import 'package:empos/features/clinic/presentation/bloc/clinic_event.dart';
 import 'package:empos/features/clinic/presentation/bloc/clinic_state.dart';
 
+import 'package:empos/features/customers/domain/entities/customer.dart';
+import 'package:empos/features/customers/domain/repositories/customer_repository.dart';
+
 class MockLanSyncRepository extends Mock implements LanSyncRepository {}
 class MockClinicRepository extends Mock implements ClinicRepository {}
+class MockCustomerRepository extends Mock implements CustomerRepository {}
 class MockGetClinicQueueUseCase extends Mock implements GetClinicQueueUseCase {}
 class MockCheckInPatientUseCase extends Mock implements CheckInPatientUseCase {}
 class MockUpdateVisitStatusUseCase extends Mock implements UpdateVisitStatusUseCase {}
@@ -76,6 +80,14 @@ void main() {
       PatientProfile(
         id: 'pat_test',
         name: 'Test Patient',
+        phone: '123456',
+        createdAt: DateTime.now(),
+      ),
+    );
+    registerFallbackValue(
+      Customer(
+        id: 'c_test',
+        name: 'Test Customer',
         phone: '123456',
         createdAt: DateTime.now(),
       ),
@@ -943,6 +955,131 @@ void main() {
             (p) => p.id,
             'id',
             equals('pat_orphan_1'),
+          )))).called(1);
+
+      await clinicBloc.close();
+    });
+
+    test('14. Payment Clearing: ProcessVisitPaymentEvent marks visit isPaid, clears from billing queue and broadcasts update', () async {
+      final completedVisit = ClinicVisit(
+        id: 'vis_pay_1',
+        patientId: 'pat_pay_1',
+        patientName: 'Payment Test Patient',
+        doctorName: 'usr_doctor',
+        queueNumber: 1,
+        status: ClinicVisitStatus.completed,
+        isPaid: false,
+        totalFee: 500.0,
+        patientCopay: 100.0,
+        checkInTime: DateTime.now(),
+        completionTime: DateTime.now(),
+      );
+
+      final paidVisit = completedVisit.copyWith(isPaid: true);
+
+      when(() => mockGetQueue.call(doctorName: any(named: 'doctorName')))
+          .thenAnswer((_) async => Right([completedVisit]));
+      when(() => mockGetPatients.call()).thenAnswer((_) async => const Right([]));
+      when(() => mockClinicRepo.saveVisit(any())).thenAnswer((_) async => Right(paidVisit));
+      when(() => mockLanSyncRepo.broadcast(any())).thenAnswer((_) async {});
+
+      final clinicBloc = ClinicBloc(
+        getClinicQueueUseCase: mockGetQueue,
+        checkInPatientUseCase: mockCheckIn,
+        updateVisitStatusUseCase: mockUpdateVisit,
+        completeVisitUseCase: mockCompleteVisit,
+        getPatientToothChartUseCase: mockGetToothChart,
+        saveToothChartUseCase: mockSaveToothChart,
+        getPatientsUseCase: mockGetPatients,
+        searchPatientsUseCase: mockSearchPatients,
+        getRollingMeanWaitUseCase: mockGetWait,
+        clinicRepository: mockClinicRepo,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+
+      clinicBloc.add(const LoadClinicQueueEvent());
+      await Future.delayed(const Duration(milliseconds: 50));
+      expect((clinicBloc.state as ClinicLoaded).billingVisits!.length, equals(1));
+
+      // Dispatch Payment processing event
+      when(() => mockGetQueue.call(doctorName: any(named: 'doctorName')))
+          .thenAnswer((_) async => Right([paidVisit]));
+
+      clinicBloc.add(const ProcessVisitPaymentEvent('vis_pay_1'));
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Verify visit saved with isPaid true
+      verify(() => mockClinicRepo.saveVisit(any(that: isA<ClinicVisit>().having(
+            (v) => v.isPaid,
+            'isPaid',
+            isTrue,
+          )))).called(1);
+
+      // Verify billing queue is cleared (0 visits)
+      expect((clinicBloc.state as ClinicLoaded).billingVisits!.isEmpty, isTrue);
+
+      await clinicBloc.close();
+    });
+
+    test('15. Patient CRM Link: Checking in a patient also saves customer record to CustomerRepository', () async {
+      final mockCustomerRepo = MockCustomerRepository();
+      when(() => mockCustomerRepo.saveCustomer(any())).thenAnswer((_) async => Right(Customer(
+            id: 'pat_crm_1',
+            name: 'CRM Linked Patient',
+            phone: '555-4321',
+            createdAt: DateTime.now(),
+          )));
+      when(() => mockGetPatients.call()).thenAnswer((_) async => const Right([]));
+      when(() => mockGetQueue.call(doctorName: any(named: 'doctorName')))
+          .thenAnswer((_) async => const Right([]));
+      when(() => mockClinicRepo.savePatient(any())).thenAnswer((inv) async => Right(inv.positionalArguments[0] as PatientProfile));
+
+      final testVisit = ClinicVisit(
+        id: 'vis_crm_1',
+        patientId: 'pat_crm_1',
+        patientName: 'CRM Linked Patient',
+        doctorName: 'usr_doctor',
+        queueNumber: 1,
+        status: ClinicVisitStatus.waiting,
+        checkInTime: DateTime.now(),
+      );
+      when(() => mockCheckIn.call(any())).thenAnswer((_) async => Right(testVisit));
+      when(() => mockLanSyncRepo.broadcast(any())).thenAnswer((_) async {});
+
+      final clinicBloc = ClinicBloc(
+        getClinicQueueUseCase: mockGetQueue,
+        checkInPatientUseCase: mockCheckIn,
+        updateVisitStatusUseCase: mockUpdateVisit,
+        completeVisitUseCase: mockCompleteVisit,
+        getPatientToothChartUseCase: mockGetToothChart,
+        saveToothChartUseCase: mockSaveToothChart,
+        getPatientsUseCase: mockGetPatients,
+        searchPatientsUseCase: mockSearchPatients,
+        getRollingMeanWaitUseCase: mockGetWait,
+        clinicRepository: mockClinicRepo,
+        customerRepository: mockCustomerRepo,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+
+      clinicBloc.add(
+        const CheckInPatientEvent(
+          patientId: 'pat_crm_1',
+          patientName: 'CRM Linked Patient',
+          doctorName: 'usr_doctor',
+          chiefComplaint: 'Regular checkup',
+        ),
+      );
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Verify that Customer was synced to CustomerRepository
+      verify(() => mockCustomerRepo.saveCustomer(any(that: isA<Customer>().having(
+            (c) => c.id,
+            'id',
+            equals('pat_crm_1'),
+          ).having(
+            (c) => c.name,
+            'name',
+            equals('CRM Linked Patient'),
           )))).called(1);
 
       await clinicBloc.close();

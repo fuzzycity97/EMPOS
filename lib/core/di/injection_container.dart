@@ -604,6 +604,7 @@ Future<void> initServiceLocator() async {
       savePatientUseCase: sl(),
       saveVisitUseCase: sl(),
       clinicRepository: sl(),
+      customerRepository: sl(),
       lanSyncRepository: sl(),
     ),
   );

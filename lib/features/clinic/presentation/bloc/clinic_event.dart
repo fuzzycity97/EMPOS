@@ -103,6 +103,15 @@ class SearchClinicPatientsEvent extends ClinicEvent {
   List<Object?> get props => [query];
 }
 
+class ProcessVisitPaymentEvent extends ClinicEvent {
+  final String visitId;
+
+  const ProcessVisitPaymentEvent(this.visitId);
+
+  @override
+  List<Object?> get props => [visitId];
+}
+
 /// Alias for CompleteVisitEvent in examination workflows
 typedef CompleteExaminationEvent = CompleteVisitEvent;
 

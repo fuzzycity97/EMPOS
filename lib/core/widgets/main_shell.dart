@@ -424,6 +424,14 @@ class MainShell extends StatelessWidget {
                     // Live Shift & Drawer Status in App Header
                     BlocBuilder<ShiftBloc, ShiftState>(
                       builder: (context, shiftState) {
+                        final isClinicRole = currentUser.role == UserRole.doctor || currentUser.role == UserRole.receptionist;
+                        final activeNav = safeIndex < navItems.length ? navItems[safeIndex] : null;
+                        final isClinicTab = activeNav?.page is ClinicReceptionPage || activeNav?.page is DoctorStationPage;
+
+                        if (isClinicRole || isClinicTab) {
+                          return const SizedBox.shrink();
+                        }
+
                         if (shiftState is ActiveShiftReady) {
                           return Row(
                             children: [

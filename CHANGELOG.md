@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Granular UI Rebuild Optimization (`ClinicReceptionPage`)**: Eliminated full-page flashes and jitter during patient intake and queue changes. Removed top-level `BlocBuilder` from the page `Scaffold` and pushed localized builders down to the KPI banner, tab badges, and list views.
 - **Checkout & Billing Chronological Sorting (`ClinicBloc` & `ClinicState`)**: Sorted `billingVisits` and `completedQueue` reverse-chronologically by completion/check-in timestamp, ensuring the newest completed visits immediately appear at the top.
 - **Queue List Item ValueKey Optimization (`ClinicReceptionPage`)**: Optimized ListView rendering with ValueKeys (`key: ValueKey('queue_visit_${visit.id}')` and `key: ValueKey('billing_visit_${visit.id}')`) and added `buildWhen` filters to eliminate list re-rendering flashes when appending new patients to the queue.
+- **Equal-Height KPI Banners (`ClinicReceptionPage`)**: Wrapped reception KPI cards in an `IntrinsicHeight` responsive layout with `Expanded` equal flex distribution, preventing vertical mismatches and text overflow.
+- **Contextual Shift Management Controls (`MainShell`)**: Contextually hid the global `OpenShift` header button for `doctor` and `receptionist` roles and on clinic-specific pages, ensuring shift drawer controls only appear for POS Cashiers and Managers.
+- **Visit Payment Settlement & Queue Clearing (`ClinicBloc` & `ClinicReceptionPage`)**: Implemented `ProcessVisitPaymentEvent` to mark completed visits as paid (`isPaid: true`), immediately clearing settled visits from the reception billing queue across all LAN nodes with `visit.updated` sync.
+- **Patient CRM Linkage & Patient File Lightbox (`ClinicBloc` & `ClinicReceptionPage`)**: Linked clinic check-in directly to `CustomerRepository` so medical patients automatically sync to the CRM Customers directory, and added a "View File" folder action on queue cards to inspect full patient history.
 
 ---
 

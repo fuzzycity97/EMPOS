@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/network/lan_sync/data/message_routes.dart';
 import '../../../../core/network/lan_sync/domain/entities/sync_envelope.dart';
 import '../../../../core/network/lan_sync/domain/repositories/lan_sync_repository.dart';
+import '../../../customers/domain/entities/customer.dart';
+import '../../../customers/domain/repositories/customer_repository.dart';
 import '../../data/models/clinic_visit_model.dart';
 import '../../data/models/patient_profile_model.dart';
 import '../../domain/entities/clinic_visit.dart';
@@ -37,6 +39,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
   final SavePatientUseCase? savePatientUseCase;
   final SaveVisitUseCase? saveVisitUseCase;
   final ClinicRepository? clinicRepository;
+  final CustomerRepository? customerRepository;
   final LanSyncRepository? lanSyncRepository;
 
   StreamSubscription<SyncEnvelope>? _lanSyncSubscription;
@@ -54,12 +57,14 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
     this.savePatientUseCase,
     this.saveVisitUseCase,
     this.clinicRepository,
+    this.customerRepository,
     this.lanSyncRepository,
   }) : super(ClinicInitial()) {
     on<LoadClinicQueueEvent>(_onLoadClinicQueue);
     on<CheckInPatientEvent>(_onCheckInPatient);
     on<UpdateVisitStatusEvent>(_onUpdateVisitStatus);
     on<CompleteVisitEvent>(_onCompleteVisit);
+    on<ProcessVisitPaymentEvent>(_onProcessVisitPayment);
     on<LoadPatientToothChartEvent>(_onLoadPatientToothChart);
     on<UpdateToothChartEntryEvent>(_onUpdateToothChartEntry);
     on<SaveToothChartEvent>(_onSaveToothChart);
@@ -73,6 +78,19 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
       await savePatientUseCase!(patient);
     } else if (clinicRepository != null) {
       await clinicRepository!.savePatient(patient);
+    }
+
+    if (customerRepository != null) {
+      try {
+        final customer = Customer(
+          id: patient.id,
+          name: patient.name,
+          phone: patient.phone,
+          address: null,
+          createdAt: patient.createdAt,
+        );
+        await customerRepository!.saveCustomer(customer);
+      } catch (_) {}
     }
   }
 
@@ -344,7 +362,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
       (queue) {
         final patients = patientsResult.getOrElse(() => []);
         final waitMin = waitResult.getOrElse(() => 15);
-        final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
+        final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed && !v.isPaid).toList();
         billingVisits.sort((a, b) {
           final timeA = a.completionTime ?? a.checkInTime;
           final timeB = b.completionTime ?? b.checkInTime;
@@ -424,7 +442,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         final queue = (await getClinicQueueUseCase()).getOrElse(() => []);
         final patients = (await getPatientsUseCase()).getOrElse(() => []);
         final waitMin = (await getRollingMeanWaitUseCase(event.doctorName)).getOrElse(() => 15);
-        final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
+        final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed && !v.isPaid).toList();
         billingVisits.sort((a, b) {
           final timeA = a.completionTime ?? a.checkInTime;
           final timeB = b.completionTime ?? b.checkInTime;
@@ -491,7 +509,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         final queue = (await getClinicQueueUseCase()).getOrElse(() => []);
         final patients = (await getPatientsUseCase()).getOrElse(() => []);
         final waitMin = (await getRollingMeanWaitUseCase(updated.doctorName)).getOrElse(() => 15);
-        final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
+        final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed && !v.isPaid).toList();
         billingVisits.sort((a, b) {
           final timeA = a.completionTime ?? a.checkInTime;
           final timeB = b.completionTime ?? b.checkInTime;
@@ -557,7 +575,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         final queue = (await getClinicQueueUseCase()).getOrElse(() => []);
         final patients = (await getPatientsUseCase()).getOrElse(() => []);
         final waitMin = (await getRollingMeanWaitUseCase(completed.doctorName)).getOrElse(() => 15);
-        final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
+        final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed && !v.isPaid).toList();
         billingVisits.sort((a, b) {
           final timeA = a.completionTime ?? a.checkInTime;
           final timeB = b.completionTime ?? b.checkInTime;
@@ -573,6 +591,66 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _onProcessVisitPayment(
+    ProcessVisitPaymentEvent event,
+    Emitter<ClinicState> emit,
+  ) async {
+    emit(ClinicLoading());
+    final queueResult = await getClinicQueueUseCase();
+    final allVisits = queueResult.getOrElse(() => []);
+    final visit = allVisits.cast<ClinicVisit?>().firstWhere(
+      (v) => v?.id == event.visitId,
+      orElse: () => null,
+    );
+
+    if (visit != null) {
+      final updatedVisit = visit.copyWith(isPaid: true);
+      await _saveVisitLocally(updatedVisit);
+
+      final existingPatients = (await getPatientsUseCase()).getOrElse(() => []);
+      final patient = existingPatients.cast<PatientProfile?>().firstWhere(
+        (p) => p?.id == updatedVisit.patientId,
+        orElse: () => null,
+      );
+
+      final envelope = SyncEnvelope.create(
+        type: MessageRoutes.syncVisitUpdated,
+        scope: 'clinic',
+        senderId: lanSyncRepository?.isHost == true ? 'hub_host' : 'clinic_station',
+        senderRole: 'receptionist',
+        payload: {
+          'visitId': updatedVisit.id,
+          'patientId': updatedVisit.patientId,
+          'patientName': updatedVisit.patientName,
+          'status': updatedVisit.status.name,
+          'isPaid': true,
+          'patient': patient != null ? PatientProfileModel.fromEntity(patient).toJson() : null,
+          'visit': ClinicVisitModel.fromEntity(updatedVisit).toJson(),
+        },
+      );
+      await lanSyncRepository?.broadcast(envelope);
+    }
+
+    final queue = (await getClinicQueueUseCase()).getOrElse(() => []);
+    final patients = (await getPatientsUseCase()).getOrElse(() => []);
+    final waitMin = (await getRollingMeanWaitUseCase(visit?.doctorName ?? 'General Practitioner')).getOrElse(() => 15);
+    final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed && !v.isPaid).toList();
+    billingVisits.sort((a, b) {
+      final timeA = a.completionTime ?? a.checkInTime;
+      final timeB = b.completionTime ?? b.checkInTime;
+      return timeB.compareTo(timeA);
+    });
+
+    emit(
+      ClinicLoaded(
+        queue: queue,
+        patients: patients,
+        billingVisits: billingVisits,
+        rollingMeanWaitMinutes: waitMin,
+      ),
     );
   }
 

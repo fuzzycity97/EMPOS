@@ -73,7 +73,7 @@ class ClinicReceptionPage extends StatelessWidget {
                         final completedList = state.billingVisits ?? state.completedQueue;
 
                         return selectedTab == 0
-                            ? _buildQueueTab(context, waitingList, inExaminationList, isDark)
+                            ? _buildQueueTab(context, waitingList, inExaminationList, state.patients, isDark)
                             : _buildBillingTab(context, completedList, state.patients, isDark);
                       }
 
@@ -106,45 +106,49 @@ class ClinicReceptionPage extends StatelessWidget {
           completedCount = (state.billingVisits ?? state.completedQueue).length;
         }
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+        final cards = [
+          _buildKpiCard(
+            'Estimated Patient Wait',
+            '$waitMinutes mins',
+            '5-Visit Rolling Mean',
+            Icons.timer_outlined,
+            Colors.amber,
+            isDark,
+          ),
+          _buildKpiCard(
+            'Waiting in Lobby',
+            '$waitingCount',
+            'Ready for consultation',
+            Icons.hourglass_top,
+            Colors.blue,
+            isDark,
+          ),
+          _buildKpiCard(
+            'In Examination',
+            '$inExamCount',
+            'With Medical Staff',
+            Icons.medical_services_outlined,
+            Colors.purple,
+            isDark,
+          ),
+          _buildKpiCard(
+            'Awaiting Checkout',
+            '$completedCount',
+            'Ready for Copay & Billing',
+            Icons.receipt_long,
+            Colors.teal,
+            isDark,
+          ),
+        ];
+
+        return IntrinsicHeight(
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildKpiCard(
-                'Estimated Patient Wait',
-                '$waitMinutes mins',
-                '5-Visit Rolling Mean',
-                Icons.timer_outlined,
-                Colors.amber,
-                isDark,
-              ),
-              const SizedBox(width: 14),
-              _buildKpiCard(
-                'Waiting in Lobby',
-                '$waitingCount',
-                'Ready for consultation',
-                Icons.hourglass_top,
-                Colors.blue,
-                isDark,
-              ),
-              const SizedBox(width: 14),
-              _buildKpiCard(
-                'In Examination',
-                '$inExamCount',
-                'With Medical Staff',
-                Icons.medical_services_outlined,
-                Colors.purple,
-                isDark,
-              ),
-              const SizedBox(width: 14),
-              _buildKpiCard(
-                'Awaiting Checkout',
-                '$completedCount',
-                'Ready for Copay & Billing',
-                Icons.receipt_long,
-                Colors.teal,
-                isDark,
-              ),
+              for (int i = 0; i < cards.length; i++) ...[
+                if (i > 0) const SizedBox(width: 14),
+                Expanded(child: cards[i]),
+              ],
             ],
           ),
         );
@@ -217,40 +221,55 @@ class ClinicReceptionPage extends StatelessWidget {
     Color color,
     bool isDark,
   ) {
-    return SizedBox(
-      width: 190,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, size: 24, color: color),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54)),
-                  const SizedBox(height: 2),
-                  Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(fontSize: 10, color: Colors.grey), overflow: TextOverflow.ellipsis),
-                ],
-              ),
+            child: Icon(icon, size: 22, color: color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: color),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -277,6 +296,7 @@ class ClinicReceptionPage extends StatelessWidget {
     BuildContext context,
     List<ClinicVisit> waiting,
     List<ClinicVisit> inExamination,
+    List<PatientProfile> patients,
     bool isDark,
   ) {
     final allActive = [...inExamination, ...waiting];
@@ -309,6 +329,11 @@ class ClinicReceptionPage extends StatelessWidget {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                IconButton(
+                  icon: const Icon(Icons.folder_shared_outlined, color: Colors.blue),
+                  tooltip: 'View Patient File',
+                  onPressed: () => _showPatientFileDialog(context, visit, patients),
+                ),
                 if (!isInRoom)
                   ElevatedButton(
                     onPressed: () {
@@ -409,6 +434,7 @@ class ClinicReceptionPage extends StatelessWidget {
                     const SizedBox(height: 8),
                     ElevatedButton.icon(
                       onPressed: () {
+                        bloc.add(ProcessVisitPaymentEvent(visit.id));
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
@@ -435,6 +461,68 @@ class ClinicReceptionPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => PatientIntakeDialog(bloc: bloc),
+    );
+  }
+
+  void _showPatientFileDialog(BuildContext context, ClinicVisit visit, List<PatientProfile> patients) {
+    final patient = patients.cast<PatientProfile?>().firstWhere(
+      (p) => p?.id == visit.patientId,
+      orElse: () => null,
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.folder_shared, color: Colors.blue),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Patient File: ${visit.patientName}', overflow: TextOverflow.ellipsis)),
+          ],
+        ),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildFileRow('Patient ID:', visit.patientId),
+              _buildFileRow('Phone:', patient?.phone.isNotEmpty == true ? patient!.phone : 'Not recorded'),
+              _buildFileRow('Assigned Doctor:', formatDoctorName(visit.doctorName)),
+              _buildFileRow('Room / Station:', visit.roomNumber),
+              _buildFileRow('Chief Complaint:', visit.chiefComplaint.isNotEmpty ? visit.chiefComplaint : 'Standard checkup'),
+              _buildFileRow('Status:', visit.status.name.toUpperCase()),
+              if (patient?.insuranceProvider != null)
+                _buildFileRow('Insurance Carrier:', '${patient!.insuranceProvider} (${((1 - patient.defaultCopayPercentage) * 100).toInt()}% coverage)'),
+              _buildFileRow('Check-In Time:', '${visit.checkInTime.hour.toString().padLeft(2, '0')}:${visit.checkInTime.minute.toString().padLeft(2, '0')}'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFileRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
     );
   }
 }

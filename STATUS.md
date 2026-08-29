@@ -154,11 +154,16 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 - **Resolved**: Outbox Sync Race Condition. Ensured patient self-healing in `_initLanSyncListener` so offline `visit.updated` events auto-upsert missing patients on the fly.
 - **Resolved**: UI Jitter & Full Page Rebuilds. Removed top-level `BlocBuilder` from `ClinicReceptionPage` `Scaffold` and implemented granular localized builders for KPIs, tab badges, and list views.
 - **Resolved**: Checkout & Billing Sort Order. `ClinicBloc` and `ClinicLoaded.completedQueue` sort `billingVisits` reverse-chronologically by timestamp (newest completed first).
+- **Resolved**: KPI Cards UI Height Mismatch & Text Overflow. Wrapped reception KPI cards in an `IntrinsicHeight` responsive layout with `Expanded` equal flex distribution, preventing vertical mismatches and text overflow.
+- **Resolved**: Irrelevant Open Shift Header Controls. Contextually hid the global `OpenShift` header button for `doctor` and `receptionist` roles and on clinic-specific pages in `MainShell`.
+- **Resolved**: Stubbed Payment Button & Billing Queue Clearing. Implemented `ProcessVisitPaymentEvent` in `ClinicBloc` and `ClinicReceptionPage` to mark completed visits as paid (`isPaid: true`), immediately clearing settled visits from the reception billing queue across all LAN nodes with `visit.updated` sync.
+- **Resolved**: Missing Patient CRM Linkage. Linked clinic check-in directly to `CustomerRepository` so medical patients automatically sync to the CRM Customers directory, and added a "View File" folder action on queue cards to inspect full patient history.
 
 ---
 
 ## 8. Change Log
 
+- **2026-08-29 (Antigravity)**: Completed Clinic Polish: Equal-height IntrinsicHeight KPI cards, contextual hide of Open Shift button for clinic roles/tabs in `MainShell`, payment processing and billing queue clearing with `ProcessVisitPaymentEvent`, and seamless Patient-to-CRM synchronization with View Patient File dialog. Added unit tests #14 and #15 in `test/lan_sync_full_payload_test.dart` (203 tests passing, 0 analyzer issues).
 - **2026-08-29 (Antigravity)**: Resolved Outbox sync race condition with patient self-healing in `ClinicBloc`, eliminated UI rebuild flashes using granular `BlocBuilder` architecture in `ClinicReceptionPage`, and enforced reverse-chronological sorting for Checkout & Billing. Added unit tests #12 and #13 in `test/lan_sync_full_payload_test.dart` (201 tests passing, 0 analyzer issues).
 - **2026-08-29 (Antigravity)**: Implemented WhatsApp-style Offline Outbox Event Queue in `LanSyncRepositoryImpl` with Hive box `'empos_offline_sync_queue'`. Offline broadcasts are queued to disk and automatically flushed to peers upon reconnection before state reconciliation. Added test #11 in `test/lan_sync_full_payload_test.dart` (199 tests passing, 0 analyzer issues).
 - **2026-08-29 (Antigravity)**: Mapped Doctor ID to display name in `ClinicReceptionPage` UI and implemented bulletproof 3-stage multi-ping handshake (1s, 3s, 6s) in `LanSyncRepositoryImpl`. Added doctor translation unit tests in `test/clinic_module_test.dart` (198 tests passing, 0 analyzer issues).

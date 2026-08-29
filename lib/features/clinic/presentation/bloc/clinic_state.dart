@@ -40,7 +40,7 @@ class ClinicLoaded extends ClinicState {
       queue.where((v) => v.status == ClinicVisitStatus.inExamination).toList();
 
   List<ClinicVisit> get completedQueue {
-    final list = billingVisits ?? queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
+    final list = billingVisits ?? queue.where((v) => v.status == ClinicVisitStatus.completed && !v.isPaid).toList();
     final sorted = List<ClinicVisit>.from(list);
     sorted.sort((a, b) {
       final timeA = a.completionTime ?? a.checkInTime;
