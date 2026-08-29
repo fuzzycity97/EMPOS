@@ -22,6 +22,7 @@ import 'package:empos/features/clinic/domain/usecases/search_patients_usecase.da
 import 'package:empos/features/clinic/domain/usecases/update_visit_status_usecase.dart';
 import 'package:empos/features/clinic/presentation/bloc/clinic_bloc.dart';
 import 'package:empos/features/clinic/presentation/bloc/clinic_event.dart';
+import 'package:empos/features/clinic/presentation/bloc/clinic_state.dart';
 
 class MockLanSyncRepository extends Mock implements LanSyncRepository {}
 class MockClinicRepository extends Mock implements ClinicRepository {}
@@ -748,6 +749,61 @@ void main() {
 
       expect(counterEnv.payload!['visitId'], equals('vis_conflict_1'));
       expect(counterEnv.payload!['status'], equals('inExamination'));
+
+      await clinicBloc.close();
+    });
+
+    test('10. Billing Queue: ClinicBloc populates billingVisits with completed visits on queue reload', () async {
+      final completedVisit = ClinicVisit(
+        id: 'vis_bill_1',
+        patientId: 'pat_bill_1',
+        patientName: 'Billing Patient',
+        doctorName: 'usr_doctor',
+        queueNumber: 1,
+        status: ClinicVisitStatus.completed,
+        checkInTime: DateTime.now().subtract(const Duration(minutes: 30)),
+        completionTime: DateTime.now(),
+        totalFee: 250.0,
+        patientCopay: 50.0,
+      );
+
+      final waitingVisit = ClinicVisit(
+        id: 'vis_wait_1',
+        patientId: 'pat_wait_1',
+        patientName: 'Waiting Patient',
+        doctorName: 'usr_doctor',
+        queueNumber: 2,
+        status: ClinicVisitStatus.waiting,
+        checkInTime: DateTime.now(),
+      );
+
+      when(() => mockGetQueue.call(doctorName: any(named: 'doctorName')))
+          .thenAnswer((_) async => Right([completedVisit, waitingVisit]));
+
+      final clinicBloc = ClinicBloc(
+        getClinicQueueUseCase: mockGetQueue,
+        checkInPatientUseCase: mockCheckIn,
+        updateVisitStatusUseCase: mockUpdateVisit,
+        completeVisitUseCase: mockCompleteVisit,
+        getPatientToothChartUseCase: mockGetToothChart,
+        saveToothChartUseCase: mockSaveToothChart,
+        getPatientsUseCase: mockGetPatients,
+        searchPatientsUseCase: mockSearchPatients,
+        getRollingMeanWaitUseCase: mockGetWait,
+        clinicRepository: mockClinicRepo,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+
+      clinicBloc.add(const LoadClinicQueueEvent());
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      expect(clinicBloc.state, isA<ClinicLoaded>());
+      final state = clinicBloc.state as ClinicLoaded;
+      expect(state.billingVisits, isNotNull);
+      expect(state.billingVisits!.length, equals(1));
+      expect(state.billingVisits!.first.id, equals('vis_bill_1'));
+      expect(state.completedQueue.length, equals(1));
+      expect(state.waitingQueue.length, equals(1));
 
       await clinicBloc.close();
     });

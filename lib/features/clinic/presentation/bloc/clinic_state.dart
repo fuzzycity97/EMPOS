@@ -21,6 +21,7 @@ class ClinicLoaded extends ClinicState {
   final int? rollingMeanWaitMinutes;
   final String? activePatientId;
   final String? activeVisitId;
+  final List<ClinicVisit>? billingVisits;
 
   const ClinicLoaded({
     required this.queue,
@@ -29,6 +30,7 @@ class ClinicLoaded extends ClinicState {
     this.rollingMeanWaitMinutes,
     this.activePatientId,
     this.activeVisitId,
+    this.billingVisits,
   });
 
   List<ClinicVisit> get waitingQueue =>
@@ -38,7 +40,7 @@ class ClinicLoaded extends ClinicState {
       queue.where((v) => v.status == ClinicVisitStatus.inExamination).toList();
 
   List<ClinicVisit> get completedQueue =>
-      queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
+      billingVisits ?? queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
 
   ClinicVisit? get activeVisit {
     if (activeVisitId == null) {
@@ -71,6 +73,7 @@ class ClinicLoaded extends ClinicState {
     int? rollingMeanWaitMinutes,
     String? activePatientId,
     String? activeVisitId,
+    List<ClinicVisit>? billingVisits,
   }) {
     return ClinicLoaded(
       queue: queue ?? this.queue,
@@ -79,6 +82,7 @@ class ClinicLoaded extends ClinicState {
       rollingMeanWaitMinutes: rollingMeanWaitMinutes ?? this.rollingMeanWaitMinutes,
       activePatientId: activePatientId ?? this.activePatientId,
       activeVisitId: activeVisitId ?? this.activeVisitId,
+      billingVisits: billingVisits ?? this.billingVisits,
     );
   }
 
@@ -90,6 +94,7 @@ class ClinicLoaded extends ClinicState {
         rollingMeanWaitMinutes,
         activePatientId,
         activeVisitId,
+        billingVisits,
       ];
 }
 

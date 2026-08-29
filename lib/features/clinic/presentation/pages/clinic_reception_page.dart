@@ -54,7 +54,7 @@ class ClinicReceptionPage extends StatelessWidget {
         final loadedState = state as ClinicLoaded;
         final waitingList = loadedState.waitingQueue;
         final inExaminationList = loadedState.inExaminationQueue;
-        final completedList = loadedState.completedQueue;
+        final completedList = loadedState.billingVisits ?? loadedState.completedQueue;
         final waitMinutes = loadedState.rollingMeanWaitMinutes ?? 15;
 
         return ValueListenableBuilder<int>(

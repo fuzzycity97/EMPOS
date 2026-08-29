@@ -66,7 +66,8 @@ class ClinicRepositoryImpl implements ClinicRepository {
       final allVisits = await localDataSource.getVisits();
       var queue = allVisits.where((v) {
         final isActive = v.status == ClinicVisitStatus.waiting ||
-            v.status == ClinicVisitStatus.inExamination;
+            v.status == ClinicVisitStatus.inExamination ||
+            v.status == ClinicVisitStatus.completed;
         if (!isActive) return false;
         if (doctorName != null && doctorName.trim().isNotEmpty) {
           return v.doctorName.toLowerCase() == doctorName.trim().toLowerCase();

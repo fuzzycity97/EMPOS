@@ -12,6 +12,11 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   HttpServer? _server;
   WebSocketChannel? _clientChannel;
   StreamSubscription? _clientSubscription;
+  Timer? _reconnectTimer;
+
+  String? _targetHostIp;
+  int _targetPort = 9090;
+  bool _shouldAutoReconnect = false;
 
   final Set<WebSocketChannel> _activeChannels = {};
   final Map<WebSocketChannel, ConnectedNode> _nodeMap = {};
@@ -103,53 +108,81 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   Future<void> connectToHost(String hostIp, {int port = 9090}) async {
     await disconnect();
 
-    final uri = Uri.parse('ws://$hostIp:$port');
-    final channel = WebSocketChannel.connect(uri);
+    _shouldAutoReconnect = true;
+    _targetHostIp = hostIp;
+    _targetPort = port;
 
-    _clientChannel = channel;
-    _isHost = false;
-    _isConnected = true;
+    await _establishClientConnection(hostIp, port);
+  }
 
-    _clientSubscription = channel.stream.listen(
-      (data) {
-        try {
-          final envelope = SyncEnvelope.fromRawJson(data.toString());
-          _incomingEventsController.add(envelope);
-        } catch (_) {}
-      },
-      onDone: () {
-        _isConnected = false;
-        _clientSubscription?.cancel();
-        _clientChannel = null;
-      },
-      onError: (err) {
-        _isConnected = false;
-        _clientSubscription?.cancel();
-        _clientChannel = null;
-      },
-      cancelOnError: true,
-    );
+  Future<void> _establishClientConnection(String hostIp, int port) async {
+    try {
+      final uri = Uri.parse('ws://$hostIp:$port');
+      final channel = WebSocketChannel.connect(uri);
 
-    // Send node joined handshake
-    final joinEnvelope = SyncEnvelope.create(
-      type: MessageRoutes.nodeJoined,
-      senderId: 'client-station',
-      senderRole: 'station',
-    );
-    await broadcast(joinEnvelope);
+      _clientChannel = channel;
+      _isHost = false;
+      _isConnected = true;
 
-    // Wait 800ms to ensure the Host's server has fully registered the peer before requesting state
-    await Future.delayed(const Duration(milliseconds: 800));
+      _clientSubscription = channel.stream.listen(
+        (data) {
+          try {
+            final envelope = SyncEnvelope.fromRawJson(data.toString());
+            _incomingEventsController.add(envelope);
+          } catch (_) {}
+        },
+        onDone: () {
+          _handleClientDisconnect();
+        },
+        onError: (err) {
+          _handleClientDisconnect();
+        },
+        cancelOnError: true,
+      );
 
-    if (_isConnected && _clientChannel != null) {
-      // Send state reconciliation request to sync any missed state
-      final syncRequestEnvelope = SyncEnvelope.create(
-        type: MessageRoutes.syncRequestActiveState,
+      // Send node joined handshake
+      final joinEnvelope = SyncEnvelope.create(
+        type: MessageRoutes.nodeJoined,
         senderId: 'client-station',
         senderRole: 'station',
       );
-      await broadcast(syncRequestEnvelope);
+      await broadcast(joinEnvelope);
+
+      // Wait 800ms to ensure the Host's server has fully registered the peer before requesting state
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      if (_isConnected && _clientChannel != null) {
+        // Send state reconciliation request to sync any missed state
+        final syncRequestEnvelope = SyncEnvelope.create(
+          type: MessageRoutes.syncRequestActiveState,
+          senderId: 'client-station',
+          senderRole: 'station',
+        );
+        await broadcast(syncRequestEnvelope);
+      }
+    } catch (_) {
+      _handleClientDisconnect();
     }
+  }
+
+  void _handleClientDisconnect() {
+    _isConnected = false;
+    _clientSubscription?.cancel();
+    _clientSubscription = null;
+    _clientChannel = null;
+
+    if (_shouldAutoReconnect && !_isHost && _targetHostIp != null) {
+      _scheduleReconnect();
+    }
+  }
+
+  void _scheduleReconnect() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(const Duration(seconds: 2), () async {
+      if (_shouldAutoReconnect && !_isConnected && !_isHost && _targetHostIp != null) {
+        await _establishClientConnection(_targetHostIp!, _targetPort);
+      }
+    });
   }
 
   @override
@@ -174,6 +207,10 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
 
   @override
   Future<void> disconnect() async {
+    _shouldAutoReconnect = false;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+
     // Close client subscription and channel
     await _clientSubscription?.cancel();
     _clientSubscription = null;

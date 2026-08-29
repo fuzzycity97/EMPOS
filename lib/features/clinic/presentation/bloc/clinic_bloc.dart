@@ -322,11 +322,13 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
       (queue) {
         final patients = patientsResult.getOrElse(() => []);
         final waitMin = waitResult.getOrElse(() => 15);
+        final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
 
         emit(
           ClinicLoaded(
             queue: queue,
             patients: patients,
+            billingVisits: billingVisits,
             rollingMeanWaitMinutes: waitMin,
           ),
         );
@@ -395,11 +397,13 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         final queue = (await getClinicQueueUseCase()).getOrElse(() => []);
         final patients = (await getPatientsUseCase()).getOrElse(() => []);
         final waitMin = (await getRollingMeanWaitUseCase(event.doctorName)).getOrElse(() => 15);
+        final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
 
         emit(
           ClinicLoaded(
             queue: queue,
             patients: patients,
+            billingVisits: billingVisits,
             rollingMeanWaitMinutes: waitMin,
             activeVisitId: savedVisit.id,
             activePatientId: savedVisit.patientId,
@@ -446,11 +450,13 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         final queue = (await getClinicQueueUseCase()).getOrElse(() => []);
         final patients = (await getPatientsUseCase()).getOrElse(() => []);
         final waitMin = (await getRollingMeanWaitUseCase(updated.doctorName)).getOrElse(() => 15);
+        final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
 
         emit(
           ClinicLoaded(
             queue: queue,
             patients: patients,
+            billingVisits: billingVisits,
             rollingMeanWaitMinutes: waitMin,
             activeVisitId: event.visitId,
           ),
@@ -496,11 +502,13 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         final queue = (await getClinicQueueUseCase()).getOrElse(() => []);
         final patients = (await getPatientsUseCase()).getOrElse(() => []);
         final waitMin = (await getRollingMeanWaitUseCase(completed.doctorName)).getOrElse(() => 15);
+        final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
 
         emit(
           ClinicLoaded(
             queue: queue,
             patients: patients,
+            billingVisits: billingVisits,
             rollingMeanWaitMinutes: waitMin,
           ),
         );
