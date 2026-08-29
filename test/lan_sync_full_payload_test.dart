@@ -842,5 +842,110 @@ void main() {
         tempDir.deleteSync(recursive: true);
       }
     });
+
+    test('12. Checkout Sorting: billingVisits is sorted reverse-chronologically (newest completed first)', () async {
+      final olderVisit = ClinicVisit(
+        id: 'vis_old',
+        patientId: 'pat_old',
+        patientName: 'Older Patient',
+        doctorName: 'usr_doctor',
+        queueNumber: 1,
+        status: ClinicVisitStatus.completed,
+        checkInTime: DateTime.now().subtract(const Duration(hours: 2)),
+        completionTime: DateTime.now().subtract(const Duration(hours: 1)),
+      );
+
+      final newerVisit = ClinicVisit(
+        id: 'vis_new',
+        patientId: 'pat_new',
+        patientName: 'Newer Patient',
+        doctorName: 'usr_doctor',
+        queueNumber: 2,
+        status: ClinicVisitStatus.completed,
+        checkInTime: DateTime.now().subtract(const Duration(minutes: 30)),
+        completionTime: DateTime.now().subtract(const Duration(minutes: 5)),
+      );
+
+      when(() => mockGetQueue.call(doctorName: any(named: 'doctorName')))
+          .thenAnswer((_) async => Right([olderVisit, newerVisit]));
+
+      final clinicBloc = ClinicBloc(
+        getClinicQueueUseCase: mockGetQueue,
+        checkInPatientUseCase: mockCheckIn,
+        updateVisitStatusUseCase: mockUpdateVisit,
+        completeVisitUseCase: mockCompleteVisit,
+        getPatientToothChartUseCase: mockGetToothChart,
+        saveToothChartUseCase: mockSaveToothChart,
+        getPatientsUseCase: mockGetPatients,
+        searchPatientsUseCase: mockSearchPatients,
+        getRollingMeanWaitUseCase: mockGetWait,
+        clinicRepository: mockClinicRepo,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+
+      clinicBloc.add(const LoadClinicQueueEvent());
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      expect(clinicBloc.state, isA<ClinicLoaded>());
+      final state = clinicBloc.state as ClinicLoaded;
+      expect(state.billingVisits!.first.id, equals('vis_new'));
+      expect(state.billingVisits!.last.id, equals('vis_old'));
+      expect(state.completedQueue.first.id, equals('vis_new'));
+
+      await clinicBloc.close();
+    });
+
+    test('13. Sync Resilience: Incoming visit.updated auto-creates missing patient locally if not found', () async {
+      when(() => mockGetPatients.call()).thenAnswer((_) async => const Right([]));
+      when(() => mockGetQueue.call(doctorName: any(named: 'doctorName')))
+          .thenAnswer((_) async => const Right([]));
+
+      final clinicBloc = ClinicBloc(
+        getClinicQueueUseCase: mockGetQueue,
+        checkInPatientUseCase: mockCheckIn,
+        updateVisitStatusUseCase: mockUpdateVisit,
+        completeVisitUseCase: mockCompleteVisit,
+        getPatientToothChartUseCase: mockGetToothChart,
+        saveToothChartUseCase: mockSaveToothChart,
+        getPatientsUseCase: mockGetPatients,
+        searchPatientsUseCase: mockSearchPatients,
+        getRollingMeanWaitUseCase: mockGetWait,
+        clinicRepository: mockClinicRepo,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+
+      final updateEnv = SyncEnvelope.create(
+        type: MessageRoutes.syncVisitUpdated,
+        senderId: 'doctor_station',
+        senderRole: 'doctor',
+        payload: {
+          'visitId': 'vis_orphan_1',
+          'patientId': 'pat_orphan_1',
+          'patientName': 'Orphan Patient',
+          'status': 'inExamination',
+          'visit': ClinicVisitModel(
+            id: 'vis_orphan_1',
+            patientId: 'pat_orphan_1',
+            patientName: 'Orphan Patient',
+            doctorName: 'usr_doctor',
+            queueNumber: 3,
+            status: ClinicVisitStatus.inExamination,
+            checkInTime: DateTime.now(),
+          ).toJson(),
+        },
+      );
+
+      incomingEventsController.add(updateEnv);
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Verify that savePatient was called for the missing patient
+      verify(() => mockClinicRepo.savePatient(any(that: isA<PatientProfile>().having(
+            (p) => p.id,
+            'id',
+            equals('pat_orphan_1'),
+          )))).called(1);
+
+      await clinicBloc.close();
+    });
   });
 }

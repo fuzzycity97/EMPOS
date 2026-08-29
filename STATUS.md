@@ -151,11 +151,15 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 - **Resolved**: Doctor Name Raw ID Display. Added `formatDoctorName` mapper in `ClinicReceptionPage` translating seeded IDs (`usr_doctor`, `usr_doctor_2`, `usr_doctor_tarek`, `usr_doctor_oncall`) to display names with capitalized fallback.
 - **Resolved**: Host Boot Latency & Dropped Handshake. Implemented 3-stage multi-ping handshake (`sync.request_active_state` dispatched at 1s, 3s, and 6s) in `LanSyncRepositoryImpl`.
 - **Resolved**: Offline Broadcast Drops. Implemented WhatsApp-style offline event queue using Hive box `'empos_offline_sync_queue'` in `LanSyncRepositoryImpl`. Broadcasts while offline or disconnected are stored in local outbox and flushed in FIFO order upon connection.
+- **Resolved**: Outbox Sync Race Condition. Ensured patient self-healing in `_initLanSyncListener` so offline `visit.updated` events auto-upsert missing patients on the fly.
+- **Resolved**: UI Jitter & Full Page Rebuilds. Removed top-level `BlocBuilder` from `ClinicReceptionPage` `Scaffold` and implemented granular localized builders for KPIs, tab badges, and list views.
+- **Resolved**: Checkout & Billing Sort Order. `ClinicBloc` and `ClinicLoaded.completedQueue` sort `billingVisits` reverse-chronologically by timestamp (newest completed first).
 
 ---
 
 ## 8. Change Log
 
+- **2026-08-29 (Antigravity)**: Resolved Outbox sync race condition with patient self-healing in `ClinicBloc`, eliminated UI rebuild flashes using granular `BlocBuilder` architecture in `ClinicReceptionPage`, and enforced reverse-chronological sorting for Checkout & Billing. Added unit tests #12 and #13 in `test/lan_sync_full_payload_test.dart` (201 tests passing, 0 analyzer issues).
 - **2026-08-29 (Antigravity)**: Implemented WhatsApp-style Offline Outbox Event Queue in `LanSyncRepositoryImpl` with Hive box `'empos_offline_sync_queue'`. Offline broadcasts are queued to disk and automatically flushed to peers upon reconnection before state reconciliation. Added test #11 in `test/lan_sync_full_payload_test.dart` (199 tests passing, 0 analyzer issues).
 - **2026-08-29 (Antigravity)**: Mapped Doctor ID to display name in `ClinicReceptionPage` UI and implemented bulletproof 3-stage multi-ping handshake (1s, 3s, 6s) in `LanSyncRepositoryImpl`. Added doctor translation unit tests in `test/clinic_module_test.dart` (198 tests passing, 0 analyzer issues).
 - **2026-08-29 (Antigravity)**: Fixed Vanishing Patient bug and Host-Drop Reconnection Flaw. Populated `billingVisits` in `ClinicLoaded` state with completed visits and bound `ClinicReceptionPage` Checkout & Billing tab to `billingVisits`. Implemented auto-reconnect timer loop in `LanSyncRepositoryImpl` with guaranteed 800ms delay and `sync.request_active_state` state reconciliation on all reconnections. Added unit test #10 in `test/lan_sync_full_payload_test.dart` (197 tests passing, 0 analyzer issues). Initialized Git repository and pushed to GitHub `https://github.com/fuzzycity97/EMPOS`.

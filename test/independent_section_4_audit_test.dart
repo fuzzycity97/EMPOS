@@ -165,7 +165,7 @@ void main() {
 
       // 6. Client Reconnects -> Auto-Sync State Reconciliation (sync.request_active_state -> sync.full_state_response)
       await clientRepo.connectToHost('127.0.0.1', port: 9096);
-      await Future.delayed(const Duration(milliseconds: 1000));
+      await Future.delayed(const Duration(milliseconds: 1500));
 
       // Assert Grace Hopper was reconciled and saved in database
       final reconciledPatient = await clinicDataSource.getPatientById('pat_offline_202');

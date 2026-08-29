@@ -252,6 +252,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
 
         if (payload != null) {
           // 1. Extract and explicitly insert patient entity into local DB
+          PatientProfile? extractedPatient;
           if (payload['patient'] != null) {
             try {
               Map<String, dynamic>? patientMap;
@@ -262,12 +263,14 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
               }
               if (patientMap != null) {
                 final patientModel = PatientProfileModel.fromJson(patientMap);
+                extractedPatient = patientModel;
                 await _savePatientLocally(patientModel);
               }
             } catch (_) {}
           }
 
           // 2. Extract and explicitly insert visit entity into local DB with weight check
+          ClinicVisit? incomingVisit;
           if (payload['visit'] != null) {
             try {
               Map<String, dynamic>? visitMap;
@@ -277,11 +280,11 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
                 visitMap = Map<String, dynamic>.from(jsonDecode(payload['visit'] as String) as Map);
               }
               if (visitMap != null) {
-                final incomingVisit = ClinicVisitModel.fromJson(visitMap);
+                incomingVisit = ClinicVisitModel.fromJson(visitMap);
                 final queueResult = await getClinicQueueUseCase();
                 final localVisits = queueResult.getOrElse(() => []);
                 final localVisit = localVisits.cast<ClinicVisit?>().firstWhere(
-                  (v) => v?.id == incomingVisit.id,
+                  (v) => v?.id == incomingVisit?.id,
                   orElse: () => null,
                 );
 
@@ -294,9 +297,28 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
               }
             } catch (_) {}
           }
+
+          // 3. Guarantee patient existence if payload['patient'] was omitted or partial
+          if (extractedPatient == null) {
+            final patId = incomingVisit?.patientId ?? payload['patientId'] as String?;
+            final patName = incomingVisit?.patientName ?? payload['patientName'] as String? ?? 'Patient';
+            if (patId != null) {
+              final existingPatients = (await getPatientsUseCase()).getOrElse(() => []);
+              final exists = existingPatients.any((p) => p.id == patId);
+              if (!exists) {
+                final fallbackPatient = PatientProfile(
+                  id: patId,
+                  name: patName,
+                  phone: '',
+                  createdAt: DateTime.now(),
+                );
+                await _savePatientLocally(fallbackPatient);
+              }
+            }
+          }
         }
 
-        // 3. Trigger queue reload so UI immediately sees new/updated entities
+        // 4. Trigger queue reload so UI immediately sees new/updated entities
         add(const LoadClinicQueueEvent());
       }
     });
@@ -323,6 +345,11 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         final patients = patientsResult.getOrElse(() => []);
         final waitMin = waitResult.getOrElse(() => 15);
         final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
+        billingVisits.sort((a, b) {
+          final timeA = a.completionTime ?? a.checkInTime;
+          final timeB = b.completionTime ?? b.checkInTime;
+          return timeB.compareTo(timeA);
+        });
 
         emit(
           ClinicLoaded(
@@ -398,6 +425,11 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         final patients = (await getPatientsUseCase()).getOrElse(() => []);
         final waitMin = (await getRollingMeanWaitUseCase(event.doctorName)).getOrElse(() => 15);
         final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
+        billingVisits.sort((a, b) {
+          final timeA = a.completionTime ?? a.checkInTime;
+          final timeB = b.completionTime ?? b.checkInTime;
+          return timeB.compareTo(timeA);
+        });
 
         emit(
           ClinicLoaded(
@@ -425,10 +457,19 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
       (updated) async {
         // Look up patient for full payload sync
         final existingPatients = (await getPatientsUseCase()).getOrElse(() => []);
-        final patient = existingPatients.cast<PatientProfile?>().firstWhere(
+        var patient = existingPatients.cast<PatientProfile?>().firstWhere(
           (p) => p?.id == updated.patientId,
           orElse: () => null,
         );
+        if (patient == null) {
+          patient = PatientProfile(
+            id: updated.patientId,
+            name: updated.patientName,
+            phone: '',
+            createdAt: DateTime.now(),
+          );
+          await _savePatientLocally(patient);
+        }
 
         // Broadcast visit.updated event with FULL DATA PAYLOAD
         final envelope = SyncEnvelope.create(
@@ -441,7 +482,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
             'patientId': updated.patientId,
             'patientName': updated.patientName,
             'status': updated.status.name,
-            'patient': patient != null ? PatientProfileModel.fromEntity(patient).toJson() : null,
+            'patient': PatientProfileModel.fromEntity(patient).toJson(),
             'visit': ClinicVisitModel.fromEntity(updated).toJson(),
           },
         );
@@ -451,6 +492,11 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         final patients = (await getPatientsUseCase()).getOrElse(() => []);
         final waitMin = (await getRollingMeanWaitUseCase(updated.doctorName)).getOrElse(() => 15);
         final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
+        billingVisits.sort((a, b) {
+          final timeA = a.completionTime ?? a.checkInTime;
+          final timeB = b.completionTime ?? b.checkInTime;
+          return timeB.compareTo(timeA);
+        });
 
         emit(
           ClinicLoaded(
@@ -477,10 +523,19 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
       (completed) async {
         // Look up patient for full payload sync
         final existingPatients = (await getPatientsUseCase()).getOrElse(() => []);
-        final patient = existingPatients.cast<PatientProfile?>().firstWhere(
+        var patient = existingPatients.cast<PatientProfile?>().firstWhere(
           (p) => p?.id == completed.patientId,
           orElse: () => null,
         );
+        if (patient == null) {
+          patient = PatientProfile(
+            id: completed.patientId,
+            name: completed.patientName,
+            phone: '',
+            createdAt: DateTime.now(),
+          );
+          await _savePatientLocally(patient);
+        }
 
         // Broadcast visit completed event with FULL DATA PAYLOAD to reception desk and other stations
         final envelope = SyncEnvelope.create(
@@ -493,7 +548,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
             'patientId': completed.patientId,
             'patientName': completed.patientName,
             'totalFee': completed.totalFee,
-            'patient': patient != null ? PatientProfileModel.fromEntity(patient).toJson() : null,
+            'patient': PatientProfileModel.fromEntity(patient).toJson(),
             'visit': ClinicVisitModel.fromEntity(completed).toJson(),
           },
         );
@@ -503,6 +558,11 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         final patients = (await getPatientsUseCase()).getOrElse(() => []);
         final waitMin = (await getRollingMeanWaitUseCase(completed.doctorName)).getOrElse(() => 15);
         final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed).toList();
+        billingVisits.sort((a, b) {
+          final timeA = a.completionTime ?? a.checkInTime;
+          final timeB = b.completionTime ?? b.checkInTime;
+          return timeB.compareTo(timeA);
+        });
 
         emit(
           ClinicLoaded(

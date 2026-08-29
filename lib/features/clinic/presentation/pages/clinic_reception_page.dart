@@ -24,134 +24,183 @@ class ClinicReceptionPage extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final selectedTabNotifier = ValueNotifier<int>(0); // 0 = Live Queue, 1 = Checkout & Billing
 
-    return BlocBuilder<ClinicBloc, ClinicState>(
-      bloc: bloc,
-      builder: (context, state) {
-        if (state is ClinicInitial || state is ClinicLoading) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+    return Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── TOP KPI BANNER (Granular BlocBuilder) ─────────────────────────
+            _buildKpiBanner(context, isDark),
+            const SizedBox(height: 20),
 
-        if (state is ClinicError) {
-          return Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Error: ${state.message}', style: const TextStyle(color: Colors.red)),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: () => bloc.add(const LoadClinicQueueEvent()),
-                    child: const Text('Retry'),
-                  ),
-                ],
+            // ── TAB HEADER & CHECK-IN BUTTON ─────────────────────────────────
+            _buildTabHeaderAndActions(context, isDark, selectedTabNotifier),
+            const SizedBox(height: 16),
+
+            // ── TAB CONTENT LIST VIEW (Granular BlocBuilder) ─────────────────
+            Expanded(
+              child: ValueListenableBuilder<int>(
+                valueListenable: selectedTabNotifier,
+                builder: (context, selectedTab, _) {
+                  return BlocBuilder<ClinicBloc, ClinicState>(
+                    bloc: bloc,
+                    builder: (context, state) {
+                      if (state is ClinicLoading && state is! ClinicLoaded) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      if (state is ClinicError) {
+                        return Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('Error: ${state.message}', style: const TextStyle(color: Colors.red)),
+                              const SizedBox(height: 12),
+                              ElevatedButton(
+                                onPressed: () => bloc.add(const LoadClinicQueueEvent()),
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      if (state is ClinicLoaded) {
+                        final waitingList = state.waitingQueue;
+                        final inExaminationList = state.inExaminationQueue;
+                        final completedList = state.billingVisits ?? state.completedQueue;
+
+                        return selectedTab == 0
+                            ? _buildQueueTab(context, waitingList, inExaminationList, isDark)
+                            : _buildBillingTab(context, completedList, state.patients, isDark);
+                      }
+
+                      return const Center(child: CircularProgressIndicator());
+                    },
+                  );
+                },
               ),
             ),
-          );
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKpiBanner(BuildContext context, bool isDark) {
+    return BlocBuilder<ClinicBloc, ClinicState>(
+      bloc: bloc,
+      buildWhen: (prev, curr) => curr is ClinicLoaded || curr is ClinicInitial,
+      builder: (context, state) {
+        int waitMinutes = 15;
+        int waitingCount = 0;
+        int inExamCount = 0;
+        int completedCount = 0;
+
+        if (state is ClinicLoaded) {
+          waitMinutes = state.rollingMeanWaitMinutes ?? 15;
+          waitingCount = state.waitingQueue.length;
+          inExamCount = state.inExaminationQueue.length;
+          completedCount = (state.billingVisits ?? state.completedQueue).length;
         }
 
-        final loadedState = state as ClinicLoaded;
-        final waitingList = loadedState.waitingQueue;
-        final inExaminationList = loadedState.inExaminationQueue;
-        final completedList = loadedState.billingVisits ?? loadedState.completedQueue;
-        final waitMinutes = loadedState.rollingMeanWaitMinutes ?? 15;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildKpiCard(
+                'Estimated Patient Wait',
+                '$waitMinutes mins',
+                '5-Visit Rolling Mean',
+                Icons.timer_outlined,
+                Colors.amber,
+                isDark,
+              ),
+              const SizedBox(width: 14),
+              _buildKpiCard(
+                'Waiting in Lobby',
+                '$waitingCount',
+                'Ready for consultation',
+                Icons.hourglass_top,
+                Colors.blue,
+                isDark,
+              ),
+              const SizedBox(width: 14),
+              _buildKpiCard(
+                'In Examination',
+                '$inExamCount',
+                'With Medical Staff',
+                Icons.medical_services_outlined,
+                Colors.purple,
+                isDark,
+              ),
+              const SizedBox(width: 14),
+              _buildKpiCard(
+                'Awaiting Checkout',
+                '$completedCount',
+                'Ready for Copay & Billing',
+                Icons.receipt_long,
+                Colors.teal,
+                isDark,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
-        return ValueListenableBuilder<int>(
-          valueListenable: selectedTabNotifier,
-          builder: (context, selectedTab, _) {
-            return Scaffold(
-              body: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _buildTabHeaderAndActions(
+    BuildContext context,
+    bool isDark,
+    ValueNotifier<int> selectedTabNotifier,
+  ) {
+    return ValueListenableBuilder<int>(
+      valueListenable: selectedTabNotifier,
+      builder: (context, selectedTab, _) {
+        return BlocBuilder<ClinicBloc, ClinicState>(
+          bloc: bloc,
+          buildWhen: (prev, curr) => curr is ClinicLoaded,
+          builder: (context, state) {
+            int liveCount = 0;
+            int checkoutCount = 0;
+            List<PatientProfile> patients = [];
+
+            if (state is ClinicLoaded) {
+              liveCount = state.waitingQueue.length + state.inExaminationQueue.length;
+              checkoutCount = (state.billingVisits ?? state.completedQueue).length;
+              patients = state.patients;
+            }
+
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // ── TOP KPI BANNER ───────────────────────────────────────
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildKpiCard(
-                            'Estimated Patient Wait',
-                            '$waitMinutes mins',
-                            '5-Visit Rolling Mean',
-                            Icons.timer_outlined,
-                            Colors.amber,
-                            isDark,
-                          ),
-                          const SizedBox(width: 14),
-                          _buildKpiCard(
-                            'Waiting in Lobby',
-                            '${waitingList.length}',
-                            'Ready for consultation',
-                            Icons.hourglass_top,
-                            Colors.blue,
-                            isDark,
-                          ),
-                          const SizedBox(width: 14),
-                          _buildKpiCard(
-                            'In Examination',
-                            '${inExaminationList.length}',
-                            'With Medical Staff',
-                            Icons.medical_services_outlined,
-                            Colors.purple,
-                            isDark,
-                          ),
-                          const SizedBox(width: 14),
-                          _buildKpiCard(
-                            'Awaiting Checkout',
-                            '${completedList.length}',
-                            'Ready for Copay & Billing',
-                            Icons.receipt_long,
-                            Colors.teal,
-                            isDark,
-                          ),
-                        ],
-                      ),
+                    ChoiceChip(
+                      label: Text('Live Queue ($liveCount)'),
+                      selected: selectedTab == 0,
+                      onSelected: (_) => selectedTabNotifier.value = 0,
                     ),
-                    const SizedBox(height: 20),
-
-                    // ── TAB HEADER & CHECK-IN BUTTON ─────────────────────────
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      alignment: WrapAlignment.spaceBetween,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ChoiceChip(
-                              label: Text('Live Queue (${waitingList.length + inExaminationList.length})'),
-                              selected: selectedTab == 0,
-                              onSelected: (_) => selectedTabNotifier.value = 0,
-                            ),
-                            const SizedBox(width: 8),
-                            ChoiceChip(
-                              label: Text('Checkout & Billing (${completedList.length})'),
-                              selected: selectedTab == 1,
-                              onSelected: (_) => selectedTabNotifier.value = 1,
-                            ),
-                          ],
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => _showCheckInDialog(context, loadedState.patients),
-                          icon: const Icon(Icons.person_add_alt_1),
-                          label: const Text('Patient Intake & Check-In'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── TAB CONTENT ──────────────────────────────────────────
-                    Expanded(
-                      child: selectedTab == 0
-                          ? _buildQueueTab(context, waitingList, inExaminationList, isDark)
-                          : _buildBillingTab(context, completedList, loadedState.patients, isDark),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: Text('Checkout & Billing ($checkoutCount)'),
+                      selected: selectedTab == 1,
+                      onSelected: (_) => selectedTabNotifier.value = 1,
                     ),
                   ],
                 ),
-              ),
+                ElevatedButton.icon(
+                  onPressed: () => _showCheckInDialog(context, patients),
+                  icon: const Icon(Icons.person_add_alt_1),
+                  label: const Text('Patient Intake & Check-In'),
+                ),
+              ],
             );
           },
         );
