@@ -65,6 +65,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
     on<UpdateVisitStatusEvent>(_onUpdateVisitStatus);
     on<CompleteVisitEvent>(_onCompleteVisit);
     on<ProcessVisitPaymentEvent>(_onProcessVisitPayment);
+    on<UpdateVisitVitalsEvent>(_onUpdateVisitVitals);
     on<LoadPatientToothChartEvent>(_onLoadPatientToothChart);
     on<UpdateToothChartEntryEvent>(_onUpdateToothChartEntry);
     on<SaveToothChartEvent>(_onSaveToothChart);
@@ -607,14 +608,52 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
     );
 
     if (visit != null) {
-      final updatedVisit = visit.copyWith(isPaid: true);
-      await _saveVisitLocally(updatedVisit);
-
       final existingPatients = (await getPatientsUseCase()).getOrElse(() => []);
       final patient = existingPatients.cast<PatientProfile?>().firstWhere(
-        (p) => p?.id == updatedVisit.patientId,
+        (p) => p?.id == visit.patientId,
         orElse: () => null,
       );
+
+      final totalFee = visit.totalFee;
+      final copayRatio = patient?.defaultCopayPercentage ?? 1.0;
+      final expectedPatientShare = visit.patientCopay > 0 ? visit.patientCopay : (totalFee * copayRatio);
+
+      final actualPaid = event.amountPaid ?? expectedPatientShare;
+      final remainingDebt = (expectedPatientShare - actualPaid).clamp(0.0, double.infinity);
+
+      final updatedVisit = visit.copyWith(
+        isPaid: true,
+        patientCopay: actualPaid,
+      );
+      await _saveVisitLocally(updatedVisit);
+
+      // Sync remaining debt to CustomerRepository if applicable
+      if (remainingDebt > 0 && customerRepository != null) {
+        try {
+          final customersRes = await customerRepository!.getCustomers();
+          final customers = customersRes.getOrElse(() => []);
+          final existingCust = customers.cast<Customer?>().firstWhere(
+            (c) => c?.id == visit.patientId,
+            orElse: () => null,
+          );
+
+          if (existingCust != null) {
+            final updatedCust = existingCust.copyWith(
+              totalDebt: existingCust.totalDebt + remainingDebt,
+            );
+            await customerRepository!.saveCustomer(updatedCust);
+          } else {
+            final newCust = Customer(
+              id: visit.patientId,
+              name: visit.patientName,
+              phone: patient?.phone ?? '',
+              totalDebt: remainingDebt,
+              createdAt: DateTime.now(),
+            );
+            await customerRepository!.saveCustomer(newCust);
+          }
+        } catch (_) {}
+      }
 
       final envelope = SyncEnvelope.create(
         type: MessageRoutes.syncVisitUpdated,
@@ -627,6 +666,8 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           'patientName': updatedVisit.patientName,
           'status': updatedVisit.status.name,
           'isPaid': true,
+          'patientCopay': actualPaid,
+          'remainingDebt': remainingDebt,
           'patient': patient != null ? PatientProfileModel.fromEntity(patient).toJson() : null,
           'visit': ClinicVisitModel.fromEntity(updatedVisit).toJson(),
         },
@@ -650,6 +691,72 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         patients: patients,
         billingVisits: billingVisits,
         rollingMeanWaitMinutes: waitMin,
+      ),
+    );
+  }
+
+  Future<void> _onUpdateVisitVitals(
+    UpdateVisitVitalsEvent event,
+    Emitter<ClinicState> emit,
+  ) async {
+    emit(ClinicLoading());
+    final queueResult = await getClinicQueueUseCase();
+    final allVisits = queueResult.getOrElse(() => []);
+    final visit = allVisits.cast<ClinicVisit?>().firstWhere(
+      (v) => v?.id == event.visitId,
+      orElse: () => null,
+    );
+
+    if (visit != null) {
+      final updatedVisit = visit.copyWith(
+        bloodPressure: event.bloodPressure,
+        heartRate: event.heartRate,
+        spo2: event.spo2,
+        temperature: event.temperature,
+        respiratoryRate: event.respiratoryRate,
+      );
+      await _saveVisitLocally(updatedVisit);
+
+      final existingPatients = (await getPatientsUseCase()).getOrElse(() => []);
+      final patient = existingPatients.cast<PatientProfile?>().firstWhere(
+        (p) => p?.id == updatedVisit.patientId,
+        orElse: () => null,
+      );
+
+      final envelope = SyncEnvelope.create(
+        type: MessageRoutes.syncVisitUpdated,
+        scope: 'clinic',
+        senderId: lanSyncRepository?.isHost == true ? 'hub_host' : 'clinic_station',
+        senderRole: 'doctor',
+        payload: {
+          'visitId': updatedVisit.id,
+          'patientId': updatedVisit.patientId,
+          'patientName': updatedVisit.patientName,
+          'status': updatedVisit.status.name,
+          'patient': patient != null ? PatientProfileModel.fromEntity(patient).toJson() : null,
+          'visit': ClinicVisitModel.fromEntity(updatedVisit).toJson(),
+        },
+      );
+      await lanSyncRepository?.broadcast(envelope);
+    }
+
+    final queue = (await getClinicQueueUseCase()).getOrElse(() => []);
+    final patients = (await getPatientsUseCase()).getOrElse(() => []);
+    final waitMin = (await getRollingMeanWaitUseCase(visit?.doctorName ?? 'General Practitioner')).getOrElse(() => 15);
+    final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed && !v.isPaid).toList();
+    billingVisits.sort((a, b) {
+      final timeA = a.completionTime ?? a.checkInTime;
+      final timeB = b.completionTime ?? b.checkInTime;
+      return timeB.compareTo(timeA);
+    });
+
+    emit(
+      ClinicLoaded(
+        queue: queue,
+        patients: patients,
+        billingVisits: billingVisits,
+        rollingMeanWaitMinutes: waitMin,
+        activeVisitId: event.visitId,
       ),
     );
   }

@@ -9,6 +9,7 @@ import '../bloc/clinic_event.dart';
 import '../bloc/clinic_state.dart';
 import '../widgets/dental_tooth_matrix_widget.dart';
 import '../widgets/doctor_attachments_lightbox.dart';
+import '../widgets/vitals_input_dialog.dart';
 
 class DoctorStationPage extends StatelessWidget {
   final ClinicBloc bloc;
@@ -77,9 +78,14 @@ class DoctorStationPage extends StatelessWidget {
                     )
                 : null;
 
-            final isPediatric = activePatient != null &&
-                activePatient.dateOfBirth != null &&
-                DateTime.now().difference(DateTime.parse(activePatient.dateOfBirth!)).inDays < 12 * 365;
+            int? patientAge = activePatient?.calculatedAge;
+            if (patientAge == null && activeVisit != null) {
+              final ageMatch = RegExp(r'Age:\s*(\d+)').firstMatch(activeVisit.chiefComplaint);
+              if (ageMatch != null) {
+                patientAge = int.tryParse(ageMatch.group(1)!);
+              }
+            }
+            final isPediatric = (patientAge != null && patientAge < 12);
 
             return Scaffold(
               body: Row(
@@ -368,11 +374,11 @@ class DoctorStationPage extends StatelessWidget {
                   ],
                 ),
               ),
-              if (patient?.insuranceProvider != null) ...
-                [
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Container(
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (patient?.insuranceProvider != null) ...[
+                    Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.blue.withValues(alpha: 0.15),
@@ -384,28 +390,71 @@ class DoctorStationPage extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 8),
+                  ],
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    ),
+                    icon: const Icon(Icons.edit_note, size: 16),
+                    label: const Text('Edit Vitals', style: TextStyle(fontSize: 12)),
+                    onPressed: () => _showEditVitalsDialog(context, visit),
                   ),
                 ],
+              ),
             ],
           ),
           const Divider(height: 20),
 
-          // Vitals Monitor Grid
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _vitalChip('Heart Rate', '76 BPM', Icons.favorite, Colors.red, isDark),
-                const SizedBox(width: 12),
-                _vitalChip('Blood Pressure', '120/80 mmHg', Icons.speed, Colors.purple, isDark),
-                const SizedBox(width: 12),
-                _vitalChip('SpO2', '99%', Icons.air, Colors.teal, isDark),
-                const SizedBox(width: 12),
-                _vitalChip('Temperature', '36.8 °C', Icons.thermostat, Colors.amber, isDark),
-              ],
+          // Vitals Monitor Grid (Clickable)
+          InkWell(
+            onTap: () => _showEditVitalsDialog(context, visit),
+            borderRadius: BorderRadius.circular(8),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _vitalChip('Heart Rate', visit.heartRate, Icons.favorite, Colors.red, isDark),
+                  const SizedBox(width: 12),
+                  _vitalChip('Blood Pressure', visit.bloodPressure, Icons.speed, Colors.purple, isDark),
+                  const SizedBox(width: 12),
+                  _vitalChip('SpO2', visit.spo2, Icons.air, Colors.teal, isDark),
+                  const SizedBox(width: 12),
+                  _vitalChip('Temperature', visit.temperature, Icons.thermostat, Colors.amber, isDark),
+                  const SizedBox(width: 12),
+                  _vitalChip('Respiration', visit.respiratoryRate, Icons.timer, Colors.blue, isDark),
+                ],
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showEditVitalsDialog(BuildContext context, ClinicVisit visit) {
+    showDialog(
+      context: context,
+      builder: (ctx) => VitalsInputDialog(
+        visit: visit,
+        onSave: ({
+          required bloodPressure,
+          required heartRate,
+          required respiratoryRate,
+          required spo2,
+          required temperature,
+        }) {
+          bloc.add(
+            UpdateVisitVitalsEvent(
+              visitId: visit.id,
+              bloodPressure: bloodPressure,
+              heartRate: heartRate,
+              spo2: spo2,
+              temperature: temperature,
+              respiratoryRate: respiratoryRate,
+            ),
+          );
+        },
       ),
     );
   }

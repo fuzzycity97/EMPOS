@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
@@ -114,7 +115,7 @@ class DoctorAttachmentsLightbox extends StatelessWidget {
                     ),
                     icon: const Icon(LucideIcons.upload, size: 14),
                     label: const Text('Attach X-Ray / DICOM', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                    onPressed: () => _simulateAddAttachment(context),
+                    onPressed: () => _showUploadAttachmentDialog(context),
                   ),
                 ],
               ),
@@ -471,25 +472,241 @@ class DoctorAttachmentsLightbox extends StatelessWidget {
     );
   }
 
-  void _simulateAddAttachment(BuildContext context) {
-    final list = List<MedicalAttachment>.from(attachmentsNotifier.value);
-    list.insert(
-      0,
-      MedicalAttachment(
-        id: 'att_${DateTime.now().millisecondsSinceEpoch}',
-        title: 'Bite-Wing Radiograph #${list.length + 1}',
-        type: MedicalAttachmentType.xrayRadiograph,
-        uploadDate: DateTime.now(),
-        fileSize: '3.8 MB',
-        doctorNotes: 'Freshly attached radiograph from intraoral sensor.',
-      ),
+  void _showUploadAttachmentDialog(BuildContext context) {
+    final titleController = TextEditingController(
+      text: 'Bite-Wing Radiograph #${attachmentsNotifier.value.length + 1}',
     );
-    attachmentsNotifier.value = list;
+    final notesController = TextEditingController();
+    final typeNotifier = ValueNotifier<MedicalAttachmentType>(MedicalAttachmentType.xrayRadiograph);
+    final pickedFileNotifier = ValueNotifier<PlatformFile?>(null);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Attached digital radiograph to patient consultation file.'),
-        backgroundColor: AppColors.success,
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: AppColors.surfaceDark,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+          side: const BorderSide(color: AppColors.borderDark),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Padding(
+            padding: const EdgeInsets.all(AppDimensions.space20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                      ),
+                      child: const Icon(LucideIcons.filePlus, color: AppColors.primary, size: 22),
+                    ),
+                    const SizedBox(width: AppDimensions.space12),
+                    const Expanded(
+                      child: Text(
+                        'Upload Clinical Attachment / X-Ray',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(LucideIcons.x, size: 18, color: AppColors.textSecondaryDark),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppDimensions.space16),
+
+                // Custom Title
+                TextField(
+                  controller: titleController,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: 'Attachment Title / Description *',
+                    hintText: 'e.g. Pre-op Panoramic OPG X-Ray',
+                    prefixIcon: Icon(LucideIcons.fileText, size: 18),
+                  ),
+                ),
+                const SizedBox(height: AppDimensions.space12),
+
+                // Attachment Type Dropdown
+                ValueListenableBuilder<MedicalAttachmentType>(
+                  valueListenable: typeNotifier,
+                  builder: (context, selectedType, _) {
+                    return DropdownButtonFormField<MedicalAttachmentType>(
+                      isExpanded: true,
+                      initialValue: selectedType,
+                      dropdownColor: AppColors.surfaceElevatedDark,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: const InputDecoration(
+                        labelText: 'Attachment Category',
+                        prefixIcon: Icon(LucideIcons.tag, size: 18),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: MedicalAttachmentType.xrayRadiograph,
+                          child: Text('X-Ray Radiograph (RVG / Intraoral)', overflow: TextOverflow.ellipsis),
+                        ),
+                        DropdownMenuItem(
+                          value: MedicalAttachmentType.dicomScan,
+                          child: Text('DICOM 3.0 CT / OPG Panoramic Scan', overflow: TextOverflow.ellipsis),
+                        ),
+                        DropdownMenuItem(
+                          value: MedicalAttachmentType.labReport,
+                          child: Text('Lab Pathology / Blood Report', overflow: TextOverflow.ellipsis),
+                        ),
+                        DropdownMenuItem(
+                          value: MedicalAttachmentType.ultrasound,
+                          child: Text('Ultrasound / Imaging', overflow: TextOverflow.ellipsis),
+                        ),
+                        DropdownMenuItem(
+                          value: MedicalAttachmentType.prescriptionPhoto,
+                          child: Text('Prescription Photo / Document', overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) typeNotifier.value = val;
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: AppDimensions.space12),
+
+                // File Picker Box
+                ValueListenableBuilder<PlatformFile?>(
+                  valueListenable: pickedFileNotifier,
+                  builder: (context, pickedFile, _) {
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A),
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                        border: Border.all(color: AppColors.borderDark),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            pickedFile != null ? LucideIcons.fileCheck : LucideIcons.fileUp,
+                            color: pickedFile != null ? AppColors.success : AppColors.primary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  pickedFile != null ? pickedFile.name : 'No file selected from OS',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (pickedFile != null)
+                                  Text(
+                                    '${(pickedFile.size / 1024).toStringAsFixed(1)} KB',
+                                    style: const TextStyle(fontSize: 10, color: AppColors.textSecondaryDark),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () async {
+                              try {
+                                final result = await FilePicker.platform.pickFiles();
+                                if (result != null && result.files.isNotEmpty) {
+                                  pickedFileNotifier.value = result.files.first;
+                                  if (titleController.text.trim().isEmpty) {
+                                    titleController.text = result.files.first.name.split('.').first;
+                                  }
+                                }
+                              } catch (_) {}
+                            },
+                            icon: const Icon(LucideIcons.folderOpen, size: 14),
+                            label: const Text('Browse', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: AppDimensions.space12),
+
+                // Doctor Notes
+                TextField(
+                  controller: notesController,
+                  maxLines: 2,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  decoration: const InputDecoration(
+                    labelText: 'Clinical Notes / Observations',
+                    hintText: 'e.g. Periapical radiolucency noted on distal root apex.',
+                    prefixIcon: Padding(
+                      padding: EdgeInsets.only(bottom: 24),
+                      child: Icon(LucideIcons.messageSquare, size: 18),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppDimensions.space20),
+
+                // Actions
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondaryDark)),
+                    ),
+                    const SizedBox(width: AppDimensions.space12),
+                    Flexible(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                        icon: const Icon(LucideIcons.check, size: 16, color: Colors.white),
+                        label: const Text('Attach to Patient File', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                        onPressed: () {
+                          final rawTitle = titleController.text.trim();
+                          final picked = pickedFileNotifier.value;
+                          final title = rawTitle.isNotEmpty ? rawTitle : (picked?.name ?? 'Clinical Radiograph Attachment');
+                          final notes = notesController.text.trim().isNotEmpty
+                              ? notesController.text.trim()
+                              : 'Attached file from clinical station.';
+                          final sizeStr = picked != null ? '${(picked.size / 1024).toStringAsFixed(1)} KB' : '2.4 MB';
+
+                          final list = List<MedicalAttachment>.from(attachmentsNotifier.value);
+                          list.insert(
+                            0,
+                            MedicalAttachment(
+                              id: 'att_${DateTime.now().millisecondsSinceEpoch}',
+                              title: title,
+                              type: typeNotifier.value,
+                              uploadDate: DateTime.now(),
+                              fileSize: sizeStr,
+                              doctorNotes: notes,
+                            ),
+                          );
+                          attachmentsNotifier.value = list;
+
+                          Navigator.of(ctx).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Attached "$title" to patient consultation file.'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

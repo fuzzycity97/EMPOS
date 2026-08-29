@@ -1084,5 +1084,121 @@ void main() {
 
       await clinicBloc.close();
     });
+
+    test('16. Partial Payment & CRM Debt Sync: Partial settlement adds unpaid balance to customer totalDebt', () async {
+      final mockCustomerRepo = MockCustomerRepository();
+      final existingCustomer = Customer(
+        id: 'pat_debt_1',
+        name: 'Debt Patient',
+        phone: '123456',
+        totalDebt: 50.0,
+        createdAt: DateTime.now(),
+      );
+
+      final completedVisit = ClinicVisit(
+        id: 'vis_debt_1',
+        patientId: 'pat_debt_1',
+        patientName: 'Debt Patient',
+        doctorName: 'usr_doctor',
+        queueNumber: 1,
+        status: ClinicVisitStatus.completed,
+        isPaid: false,
+        totalFee: 300.0,
+        patientCopay: 300.0,
+        checkInTime: DateTime.now(),
+        completionTime: DateTime.now(),
+      );
+
+      when(() => mockGetQueue.call(doctorName: any(named: 'doctorName')))
+          .thenAnswer((_) async => Right([completedVisit]));
+      when(() => mockGetPatients.call()).thenAnswer((_) async => const Right([]));
+      when(() => mockClinicRepo.saveVisit(any())).thenAnswer((_) async => Right(completedVisit.copyWith(isPaid: true)));
+      when(() => mockCustomerRepo.getCustomers()).thenAnswer((_) async => Right([existingCustomer]));
+      when(() => mockCustomerRepo.saveCustomer(any())).thenAnswer((_) async => Right(existingCustomer));
+      when(() => mockLanSyncRepo.broadcast(any())).thenAnswer((_) async {});
+
+      final clinicBloc = ClinicBloc(
+        getClinicQueueUseCase: mockGetQueue,
+        checkInPatientUseCase: mockCheckIn,
+        updateVisitStatusUseCase: mockUpdateVisit,
+        completeVisitUseCase: mockCompleteVisit,
+        getPatientToothChartUseCase: mockGetToothChart,
+        saveToothChartUseCase: mockSaveToothChart,
+        getPatientsUseCase: mockGetPatients,
+        searchPatientsUseCase: mockSearchPatients,
+        getRollingMeanWaitUseCase: mockGetWait,
+        clinicRepository: mockClinicRepo,
+        customerRepository: mockCustomerRepo,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+
+      // Settle 200 EGP out of 300 EGP -> remainingDebt = 100 EGP -> customer totalDebt = 50 + 100 = 150 EGP
+      clinicBloc.add(const ProcessVisitPaymentEvent('vis_debt_1', amountPaid: 200.0));
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      verify(() => mockCustomerRepo.saveCustomer(any(that: isA<Customer>().having(
+            (c) => c.totalDebt,
+            'totalDebt',
+            equals(150.0),
+          )))).called(1);
+
+      await clinicBloc.close();
+    });
+
+    test('17. Editable Vitals: UpdateVisitVitalsEvent updates vitals in local DB and broadcasts update', () async {
+      final activeVisit = ClinicVisit(
+        id: 'vis_vitals_event',
+        patientId: 'pat_vitals_1',
+        patientName: 'Vitals Patient',
+        doctorName: 'usr_doctor',
+        queueNumber: 1,
+        status: ClinicVisitStatus.inExamination,
+        checkInTime: DateTime.now(),
+      );
+
+      when(() => mockGetQueue.call(doctorName: any(named: 'doctorName')))
+          .thenAnswer((_) async => Right([activeVisit]));
+      when(() => mockGetPatients.call()).thenAnswer((_) async => const Right([]));
+      when(() => mockClinicRepo.saveVisit(any())).thenAnswer((inv) async => Right(inv.positionalArguments[0] as ClinicVisit));
+      when(() => mockLanSyncRepo.broadcast(any())).thenAnswer((_) async {});
+
+      final clinicBloc = ClinicBloc(
+        getClinicQueueUseCase: mockGetQueue,
+        checkInPatientUseCase: mockCheckIn,
+        updateVisitStatusUseCase: mockUpdateVisit,
+        completeVisitUseCase: mockCompleteVisit,
+        getPatientToothChartUseCase: mockGetToothChart,
+        saveToothChartUseCase: mockSaveToothChart,
+        getPatientsUseCase: mockGetPatients,
+        searchPatientsUseCase: mockSearchPatients,
+        getRollingMeanWaitUseCase: mockGetWait,
+        clinicRepository: mockClinicRepo,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+
+      clinicBloc.add(
+        const UpdateVisitVitalsEvent(
+          visitId: 'vis_vitals_event',
+          bloodPressure: '140/90 mmHg',
+          heartRate: '95 BPM',
+          spo2: '97%',
+          temperature: '38.1 °C',
+          respiratoryRate: '20 bpm',
+        ),
+      );
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      verify(() => mockClinicRepo.saveVisit(any(that: isA<ClinicVisit>().having(
+            (v) => v.bloodPressure,
+            'bloodPressure',
+            equals('140/90 mmHg'),
+          ).having(
+            (v) => v.temperature,
+            'temperature',
+            equals('38.1 °C'),
+          )))).called(1);
+
+      await clinicBloc.close();
+    });
   });
 }

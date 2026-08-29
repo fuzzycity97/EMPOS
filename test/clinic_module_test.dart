@@ -337,4 +337,51 @@ void main() {
       expect(ClinicReceptionPage.formatDoctorName('Dr. John Smith'), equals('Dr. John Smith'));
     });
   });
+
+  group('Clinical Vitals & Age-Based Odontogram Logic Tests', () {
+    test('ClinicVisitModel serializes and deserializes vitals accurately', () {
+      final visit = ClinicVisitModel(
+        id: 'vis_vitals_1',
+        patientId: 'pat_01',
+        patientName: 'Test Vitals',
+        doctorName: 'usr_doctor',
+        queueNumber: 1,
+        checkInTime: DateTime(2026, 1, 1),
+        bloodPressure: '135/85 mmHg',
+        heartRate: '82 BPM',
+        spo2: '98%',
+        temperature: '37.2 °C',
+        respiratoryRate: '18 bpm',
+      );
+
+      final json = visit.toJson();
+      final restored = ClinicVisitModel.fromJson(json);
+
+      expect(restored.bloodPressure, '135/85 mmHg');
+      expect(restored.heartRate, '82 BPM');
+      expect(restored.spo2, '98%');
+      expect(restored.temperature, '37.2 °C');
+      expect(restored.respiratoryRate, '18 bpm');
+    });
+
+    test('PatientProfile calculatedAge parses ISO date of birth and integer strings', () {
+      final pediatric = PatientProfile(
+        id: 'pat_ped_1',
+        name: 'Little Timmy',
+        phone: '123',
+        dateOfBirth: DateTime(DateTime.now().year - 8, DateTime.now().month, DateTime.now().day).toIso8601String(),
+        createdAt: DateTime.now(),
+      );
+      expect(pediatric.calculatedAge, equals(8));
+
+      final adult = PatientProfile(
+        id: 'pat_ad_1',
+        name: 'Adult Timmy',
+        phone: '123',
+        dateOfBirth: '25',
+        createdAt: DateTime.now(),
+      );
+      expect(adult.calculatedAge, equals(25));
+    });
+  });
 }

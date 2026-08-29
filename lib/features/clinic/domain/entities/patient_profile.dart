@@ -63,6 +63,23 @@ class PatientProfile extends Equatable {
     );
   }
 
+  int? get calculatedAge {
+    if (dateOfBirth == null) return null;
+    try {
+      final dob = DateTime.parse(dateOfBirth!);
+      final now = DateTime.now();
+      int age = now.year - dob.year;
+      if (now.month < dob.month || (now.month == dob.month && now.day < dob.day)) {
+        age--;
+      }
+      return age;
+    } catch (_) {
+      final parsedInt = int.tryParse(dateOfBirth!);
+      if (parsedInt != null) return parsedInt;
+      return null;
+    }
+  }
+
   @override
   List<Object?> get props => [
         id,

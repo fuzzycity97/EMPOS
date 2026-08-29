@@ -40,6 +40,11 @@ class ClinicVisit extends Equatable {
   final double insurancePaid;
   final bool isPaid;
   final DateTime? recallDate;
+  final String bloodPressure;
+  final String heartRate;
+  final String respiratoryRate;
+  final String spo2;
+  final String temperature;
 
   const ClinicVisit({
     required this.id,
@@ -62,6 +67,11 @@ class ClinicVisit extends Equatable {
     this.insurancePaid = 0.0,
     this.isPaid = false,
     this.recallDate,
+    this.bloodPressure = '120/80 mmHg',
+    this.heartRate = '76 BPM',
+    this.respiratoryRate = '16 bpm',
+    this.spo2 = '99%',
+    this.temperature = '36.8 °C',
   });
 
   int get consultationDurationMinutes {
@@ -90,6 +100,11 @@ class ClinicVisit extends Equatable {
     double? insurancePaid,
     bool? isPaid,
     DateTime? recallDate,
+    String? bloodPressure,
+    String? heartRate,
+    String? respiratoryRate,
+    String? spo2,
+    String? temperature,
   }) {
     return ClinicVisit(
       id: id ?? this.id,
@@ -112,6 +127,11 @@ class ClinicVisit extends Equatable {
       insurancePaid: insurancePaid ?? this.insurancePaid,
       isPaid: isPaid ?? this.isPaid,
       recallDate: recallDate ?? this.recallDate,
+      bloodPressure: bloodPressure ?? this.bloodPressure,
+      heartRate: heartRate ?? this.heartRate,
+      respiratoryRate: respiratoryRate ?? this.respiratoryRate,
+      spo2: spo2 ?? this.spo2,
+      temperature: temperature ?? this.temperature,
     );
   }
 
@@ -137,5 +157,10 @@ class ClinicVisit extends Equatable {
         insurancePaid,
         isPaid,
         recallDate,
+        bloodPressure,
+        heartRate,
+        respiratoryRate,
+        spo2,
+        temperature,
       ];
 }

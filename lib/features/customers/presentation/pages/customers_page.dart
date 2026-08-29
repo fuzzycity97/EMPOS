@@ -6,6 +6,9 @@ import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../domain/entities/customer.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/bloc/auth_state.dart';
+import '../../../auth/domain/entities/user_role.dart';
 import '../bloc/customer_bloc.dart';
 import '../bloc/customer_event.dart';
 import '../bloc/customer_state.dart';
@@ -125,6 +128,16 @@ class _CustomersView extends StatelessWidget {
   }
 
   Widget _buildMetricsRow(BuildContext context, CustomersLoaded state) {
+    UserRole? role;
+    try {
+      final authState = context.read<AuthBloc>().state;
+      if (authState is AuthAuthenticated) {
+        role = authState.user.role;
+      }
+    } catch (_) {}
+
+    final isReceptionist = role == UserRole.receptionist;
+
     return Row(
       children: [
         _metricCard(
@@ -136,14 +149,14 @@ class _CustomersView extends StatelessWidget {
         const SizedBox(width: AppDimensions.space12),
         _metricCard(
           title: 'Active Debtors',
-          value: '${state.totalDebtorCount}',
+          value: isReceptionist ? '***' : '${state.totalDebtorCount}',
           icon: LucideIcons.userX,
           color: AppColors.warning,
         ),
         const SizedBox(width: AppDimensions.space12),
         _metricCard(
           title: 'Total Outstanding Debt',
-          value: CurrencyFormatter.format(state.totalOutstandingDebt),
+          value: isReceptionist ? 'Restricted' : CurrencyFormatter.format(state.totalOutstandingDebt),
           icon: LucideIcons.badgeAlert,
           color: AppColors.danger,
         ),

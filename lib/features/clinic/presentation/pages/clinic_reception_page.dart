@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
+import '../../../customers/presentation/bloc/customer_bloc.dart';
+import '../../../customers/presentation/bloc/customer_event.dart';
 import '../../domain/entities/clinic_visit.dart';
 import '../../domain/entities/patient_profile.dart';
 import '../bloc/clinic_bloc.dart';
 import '../bloc/clinic_event.dart';
 import '../bloc/clinic_state.dart';
 import '../widgets/patient_intake_dialog.dart';
+import '../widgets/payment_checkout_dialog.dart';
 
 class ClinicReceptionPage extends StatelessWidget {
   final ClinicBloc bloc;
@@ -434,12 +438,27 @@ class ClinicReceptionPage extends StatelessWidget {
                     const SizedBox(height: 8),
                     ElevatedButton.icon(
                       onPressed: () {
-                        bloc.add(ProcessVisitPaymentEvent(visit.id));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Payment processed: ${patientShare.toStringAsFixed(2)} EGP collected. Printing 80mm receipt...',
-                            ),
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => PaymentCheckoutDialog(
+                            visit: visit,
+                            patient: patient,
+                            totalFee: totalFee,
+                            patientShare: patientShare,
+                            insuranceShare: insuranceShare,
+                            onSubmit: (amountPaid) {
+                              bloc.add(ProcessVisitPaymentEvent(visit.id, amountPaid: amountPaid));
+                              try {
+                                context.read<CustomerBloc>().add(const LoadCustomersEvent());
+                              } catch (_) {}
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Payment processed: ${amountPaid.toStringAsFixed(2)} EGP collected. Printing 80mm receipt...',
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         );
                       },
@@ -460,7 +479,10 @@ class ClinicReceptionPage extends StatelessWidget {
   void _showCheckInDialog(BuildContext context, List<PatientProfile> patients) {
     showDialog(
       context: context,
-      builder: (ctx) => PatientIntakeDialog(bloc: bloc),
+      builder: (ctx) => PatientIntakeDialog(
+        bloc: bloc,
+        existingPatients: patients,
+      ),
     );
   }
 
@@ -469,6 +491,27 @@ class ClinicReceptionPage extends StatelessWidget {
       (p) => p?.id == visit.patientId,
       orElse: () => null,
     );
+
+    String statusDisplay;
+    switch (visit.status) {
+      case ClinicVisitStatus.waiting:
+        statusDisplay = 'Waiting in Lobby';
+        break;
+      case ClinicVisitStatus.inExamination:
+        statusDisplay = 'In Consultation / Room';
+        break;
+      case ClinicVisitStatus.completed:
+        statusDisplay = 'Completed & Ready for Billing';
+        break;
+      case ClinicVisitStatus.cancelled:
+        statusDisplay = 'Cancelled';
+        break;
+      case ClinicVisitStatus.noShow:
+        statusDisplay = 'No Show';
+        break;
+    }
+
+    final formattedTime = DateFormat('hh:mm a').format(visit.checkInTime);
 
     showDialog(
       context: context,
@@ -491,10 +534,10 @@ class ClinicReceptionPage extends StatelessWidget {
               _buildFileRow('Assigned Doctor:', formatDoctorName(visit.doctorName)),
               _buildFileRow('Room / Station:', visit.roomNumber),
               _buildFileRow('Chief Complaint:', visit.chiefComplaint.isNotEmpty ? visit.chiefComplaint : 'Standard checkup'),
-              _buildFileRow('Status:', visit.status.name.toUpperCase()),
+              _buildFileRow('Status:', statusDisplay),
               if (patient?.insuranceProvider != null)
                 _buildFileRow('Insurance Carrier:', '${patient!.insuranceProvider} (${((1 - patient.defaultCopayPercentage) * 100).toInt()}% coverage)'),
-              _buildFileRow('Check-In Time:', '${visit.checkInTime.hour.toString().padLeft(2, '0')}:${visit.checkInTime.minute.toString().padLeft(2, '0')}'),
+              _buildFileRow('Check-In Time:', formattedTime),
             ],
           ),
         ),

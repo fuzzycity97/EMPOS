@@ -105,11 +105,40 @@ class SearchClinicPatientsEvent extends ClinicEvent {
 
 class ProcessVisitPaymentEvent extends ClinicEvent {
   final String visitId;
+  final double? amountPaid;
 
-  const ProcessVisitPaymentEvent(this.visitId);
+  const ProcessVisitPaymentEvent(this.visitId, {this.amountPaid});
 
   @override
-  List<Object?> get props => [visitId];
+  List<Object?> get props => [visitId, amountPaid];
+}
+
+class UpdateVisitVitalsEvent extends ClinicEvent {
+  final String visitId;
+  final String bloodPressure;
+  final String heartRate;
+  final String spo2;
+  final String temperature;
+  final String respiratoryRate;
+
+  const UpdateVisitVitalsEvent({
+    required this.visitId,
+    required this.bloodPressure,
+    required this.heartRate,
+    required this.spo2,
+    required this.temperature,
+    required this.respiratoryRate,
+  });
+
+  @override
+  List<Object?> get props => [
+        visitId,
+        bloodPressure,
+        heartRate,
+        spo2,
+        temperature,
+        respiratoryRate,
+      ];
 }
 
 /// Alias for CompleteVisitEvent in examination workflows

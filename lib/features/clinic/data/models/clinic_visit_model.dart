@@ -24,6 +24,11 @@ class ClinicVisitModel extends ClinicVisit {
     super.insurancePaid = 0.0,
     super.isPaid = false,
     super.recallDate,
+    super.bloodPressure = '120/80 mmHg',
+    super.heartRate = '76 BPM',
+    super.respiratoryRate = '16 bpm',
+    super.spo2 = '99%',
+    super.temperature = '36.8 °C',
   });
 
   factory ClinicVisitModel.fromJson(Map<String, dynamic> json) {
@@ -54,6 +59,11 @@ class ClinicVisitModel extends ClinicVisit {
       insurancePaid: (json['insurancePaid'] as num?)?.toDouble() ?? 0.0,
       isPaid: json['isPaid'] == true,
       recallDate: DateTime.tryParse(json['recallDate']?.toString() ?? ''),
+      bloodPressure: json['bloodPressure']?.toString() ?? '120/80 mmHg',
+      heartRate: json['heartRate']?.toString() ?? '76 BPM',
+      respiratoryRate: json['respiratoryRate']?.toString() ?? '16 bpm',
+      spo2: json['spo2']?.toString() ?? '99%',
+      temperature: json['temperature']?.toString() ?? '36.8 °C',
     );
   }
 
@@ -83,6 +93,11 @@ class ClinicVisitModel extends ClinicVisit {
       'insurancePaid': insurancePaid,
       'isPaid': isPaid,
       'recallDate': recallDate?.toIso8601String(),
+      'bloodPressure': bloodPressure,
+      'heartRate': heartRate,
+      'respiratoryRate': respiratoryRate,
+      'spo2': spo2,
+      'temperature': temperature,
     };
   }
 
@@ -108,6 +123,11 @@ class ClinicVisitModel extends ClinicVisit {
       insurancePaid: entity.insurancePaid,
       isPaid: entity.isPaid,
       recallDate: entity.recallDate,
+      bloodPressure: entity.bloodPressure,
+      heartRate: entity.heartRate,
+      respiratoryRate: entity.respiratoryRate,
+      spo2: entity.spo2,
+      temperature: entity.temperature,
     );
   }
 }

@@ -4,32 +4,39 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
+import '../../domain/entities/patient_profile.dart';
 import '../bloc/clinic_bloc.dart';
 import '../bloc/clinic_event.dart';
 
 /// Patient intake and queue check-in modal dialog.
+/// Supports returning patient search/autocomplete by phone or name.
 /// Follows strict Clean Architecture and is 100% [StatelessWidget].
 class PatientIntakeDialog extends StatelessWidget {
   final ClinicBloc? bloc;
+  final List<PatientProfile> existingPatients;
   final TextEditingController nameController;
   final TextEditingController ageController;
   final TextEditingController phoneController;
   final TextEditingController complaintController;
   final ValueNotifier<String> doctorNotifier;
+  final ValueNotifier<String?> selectedPatientIdNotifier;
 
   PatientIntakeDialog({
     super.key,
     this.bloc,
+    this.existingPatients = const [],
     TextEditingController? nameController,
     TextEditingController? ageController,
     TextEditingController? phoneController,
     TextEditingController? complaintController,
     ValueNotifier<String>? doctorNotifier,
+    ValueNotifier<String?>? selectedPatientIdNotifier,
   })  : nameController = nameController ?? TextEditingController(),
         ageController = ageController ?? TextEditingController(),
         phoneController = phoneController ?? TextEditingController(),
         complaintController = complaintController ?? TextEditingController(),
-        doctorNotifier = doctorNotifier ?? ValueNotifier<String>('usr_doctor');
+        doctorNotifier = doctorNotifier ?? ValueNotifier<String>('usr_doctor'),
+        selectedPatientIdNotifier = selectedPatientIdNotifier ?? ValueNotifier<String?>(null);
 
   // Seeded doctor accounts for deterministic LAN routing
   static const List<Map<String, String>> doctors = [
@@ -49,7 +56,7 @@ class PatientIntakeDialog extends StatelessWidget {
         side: const BorderSide(color: AppColors.borderDark),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
+        constraints: const BoxConstraints(maxWidth: 540),
         child: Padding(
           padding: const EdgeInsets.all(AppDimensions.space20),
           child: Column(
@@ -94,7 +101,50 @@ class PatientIntakeDialog extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: AppDimensions.space20),
+              const SizedBox(height: AppDimensions.space16),
+
+              // Returning Patient Search Field
+              if (existingPatients.isNotEmpty) ...[
+                Autocomplete<PatientProfile>(
+                  displayStringForOption: (p) => '${p.name} (${p.phone.isNotEmpty ? p.phone : "No Phone"})',
+                  optionsBuilder: (textEditingValue) {
+                    final query = textEditingValue.text.toLowerCase().trim();
+                    if (query.isEmpty) {
+                      return const Iterable<PatientProfile>.empty();
+                    }
+                    return existingPatients.where(
+                      (p) => p.name.toLowerCase().contains(query) || p.phone.contains(query),
+                    );
+                  },
+                  onSelected: (patient) {
+                    selectedPatientIdNotifier.value = patient.id;
+                    nameController.text = patient.name;
+                    phoneController.text = patient.phone;
+                    if (patient.dateOfBirth != null) {
+                      try {
+                        final dob = DateTime.parse(patient.dateOfBirth!);
+                        final age = (DateTime.now().difference(dob).inDays / 365.25).floor();
+                        ageController.text = age.toString();
+                      } catch (_) {
+                        ageController.text = patient.dateOfBirth!;
+                      }
+                    }
+                  },
+                  fieldViewBuilder: (context, searchController, focusNode, onFieldSubmitted) {
+                    return TextField(
+                      controller: searchController,
+                      focusNode: focusNode,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: const InputDecoration(
+                        labelText: 'Search Returning Patient (Phone / Name)',
+                        hintText: 'Type phone or name to autofill existing profile...',
+                        prefixIcon: Icon(LucideIcons.search, size: 18, color: AppColors.primaryLight),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: AppDimensions.space12),
+              ],
 
               // Patient Name
               TextField(
@@ -217,6 +267,7 @@ class PatientIntakeDialog extends StatelessWidget {
                       final phone = phoneController.text.trim();
                       final complaint = complaintController.text.trim();
                       final doctorId = doctorNotifier.value;
+                      final existingId = selectedPatientIdNotifier.value;
 
                       if (name.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -237,10 +288,12 @@ class PatientIntakeDialog extends StatelessWidget {
                           ? '$complaint$metaStr'
                           : 'General Clinical Examination$metaStr';
 
+                      final targetPatientId = existingId ?? 'pat_${DateTime.now().millisecondsSinceEpoch}';
+
                       // Dispatch check-in event using seeded doctor ID for exact LAN routing
                       activeBloc.add(
                         CheckInPatientEvent(
-                          patientId: 'pat_${DateTime.now().millisecondsSinceEpoch}',
+                          patientId: targetPatientId,
                           patientName: name,
                           doctorName: doctorId,
                           chiefComplaint: fullComplaint,

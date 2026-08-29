@@ -191,6 +191,11 @@ void main() {
       await tester.tap(find.text('Attach X-Ray / DICOM'));
       await tester.pumpAndSettle();
 
+      // Submit upload dialog
+      expect(find.text('Attach to Patient File'), findsOneWidget);
+      await tester.tap(find.text('Attach to Patient File'));
+      await tester.pumpAndSettle();
+
       // Verify new attachment was added to dock
       expect(find.text('Bite-Wing Radiograph #4'), findsOneWidget);
     });

@@ -34,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Contextual Shift Management Controls (`MainShell`)**: Contextually hid the global `OpenShift` header button for `doctor` and `receptionist` roles and on clinic-specific pages, ensuring shift drawer controls only appear for POS Cashiers and Managers.
 - **Visit Payment Settlement & Queue Clearing (`ClinicBloc` & `ClinicReceptionPage`)**: Implemented `ProcessVisitPaymentEvent` to mark completed visits as paid (`isPaid: true`), immediately clearing settled visits from the reception billing queue across all LAN nodes with `visit.updated` sync.
 - **Patient CRM Linkage & Patient File Lightbox (`ClinicBloc` & `ClinicReceptionPage`)**: Linked clinic check-in directly to `CustomerRepository` so medical patients automatically sync to the CRM Customers directory, and added a "View File" folder action on queue cards to inspect full patient history.
+- **Partial Payments & CRM Debt Sync (`PaymentCheckoutDialog` & `ClinicBloc`)**: Added partial payment settlement dialog with real-time remaining debt calculation and automatic updates to `Customer.totalDebt` in `CustomerRepository` with instant CRM BLoC reload.
+- **Receptionist Financial Privacy (`CustomersPage`)**: Enforced role-based access control hiding sensitive debtor and aggregate debt amounts from Receptionists.
+- **Returning Patient Intake Search (`PatientIntakeDialog`)**: Integrated search and autocomplete by phone number and patient name to quickly lookup existing patient files and prefill intake fields while preserving `patientId`.
+- **Dynamic Pediatric vs. Adult Odontogram (`DoctorStationPage`)**: Automatically selects 20-tooth primary dentition for patients under 12 years old and 32-tooth permanent dentition for older patients based on `calculatedAge`.
+- **Interactive Clinical Vitals Monitoring (`DoctorStationPage`, `VitalsInputDialog` & `ClinicBloc`)**: Added clickable vitals chips allowing doctors to live-edit Blood Pressure, Heart Rate, SpO2, Temperature, and Respiration with `UpdateVisitVitalsEvent` and LAN synchronization.
+- **Medical Imaging File Upload (`DoctorAttachmentsLightbox`)**: Integrated OS file picker (`file_picker`) and custom attachment title metadata dialog for attaching diagnostic radiographs and DICOM scans.
+- **Patient File 12-Hour AM/PM Time Formatting (`ClinicReceptionPage`)**: Formatted check-in timestamps with `intl` 12-hour AM/PM notation and mapped raw status enums to user-friendly titles.
 
 ---
 
