@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Outbox Sync Race Condition & Patient Self-Healing (`ClinicBloc`)**: Fixed missing patient race condition when offline actions are flushed. Ingested `visit.updated`, `visitCompleted`, and `patientCheckedIn` events automatically verify and upsert missing patient profile entities into local Hive storage if not yet present on the peer station.
 - **Granular UI Rebuild Optimization (`ClinicReceptionPage`)**: Eliminated full-page flashes and jitter during patient intake and queue changes. Removed top-level `BlocBuilder` from the page `Scaffold` and pushed localized builders down to the KPI banner, tab badges, and list views.
 - **Checkout & Billing Chronological Sorting (`ClinicBloc` & `ClinicState`)**: Sorted `billingVisits` and `completedQueue` reverse-chronologically by completion/check-in timestamp, ensuring the newest completed visits immediately appear at the top.
+- **Queue List Item ValueKey Optimization (`ClinicReceptionPage`)**: Optimized ListView rendering with ValueKeys (`key: ValueKey('queue_visit_${visit.id}')` and `key: ValueKey('billing_visit_${visit.id}')`) and added `buildWhen` filters to eliminate list re-rendering flashes when appending new patients to the queue.
 
 ---
 

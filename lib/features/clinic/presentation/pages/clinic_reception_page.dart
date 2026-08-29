@@ -45,6 +45,7 @@ class ClinicReceptionPage extends StatelessWidget {
                 builder: (context, selectedTab, _) {
                   return BlocBuilder<ClinicBloc, ClinicState>(
                     bloc: bloc,
+                    buildWhen: (prev, curr) => curr is ClinicLoaded || curr is ClinicError,
                     builder: (context, state) {
                       if (state is ClinicLoading && state is! ClinicLoaded) {
                         return const Center(child: CircularProgressIndicator());
@@ -291,6 +292,7 @@ class ClinicReceptionPage extends StatelessWidget {
         final isInRoom = visit.status == ClinicVisitStatus.inExamination;
 
         return Card(
+          key: ValueKey('queue_visit_${visit.id}'),
           margin: const EdgeInsets.only(bottom: 10),
           color: isDark ? const Color(0xFF1E293B) : Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -365,6 +367,7 @@ class ClinicReceptionPage extends StatelessWidget {
         final insuranceShare = visit.insurancePaid > 0 ? visit.insurancePaid : (totalFee - patientShare);
 
         return Card(
+          key: ValueKey('billing_visit_${visit.id}'),
           margin: const EdgeInsets.only(bottom: 12),
           color: isDark ? const Color(0xFF1E293B) : Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
