@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive/hive.dart';
 import 'package:empos/core/network/lan_sync/domain/entities/sync_envelope.dart';
 import 'package:empos/core/network/lan_sync/domain/entities/connected_node.dart';
 import 'package:empos/core/network/lan_sync/domain/repositories/lan_sync_repository.dart';
@@ -6,6 +8,20 @@ import 'package:empos/core/network/lan_sync/data/message_routes.dart';
 import 'package:empos/core/network/lan_sync/data/repositories/lan_sync_repository_impl.dart';
 
 void main() {
+  late Directory tempDir;
+
+  setUpAll(() async {
+    tempDir = await Directory.systemTemp.createTemp('empos_lan_engine_test_');
+    Hive.init(tempDir.path);
+  });
+
+  tearDownAll(() async {
+    await Hive.close();
+    if (tempDir.existsSync()) {
+      tempDir.deleteSync(recursive: true);
+    }
+  });
+
   group('Legacy C# SyncEnvelope Entity Tests', () {
     test('Serializes to and from JSON matching legacy C# schema', () {
       final envelope = SyncEnvelope.create(

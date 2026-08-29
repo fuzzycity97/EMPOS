@@ -205,6 +205,24 @@ class ClinicReceptionPage extends StatelessWidget {
     );
   }
 
+  static String formatDoctorName(String doctorIdOrName) {
+    switch (doctorIdOrName.toLowerCase().trim()) {
+      case 'usr_doctor':
+        return 'Dr. Sarah Connor';
+      case 'usr_doctor_2':
+      case 'usr_doctor_tarek':
+        return 'Dr. Tarek Dental Lead';
+      case 'usr_doctor_oncall':
+        return 'Dr. On-Call Physician';
+      default:
+        if (doctorIdOrName.startsWith('usr_')) {
+          final clean = doctorIdOrName.replaceFirst('usr_', '').replaceAll('_', ' ');
+          return 'Dr. ${clean.split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ')}';
+        }
+        return doctorIdOrName;
+    }
+  }
+
   Widget _buildQueueTab(
     BuildContext context,
     List<ClinicVisit> waiting,
@@ -236,7 +254,7 @@ class ClinicReceptionPage extends StatelessWidget {
               ),
             ),
             title: Text(visit.patientName, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('Doctor: ${visit.doctorName} • Complaint: ${visit.chiefComplaint}'),
+            subtitle: Text('Doctor: ${formatDoctorName(visit.doctorName)} • Complaint: ${visit.chiefComplaint}'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -314,7 +332,7 @@ class ClinicReceptionPage extends StatelessWidget {
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
-                      Text('Doctor: ${visit.doctorName} • Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}'),
+                      Text('Doctor: ${formatDoctorName(visit.doctorName)} • Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}'),
                       const SizedBox(height: 6),
                       if (patient?.insuranceProvider != null)
                         Text(

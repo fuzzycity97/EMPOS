@@ -13,6 +13,7 @@ import 'package:empos/features/clinic/domain/entities/dental_treatment_plan.dart
 import 'package:empos/features/clinic/domain/entities/patient_profile.dart';
 import 'package:empos/features/clinic/domain/entities/procedure_item.dart';
 import 'package:empos/features/clinic/domain/entities/tooth_chart_entry.dart';
+import 'package:empos/features/clinic/presentation/pages/clinic_reception_page.dart';
 
 void main() {
   late Directory tempDir;
@@ -323,6 +324,17 @@ void main() {
         expect(teeth[1].state, ToothState.rootCanal);
         expect(teeth[2].state, ToothState.implant);
       });
+    });
+  });
+
+  group('ClinicReceptionPage Doctor Translation Tests', () {
+    test('formatDoctorName maps seeded doctor IDs to human-readable names and formats fallback IDs', () {
+      expect(ClinicReceptionPage.formatDoctorName('usr_doctor'), equals('Dr. Sarah Connor'));
+      expect(ClinicReceptionPage.formatDoctorName('usr_doctor_2'), equals('Dr. Tarek Dental Lead'));
+      expect(ClinicReceptionPage.formatDoctorName('usr_doctor_tarek'), equals('Dr. Tarek Dental Lead'));
+      expect(ClinicReceptionPage.formatDoctorName('usr_doctor_oncall'), equals('Dr. On-Call Physician'));
+      expect(ClinicReceptionPage.formatDoctorName('usr_dentist_specialist'), equals('Dr. Dentist Specialist'));
+      expect(ClinicReceptionPage.formatDoctorName('Dr. John Smith'), equals('Dr. John Smith'));
     });
   });
 }

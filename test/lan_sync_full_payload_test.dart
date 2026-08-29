@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive/hive.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:empos/core/network/lan_sync/data/message_routes.dart';
+import 'package:empos/core/network/lan_sync/data/repositories/lan_sync_repository_impl.dart';
 import 'package:empos/core/network/lan_sync/domain/entities/sync_envelope.dart';
 import 'package:empos/core/network/lan_sync/domain/repositories/lan_sync_repository.dart';
 import 'package:empos/features/clinic/data/models/clinic_visit_model.dart';
@@ -806,6 +809,38 @@ void main() {
       expect(state.waitingQueue.length, equals(1));
 
       await clinicBloc.close();
+    });
+
+    test('11. WhatsApp-Style Outbox Queue: Offline broadcast is enqueued in Hive outbox and persisted', () async {
+      final tempDir = await Directory.systemTemp.createTemp('empos_outbox_test_');
+      Hive.init(tempDir.path);
+
+      final lanRepo = LanSyncRepositoryImpl();
+
+      final offlineEnv = SyncEnvelope.create(
+        type: MessageRoutes.patientCheckedIn,
+        senderId: 'offline_reception',
+        senderRole: 'receptionist',
+        payload: {
+          'visitId': 'vis_offline_1',
+          'patientName': 'Offline Patient',
+        },
+      );
+
+      // Broadcast while offline (not connected)
+      await lanRepo.broadcast(offlineEnv);
+
+      // Verify Hive outbox box contains the queued envelope
+      final box = await Hive.openBox<dynamic>(LanSyncRepositoryImpl.offlineQueueBoxName);
+      expect(box.length, equals(1));
+      final storedJson = box.values.first.toString();
+      expect(storedJson.contains('vis_offline_1'), isTrue);
+
+      await box.close();
+      lanRepo.dispose();
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
     });
   });
 }

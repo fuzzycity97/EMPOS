@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:hive/hive.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -9,6 +10,8 @@ import '../../domain/repositories/lan_sync_repository.dart';
 import '../message_routes.dart';
 
 class LanSyncRepositoryImpl implements LanSyncRepository {
+  static const String offlineQueueBoxName = 'empos_offline_sync_queue';
+
   HttpServer? _server;
   WebSocketChannel? _clientChannel;
   StreamSubscription? _clientSubscription;
@@ -44,6 +47,53 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   @override
   bool get isConnected => _isConnected;
 
+  Future<Box<dynamic>?> _getOfflineQueueBox() async {
+    try {
+      return await Hive.openBox<dynamic>(offlineQueueBoxName).catchError((_) {
+        return null as dynamic;
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _enqueueOffline(String rawJson) async {
+    try {
+      final box = await _getOfflineQueueBox();
+      if (box != null && box.isOpen) {
+        final key = 'outbox_${DateTime.now().microsecondsSinceEpoch}_${box.length}';
+        await box.put(key, rawJson);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _flushOfflineQueue() async {
+    try {
+      final box = await _getOfflineQueueBox();
+      if (box == null || !box.isOpen || box.isEmpty) return;
+
+      final keys = box.keys.toList();
+      for (final key in keys) {
+        final raw = box.get(key);
+        if (raw != null) {
+          final rawStr = raw.toString();
+          if (_isHost) {
+            for (final ch in _activeChannels) {
+              try {
+                ch.sink.add(rawStr);
+              } catch (_) {}
+            }
+          } else if (_clientChannel != null && _isConnected) {
+            try {
+              _clientChannel!.sink.add(rawStr);
+            } catch (_) {}
+          }
+          await box.delete(key);
+        }
+      }
+    } catch (_) {}
+  }
+
   @override
   Future<void> startHostServer({int port = 9090}) async {
     await disconnect();
@@ -58,14 +108,21 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
 
       _activeChannels.add(channel);
       _nodeMap[channel] = node;
-      _connectedNodesController.add(connectedNodes);
+      if (!_connectedNodesController.isClosed) {
+        _connectedNodesController.add(connectedNodes);
+      }
+
+      // Flush offline outbox queue to the newly joined peer
+      _flushOfflineQueue();
 
       channel.stream.listen(
         (data) {
           try {
             final raw = data.toString();
             final envelope = SyncEnvelope.fromRawJson(raw);
-            _incomingEventsController.add(envelope);
+            if (!_incomingEventsController.isClosed) {
+              _incomingEventsController.add(envelope);
+            }
 
             // Relay to all other connected clients (Hub topology)
             for (final other in _activeChannels) {
@@ -80,12 +137,16 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
         onDone: () {
           _activeChannels.remove(channel);
           _nodeMap.remove(channel);
-          _connectedNodesController.add(connectedNodes);
+          if (!_connectedNodesController.isClosed) {
+            _connectedNodesController.add(connectedNodes);
+          }
         },
         onError: (err) {
           _activeChannels.remove(channel);
           _nodeMap.remove(channel);
-          _connectedNodesController.add(connectedNodes);
+          if (!_connectedNodesController.isClosed) {
+            _connectedNodesController.add(connectedNodes);
+          }
         },
         cancelOnError: true,
       );
@@ -101,7 +162,9 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
       role: 'hub_host',
       ipAddress: '127.0.0.1',
     );
-    _connectedNodesController.add([hostNode]);
+    if (!_connectedNodesController.isClosed) {
+      _connectedNodesController.add([hostNode]);
+    }
   }
 
   @override
@@ -128,7 +191,9 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
         (data) {
           try {
             final envelope = SyncEnvelope.fromRawJson(data.toString());
-            _incomingEventsController.add(envelope);
+            if (!_incomingEventsController.isClosed) {
+              _incomingEventsController.add(envelope);
+            }
           } catch (_) {}
         },
         onDone: () {
@@ -148,18 +213,30 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
       );
       await broadcast(joinEnvelope);
 
-      // Wait 800ms to ensure the Host's server has fully registered the peer before requesting state
-      await Future.delayed(const Duration(milliseconds: 800));
+      // Flush offline outbox queue BEFORE state reconciliation
+      await _flushOfflineQueue();
 
-      if (_isConnected && _clientChannel != null) {
-        // Send state reconciliation request to sync any missed state
-        final syncRequestEnvelope = SyncEnvelope.create(
-          type: MessageRoutes.syncRequestActiveState,
-          senderId: 'client-station',
-          senderRole: 'station',
-        );
-        await broadcast(syncRequestEnvelope);
+      // Multi-ping handshake: send at 1s, 3s, and 6s to guarantee state reconciliation
+      void sendStateRequest() {
+        if (_isConnected && _clientChannel != null) {
+          final syncRequestEnvelope = SyncEnvelope.create(
+            type: MessageRoutes.syncRequestActiveState,
+            senderId: 'client-station',
+            senderRole: 'station',
+          );
+          broadcast(syncRequestEnvelope);
+        }
       }
+
+      // Ping 1 at 1 second
+      await Future.delayed(const Duration(milliseconds: 1000));
+      sendStateRequest();
+
+      // Ping 2 at 3 seconds (1s + 2s)
+      Future.delayed(const Duration(seconds: 2), sendStateRequest);
+
+      // Ping 3 at 6 seconds (1s + 5s)
+      Future.delayed(const Duration(seconds: 5), sendStateRequest);
     } catch (_) {
       _handleClientDisconnect();
     }
@@ -189,19 +266,40 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   Future<void> broadcast(SyncEnvelope envelope) async {
     final raw = envelope.toRawJson();
 
+    final isTransient = envelope.type == MessageRoutes.syncRequestActiveState ||
+        envelope.type == MessageRoutes.nodeJoined ||
+        envelope.type == MessageRoutes.ping ||
+        envelope.type == MessageRoutes.pong;
+
     if (_isHost) {
-      // Broadcast to all connected clients
-      for (final channel in _activeChannels) {
-        try {
-          channel.sink.add(raw);
-        } catch (_) {}
+      if (_activeChannels.isNotEmpty) {
+        // Broadcast to all connected clients
+        for (final channel in _activeChannels) {
+          try {
+            channel.sink.add(raw);
+          } catch (_) {}
+        }
+      } else if (!isTransient) {
+        // Host has no connected peers - queue envelope in outbox
+        await _enqueueOffline(raw);
       }
       // Also notify local listeners
-      _incomingEventsController.add(envelope);
-    } else if (_clientChannel != null && _isConnected) {
-      try {
-        _clientChannel!.sink.add(raw);
-      } catch (_) {}
+      if (!_incomingEventsController.isClosed) {
+        _incomingEventsController.add(envelope);
+      }
+    } else {
+      if (_clientChannel != null && _isConnected) {
+        try {
+          _clientChannel!.sink.add(raw);
+        } catch (_) {
+          if (!isTransient) {
+            await _enqueueOffline(raw);
+          }
+        }
+      } else if (!isTransient) {
+        // Client is offline - queue envelope in outbox
+        await _enqueueOffline(raw);
+      }
     }
   }
 
@@ -236,12 +334,18 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
 
     _isHost = false;
     _isConnected = false;
-    _connectedNodesController.add([]);
+    if (!_connectedNodesController.isClosed) {
+      _connectedNodesController.add([]);
+    }
   }
 
   void dispose() {
     disconnect();
-    _incomingEventsController.close();
-    _connectedNodesController.close();
+    if (!_incomingEventsController.isClosed) {
+      _incomingEventsController.close();
+    }
+    if (!_connectedNodesController.isClosed) {
+      _connectedNodesController.close();
+    }
   }
 }
