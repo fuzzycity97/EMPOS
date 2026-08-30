@@ -95,7 +95,7 @@ void main() {
 
       // 2. Connect real Client to Host via WebSocket
       await clientRepo.connectToHost('127.0.0.1', port: 9096);
-      await Future.delayed(const Duration(milliseconds: 200));
+      await Future.delayed(const Duration(milliseconds: 900));
       expect(clientRepo.isConnected, isTrue);
 
       // 3. Initialize real Hive datasources and repositories for Host and Client
@@ -141,7 +141,7 @@ void main() {
         ),
       );
 
-      await Future.delayed(const Duration(milliseconds: 200));
+      await Future.delayed(const Duration(milliseconds: 600));
 
       // Assert David Hasselhoff received and saved into local database via WebSocket sync
       final receivedPatient = await clinicDataSource.getPatientById('pat_live_101');
