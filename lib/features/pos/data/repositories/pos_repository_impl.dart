@@ -289,31 +289,44 @@ class PosRepositoryImpl implements PosRepository {
         }
       }
 
-      // Customer Loyalty Points Accrual (1 point per 10 currency units spent)
+      final orderNumber = 'TXN-${(100000 + (DateTime.now().millisecondsSinceEpoch % 900000))}';
+
+      // Customer Loyalty Points Accrual & Store Credit Debt Charges
       if (customerRepository != null && customerPhone != null && customerPhone.trim().isNotEmpty) {
         final earnedPoints = (cart.grandTotal / 10.0).floor();
-        if (earnedPoints > 0) {
-          try {
-            final custResult = await customerRepository!.getCustomers(searchQuery: customerPhone.trim());
-            await custResult.fold(
-              (_) async {},
-              (customers) async {
-                for (final c in customers) {
-                  if (c.phone == customerPhone.trim()) {
+        try {
+          final custResult = await customerRepository!.getCustomers(searchQuery: customerPhone.trim());
+          await custResult.fold(
+            (_) async {},
+            (customers) async {
+              for (final c in customers) {
+                if (c.phone == customerPhone.trim()) {
+                  // Accrue loyalty points
+                  if (earnedPoints > 0) {
                     final updatedCustomer = c.copyWith(
                       loyaltyPoints: c.loyaltyPoints + earnedPoints,
                     );
                     await customerRepository!.saveCustomer(updatedCustomer);
-                    break;
                   }
-                }
-              },
-            );
-          } catch (_) {}
-        }
-      }
 
-      final orderNumber = 'TXN-${(100000 + (DateTime.now().millisecondsSinceEpoch % 900000))}';
+                  // If checkout was paid via Store Credit, charge customer ledger
+                  for (final p in payments) {
+                    if (p.tenderType == TenderType.customerAccount && p.amount > 0) {
+                      await customerRepository!.chargeCustomerDebt(
+                        customerId: c.id,
+                        amount: p.amount,
+                        relatedOrderId: orderNumber,
+                        notes: 'Store Credit Charge (Order #$orderNumber)',
+                      );
+                    }
+                  }
+                  break;
+                }
+              }
+            },
+          );
+        } catch (_) {}
+      }
       final order = PosOrderModel(
         id: 'ord-${const Uuid().v4()}',
         orderNumber: orderNumber,

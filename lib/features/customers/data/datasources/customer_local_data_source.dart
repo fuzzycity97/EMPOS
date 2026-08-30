@@ -52,9 +52,21 @@ class CustomerLocalDataSourceImpl implements CustomerLocalDataSource {
     try {
       final box = await _customersBox;
       final raw = box.get(customerId);
-      if (raw == null) return null;
+      if (raw != null) {
+        return CustomerModel.fromRaw(raw);
+      }
 
-      return CustomerModel.fromRaw(raw);
+      // Robust fallback: search across all records by ID or phone
+      final cleanQuery = customerId.trim().toLowerCase();
+      for (final item in box.values) {
+        if (item != null) {
+          final cust = CustomerModel.fromRaw(item);
+          if (cust.id.toLowerCase() == cleanQuery || cust.phone.trim().toLowerCase() == cleanQuery) {
+            return cust;
+          }
+        }
+      }
+      return null;
     } catch (e) {
       throw CacheException(message: 'Failed to retrieve customer $customerId: $e');
     }
@@ -86,10 +98,18 @@ class CustomerLocalDataSourceImpl implements CustomerLocalDataSource {
       final box = await _ledgerBox;
       final List<CustomerLedgerEntryModel> entries = [];
 
+      // Find customer to obtain their canonical ID and phone for cross-referencing
+      final cust = await getCustomerById(customerId);
+      final canonicalId = cust?.id ?? customerId;
+      final phone = cust?.phone.trim();
+
       for (final raw in box.values) {
         if (raw != null) {
           final entry = CustomerLedgerEntryModel.fromRaw(raw);
-          if (entry.customerId == customerId) {
+          final entryCustId = entry.customerId.trim();
+          if (entryCustId == customerId ||
+              entryCustId == canonicalId ||
+              (phone != null && phone.isNotEmpty && entryCustId == phone)) {
             entries.add(entry);
           }
         }

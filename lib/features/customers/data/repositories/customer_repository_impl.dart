@@ -59,6 +59,23 @@ class CustomerRepositoryImpl implements CustomerRepository {
     try {
       final model = CustomerModel.fromEntity(customer);
       await localDataSource.saveCustomer(model);
+
+      // If customer has a positive total debt and zero ledger entries, auto-create an opening ledger record
+      if (customer.totalDebt > 0.001) {
+        final existingEntries = await localDataSource.getLedgerEntries(customer.id);
+        if (existingEntries.isEmpty) {
+          final openingCharge = CustomerLedgerEntryModel(
+            id: 'LEDGER-OPEN-${DateTime.now().millisecondsSinceEpoch}',
+            customerId: customer.id,
+            type: CustomerLedgerType.debtCharge,
+            amount: customer.totalDebt,
+            notes: 'Opening / Initial Debt Balance',
+            timestamp: customer.createdAt,
+          );
+          await localDataSource.saveLedgerEntry(openingCharge);
+        }
+      }
+
       return Right(model);
     } catch (e) {
       return Left(CacheFailure(message: 'Failed to save customer: $e'));
@@ -108,16 +125,16 @@ class CustomerRepositoryImpl implements CustomerRepository {
       final updatedCustomer = customer.copyWith(
         totalDebt: customer.totalDebt + amount,
       );
-      await localDataSource.saveCustomer(updatedCustomer);
+      await localDataSource.saveCustomer(CustomerModel.fromEntity(updatedCustomer));
 
-      // 2. Record ledger entry
+      // 2. Record ledger charge entry
       final entry = CustomerLedgerEntryModel(
         id: 'LEDGER-CHG-${DateTime.now().millisecondsSinceEpoch}',
-        customerId: customerId,
+        customerId: customer.id,
         type: CustomerLedgerType.debtCharge,
         amount: amount,
         relatedOrderId: relatedOrderId,
-        notes: notes ?? 'Store Credit Charge (Order #$relatedOrderId)',
+        notes: notes ?? (relatedOrderId != null ? 'Store Credit Charge (Order #$relatedOrderId)' : 'Account Debit Charge'),
         timestamp: DateTime.now(),
       );
       await localDataSource.saveLedgerEntry(entry);
@@ -148,12 +165,12 @@ class CustomerRepositoryImpl implements CustomerRepository {
       // 1. Reduce customer's total debt
       final newDebt = (customer.totalDebt - amount).clamp(0.0, double.infinity);
       final updatedCustomer = customer.copyWith(totalDebt: newDebt);
-      await localDataSource.saveCustomer(updatedCustomer);
+      await localDataSource.saveCustomer(CustomerModel.fromEntity(updatedCustomer));
 
       // 2. Record ledger payment entry
       final entry = CustomerLedgerEntryModel(
         id: 'LEDGER-PAY-${DateTime.now().millisecondsSinceEpoch}',
-        customerId: customerId,
+        customerId: customer.id,
         type: CustomerLedgerType.debtPayment,
         amount: amount,
         notes: notes ?? 'Debt Payment (${paymentTender.name.toUpperCase()})',
@@ -163,18 +180,20 @@ class CustomerRepositoryImpl implements CustomerRepository {
 
       // 3. Record Pay-In to active Shift Drawer if payment tender is Cash
       if (paymentTender == TenderType.cash) {
-        final activeShift = await shiftLocalDataSource.getActiveShift();
-        if (activeShift != null && activeShift.isOpen) {
-          final cashTx = CashTransactionModel(
-            id: 'CTX-DEBT-${DateTime.now().millisecondsSinceEpoch}',
-            shiftId: activeShift.id,
-            type: CashTransactionType.payIn,
-            amount: amount,
-            reason: 'Debt Settlement from ${customer.name}: ${notes ?? "Cash"}',
-            timestamp: DateTime.now(),
-          );
-          await shiftLocalDataSource.saveCashTransaction(cashTx);
-        }
+        try {
+          final activeShift = await shiftLocalDataSource.getActiveShift();
+          if (activeShift != null && activeShift.isOpen) {
+            final cashTx = CashTransactionModel(
+              id: 'CTX-DEBT-${DateTime.now().millisecondsSinceEpoch}',
+              shiftId: activeShift.id,
+              type: CashTransactionType.payIn,
+              amount: amount,
+              reason: 'Debt Settlement from ${customer.name}: ${notes ?? "Cash"}',
+              timestamp: DateTime.now(),
+            );
+            await shiftLocalDataSource.saveCashTransaction(cashTx);
+          }
+        } catch (_) {}
       }
 
       return Right(entry);

@@ -7,6 +7,7 @@ import '../../../../core/network/lan_sync/domain/repositories/lan_sync_repositor
 import '../../../customers/data/models/customer_model.dart';
 import '../../../customers/domain/entities/customer.dart';
 import '../../../customers/domain/repositories/customer_repository.dart';
+import '../../../pos/domain/entities/payment_detail.dart';
 import '../../data/models/clinic_visit_model.dart';
 import '../../data/models/patient_profile_model.dart';
 import '../../domain/entities/clinic_visit.dart';
@@ -689,43 +690,63 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
       );
       await _saveVisitLocally(updatedVisit);
 
-      // Sync remaining debt to CustomerRepository if applicable
-      if (remainingDebt > 0 && customerRepository != null) {
+      // Sync debt charge and copay payment to CustomerRepository ledger if applicable
+      if (customerRepository != null) {
         try {
           final customersRes = await customerRepository!.getCustomers();
           final customers = customersRes.getOrElse(() => []);
+          final patientPhone = patient?.phone.trim();
           final existingCust = customers.cast<Customer?>().firstWhere(
-            (c) => c?.id == visit.patientId,
+            (c) => c?.id == visit.patientId || (patientPhone != null && patientPhone.isNotEmpty && c?.phone.trim() == patientPhone),
             orElse: () => null,
           );
 
-          Customer savedCust;
+          String targetCustId = visit.patientId;
           if (existingCust != null) {
-            savedCust = existingCust.copyWith(
-              totalDebt: existingCust.totalDebt + remainingDebt,
-            );
-            await customerRepository!.saveCustomer(savedCust);
+            targetCustId = existingCust.id;
           } else {
-            savedCust = Customer(
+            final newCust = Customer(
               id: visit.patientId,
               name: visit.patientName,
               phone: patient?.phone ?? '',
-              totalDebt: remainingDebt,
+              totalDebt: 0.0,
               createdAt: DateTime.now(),
             );
-            await customerRepository!.saveCustomer(savedCust);
+            await customerRepository!.saveCustomer(newCust);
           }
 
-          final crmEnvelope = SyncEnvelope.create(
-            type: MessageRoutes.customerUpdated,
-            scope: 'crm',
-            senderId: lanSyncRepository?.isHost == true ? 'hub_host' : 'reception_station',
-            senderRole: 'receptionist',
-            payload: {
-              'customer': CustomerModel.fromEntity(savedCust).toJson(),
-            },
-          );
-          await lanSyncRepository?.broadcast(crmEnvelope);
+          // 1. Record consultation charge in ledger if copay was due
+          if (expectedPatientShare > 0) {
+            await customerRepository!.chargeCustomerDebt(
+              customerId: targetCustId,
+              amount: expectedPatientShare,
+              notes: 'Clinic Consultation Fee (Visit #${visit.id})',
+            );
+          }
+
+          // 2. Record payment in ledger if actual payment was collected
+          if (actualPaid > 0) {
+            await customerRepository!.processDebtPayment(
+              customerId: targetCustId,
+              amount: actualPaid,
+              paymentTender: TenderType.cash,
+              notes: 'Copay Settlement at Reception (Visit #${visit.id})',
+            );
+          }
+
+          final updatedCustRes = await customerRepository!.getCustomerById(targetCustId);
+          updatedCustRes.fold((_) {}, (savedCust) {
+            final crmEnvelope = SyncEnvelope.create(
+              type: MessageRoutes.customerUpdated,
+              scope: 'crm',
+              senderId: lanSyncRepository?.isHost == true ? 'hub_host' : 'reception_station',
+              senderRole: 'receptionist',
+              payload: {
+                'customer': CustomerModel.fromEntity(savedCust).toJson(),
+              },
+            );
+            lanSyncRepository?.broadcast(crmEnvelope);
+          });
         } catch (_) {}
       }
 

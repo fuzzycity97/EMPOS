@@ -9,6 +9,7 @@ import '../../domain/entities/customer.dart';
 import '../../domain/entities/customer_ledger_entry.dart';
 import '../bloc/customer_bloc.dart';
 import '../bloc/customer_state.dart';
+import 'charge_customer_debt_dialog.dart';
 import 'debt_payment_dialog.dart';
 
 class CustomerLedgerDialog extends StatelessWidget {
@@ -25,8 +26,8 @@ class CustomerLedgerDialog extends StatelessWidget {
         side: const BorderSide(color: AppColors.borderDark),
       ),
       child: Container(
-        width: 700,
-        height: 600,
+        width: 780,
+        height: 640,
         padding: const EdgeInsets.all(AppDimensions.space24),
         child: BlocBuilder<CustomerBloc, CustomerState>(
           builder: (context, state) {
@@ -35,11 +36,11 @@ class CustomerLedgerDialog extends StatelessWidget {
 
             if (state is CustomersLoaded) {
               if (state.selectedCustomer != null &&
-                  state.selectedCustomer!.id == customer.id) {
+                  (state.selectedCustomer!.id == customer.id || state.selectedCustomer!.phone == customer.phone)) {
                 currentCustomer = state.selectedCustomer!;
               } else {
                 final found = state.allCustomers
-                    .where((c) => c.id == customer.id)
+                    .where((c) => c.id == customer.id || c.phone == customer.phone)
                     .firstOrNull;
                 if (found != null) currentCustomer = found;
               }
@@ -47,6 +48,19 @@ class CustomerLedgerDialog extends StatelessWidget {
             }
 
             final hasDebt = currentCustomer.totalDebt > 0.001;
+            final hasPayments = ledger.any((e) => e.type == CustomerLedgerType.debtPayment);
+
+            Color bannerColor = AppColors.success;
+            String statusBadgeLabel = 'CLEARED (0.00)';
+            if (hasDebt) {
+              if (hasPayments) {
+                bannerColor = AppColors.warning;
+                statusBadgeLabel = 'PARTIALLY SETTLED (${CurrencyFormatter.format(currentCustomer.totalDebt)})';
+              } else {
+                bannerColor = AppColors.danger;
+                statusBadgeLabel = 'ACTIVE DEBT (${CurrencyFormatter.format(currentCustomer.totalDebt)})';
+              }
+            }
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,8 +72,7 @@ class CustomerLedgerDialog extends StatelessWidget {
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withValues(alpha: 0.15),
-                        borderRadius:
-                            BorderRadius.circular(AppDimensions.radiusSmall),
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
                       ),
                       child: const Icon(
                         LucideIcons.fileSpreadsheet,
@@ -68,28 +81,53 @@ class CustomerLedgerDialog extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: AppDimensions.space12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${currentCustomer.name} — Account Ledger',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.textPrimaryDark,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  '${currentCustomer.name} — Account Ledger',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.textPrimaryDark,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: bannerColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: bannerColor.withValues(alpha: 0.3)),
+                                ),
+                                child: Text(
+                                  statusBadgeLabel,
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: bannerColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Phone: ${currentCustomer.phone} • Points: ${currentCustomer.loyaltyPoints}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondaryDark,
+                          const SizedBox(height: 2),
+                          Text(
+                            'Phone: ${currentCustomer.phone} • Loyalty Points: ${currentCustomer.loyaltyPoints} Pts',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondaryDark,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                    const Spacer(),
                     IconButton(
                       icon: const Icon(LucideIcons.x, size: 18),
                       onPressed: () => Navigator.of(context).pop(),
@@ -98,93 +136,139 @@ class CustomerLedgerDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: AppDimensions.space16),
 
-                // Balance Banner & Settle Button
+                // Balance Banner & Actions
                 Container(
                   padding: const EdgeInsets.all(AppDimensions.space16),
                   decoration: BoxDecoration(
-                    color: hasDebt
-                        ? AppColors.danger.withValues(alpha: 0.10)
-                        : AppColors.success.withValues(alpha: 0.10),
-                    borderRadius:
-                        BorderRadius.circular(AppDimensions.radiusMedium),
+                    color: bannerColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
                     border: Border.all(
-                      color: hasDebt
-                          ? AppColors.danger.withValues(alpha: 0.3)
-                          : AppColors.success.withValues(alpha: 0.3),
+                      color: bannerColor.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Row(
                     children: [
                       Icon(
-                        hasDebt ? LucideIcons.badgeAlert : LucideIcons.circleCheck,
-                        color: hasDebt ? AppColors.danger : AppColors.success,
-                        size: 24,
+                        hasDebt
+                            ? (hasPayments ? LucideIcons.circleDashed : LucideIcons.badgeAlert)
+                            : LucideIcons.circleCheck,
+                        color: bannerColor,
+                        size: 26,
                       ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Outstanding Debt Balance',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textSecondaryDark,
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Outstanding Debt Balance',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textSecondaryDark,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            CurrencyFormatter.format(currentCustomer.totalDebt),
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              color:
-                                  hasDebt ? AppColors.danger : AppColors.success,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      if (hasDebt)
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.success,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                          ),
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => BlocProvider.value(
-                                value: context.read<CustomerBloc>(),
-                                child: DebtPaymentDialog(
-                                  customer: currentCustomer,
+                            const SizedBox(height: 2),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                CurrencyFormatter.format(currentCustomer.totalDebt),
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  color: bannerColor,
+                                  fontFamily: 'monospace',
                                 ),
                               ),
-                            );
-                          },
-                          icon: const Icon(LucideIcons.handCoins, size: 16),
-                          label: const Text(
-                            'SETTLE DEBT / PAY',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
+                            ),
+                          ],
                         ),
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Action 1: Add Debit / Charge
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.danger,
+                          side: BorderSide(color: AppColors.danger.withValues(alpha: 0.5)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          backgroundColor: AppColors.danger.withValues(alpha: 0.08),
+                        ),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => BlocProvider.value(
+                              value: context.read<CustomerBloc>(),
+                              child: ChargeCustomerDebtDialog(customer: currentCustomer),
+                            ),
+                          );
+                        },
+                        icon: const Icon(LucideIcons.filePlus2, size: 14),
+                        label: const Text(
+                          '+ CHARGE DEBT',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Action 2: Settle Debt / Pay
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: hasDebt ? AppColors.success : AppColors.surfaceElevatedDark,
+                          foregroundColor: hasDebt ? Colors.white : AppColors.textMutedDark,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        ),
+                        onPressed: hasDebt
+                            ? () {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => BlocProvider.value(
+                                    value: context.read<CustomerBloc>(),
+                                    child: DebtPaymentDialog(
+                                      customer: currentCustomer,
+                                    ),
+                                  ),
+                                );
+                              }
+                            : null,
+                        icon: const Icon(LucideIcons.handCoins, size: 15),
+                        label: const Text(
+                          'COLLECT PAYMENT',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 const SizedBox(height: AppDimensions.space16),
 
-                const Text(
-                  'Transaction Audit History',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textSecondaryDark,
-                  ),
+                // Transaction Audit Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        'Transaction Audit History (${ledger.length} entries)',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textSecondaryDark,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (ledger.isNotEmpty)
+                      const Text(
+                        'Append-Only Audit Log',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textMutedDark,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
 
@@ -208,32 +292,34 @@ class CustomerLedgerDialog extends StatelessWidget {
                                   color: AppColors.textSecondaryDark,
                                 ),
                               ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Use "+ CHARGE DEBT" to add a debit charge or "COLLECT PAYMENT" to settle.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textMutedDark,
+                                ),
+                              ),
                             ],
                           ),
                         )
                       : Container(
                           decoration: BoxDecoration(
                             color: AppColors.surfaceElevatedDark,
-                            borderRadius: BorderRadius.circular(
-                              AppDimensions.radiusMedium,
-                            ),
+                            borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
                             border: Border.all(color: AppColors.borderDark),
                           ),
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(
-                              AppDimensions.radiusMedium,
-                            ),
+                            borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
                             child: ListView.separated(
                               itemCount: ledger.length,
                               separatorBuilder: (ctx, i) => Divider(
                                 height: 1,
-                                color: AppColors.borderDark
-                                    .withValues(alpha: 0.5),
+                                color: AppColors.borderDark.withValues(alpha: 0.5),
                               ),
                               itemBuilder: (context, index) {
                                 final entry = ledger[index];
-                                final isPayment = entry.type ==
-                                    CustomerLedgerType.debtPayment;
+                                final isPayment = entry.type == CustomerLedgerType.debtPayment;
 
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(
@@ -244,14 +330,13 @@ class CustomerLedgerDialog extends StatelessWidget {
                                     children: [
                                       // Date
                                       SizedBox(
-                                        width: 120,
+                                        width: 130,
                                         child: Text(
-                                          DateFormatter.formatDateTime(
-                                            entry.timestamp,
-                                          ),
+                                          DateFormatter.formatDateTime(entry.timestamp),
                                           style: const TextStyle(
                                             fontSize: 11,
                                             color: AppColors.textMutedDark,
+                                            fontFamily: 'monospace',
                                           ),
                                         ),
                                       ),
@@ -260,33 +345,38 @@ class CustomerLedgerDialog extends StatelessWidget {
                                       // Type Badge
                                       Container(
                                         padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
+                                          horizontal: 6,
+                                          vertical: 3,
                                         ),
                                         decoration: BoxDecoration(
                                           color: isPayment
-                                              ? AppColors.success
-                                                  .withValues(alpha: 0.15)
-                                              : AppColors.danger
-                                                  .withValues(alpha: 0.15),
+                                              ? AppColors.success.withValues(alpha: 0.15)
+                                              : AppColors.danger.withValues(alpha: 0.15),
                                           borderRadius: BorderRadius.circular(
                                             AppDimensions.radiusSmall,
                                           ),
                                         ),
-                                        child: Text(
-                                          isPayment
-                                              ? 'DEBT PAYMENT'
-                                              : 'CHARGE (+DEBT)',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                            color: isPayment
-                                                ? AppColors.success
-                                                : AppColors.danger,
-                                          ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              isPayment ? LucideIcons.arrowDownLeft : LucideIcons.arrowUpRight,
+                                              size: 11,
+                                              color: isPayment ? AppColors.success : AppColors.danger,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              isPayment ? 'DEBT PAYMENT' : 'CHARGE (+DEBT)',
+                                              style: TextStyle(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: isPayment ? AppColors.success : AppColors.danger,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
+                                      const SizedBox(width: 10),
 
                                       // Details / Notes
                                       Expanded(
@@ -303,17 +393,15 @@ class CustomerLedgerDialog extends StatelessWidget {
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
+                                      const SizedBox(width: 10),
 
                                       // Amount
                                       Text(
                                         '${isPayment ? "-" : "+"}${CurrencyFormatter.format(entry.amount)}',
                                         style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: 12.5,
                                           fontWeight: FontWeight.w900,
-                                          color: isPayment
-                                              ? AppColors.success
-                                              : AppColors.danger,
+                                          color: isPayment ? AppColors.success : AppColors.danger,
                                           fontFamily: 'monospace',
                                         ),
                                       ),

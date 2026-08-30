@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/network/lan_sync/data/message_routes.dart';
 import '../../../../core/network/lan_sync/domain/entities/sync_envelope.dart';
 import '../../../../core/network/lan_sync/domain/repositories/lan_sync_repository.dart';
+import '../../../../core/utils/currency_formatter.dart';
 import '../../data/models/customer_model.dart';
 import '../../domain/entities/customer.dart';
 import '../../domain/usecases/charge_customer_debt_usecase.dart';
@@ -257,6 +258,12 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
                 return nameMatch || phoneMatch;
               }).toList();
 
+        final remainingMsg = updatedCust != null
+            ? (updatedCust!.totalDebt > 0.001
+                ? ' Remaining debt: ${CurrencyFormatter.format(updatedCust!.totalDebt)}'
+                : ' Debt fully settled.')
+            : '';
+
         ledgerRes.fold(
           (_) => emit(CustomersLoaded(
             allCustomers: allCustomers,
@@ -265,7 +272,7 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
             selectedCustomer: updatedCust,
             selectedCustomerLedger: const [],
             isProcessing: false,
-            toastMessage: 'Payment of \$${event.amount.toStringAsFixed(2)} processed successfully.',
+            toastMessage: 'Payment of ${CurrencyFormatter.format(event.amount)} recorded successfully.$remainingMsg',
           )),
           (ledger) => emit(CustomersLoaded(
             allCustomers: allCustomers,
@@ -274,7 +281,7 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
             selectedCustomer: updatedCust,
             selectedCustomerLedger: ledger,
             isProcessing: false,
-            toastMessage: 'Payment of \$${event.amount.toStringAsFixed(2)} processed successfully.',
+            toastMessage: 'Payment of ${CurrencyFormatter.format(event.amount)} recorded successfully.$remainingMsg',
           )),
         );
       },
@@ -285,6 +292,10 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
     ChargeDebtEvent event,
     Emitter<CustomerState> emit,
   ) async {
+    if (state is CustomersLoaded) {
+      emit((state as CustomersLoaded).copyWith(isProcessing: true));
+    }
+
     final chargeRes = await chargeCustomerDebtUseCase(
       ChargeCustomerDebtParams(
         customerId: event.customerId,
@@ -294,27 +305,69 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
       ),
     );
 
-    chargeRes.fold(
-      (_) {},
-      (_) async {
+    await chargeRes.fold(
+      (failure) async {
+        if (state is CustomersLoaded) {
+          emit((state as CustomersLoaded).copyWith(
+            isProcessing: false,
+            toastMessage: 'Failed to charge debt: ${failure.message}',
+          ));
+        }
+      },
+      (ledgerEntry) async {
         final allRes = await getCustomersUseCase();
-        allRes.fold((_) {}, (customers) {
-          if (state is CustomersLoaded) {
-            final query = (state as CustomersLoaded).searchQuery;
-            final filtered = query.isEmpty
-                ? customers
-                : customers.where((c) {
-                    final nameMatch = c.name.toLowerCase().contains(query.toLowerCase());
-                    final phoneMatch = c.phone.toLowerCase().contains(query.toLowerCase());
-                    return nameMatch || phoneMatch;
-                  }).toList();
+        final customerRes = await getCustomerByIdUseCase(event.customerId);
+        final ledgerRes = await getCustomerLedgerUseCase(event.customerId);
 
-            emit((state as CustomersLoaded).copyWith(
-              allCustomers: customers,
-              displayedCustomers: filtered,
-            ));
-          }
-        });
+        List<Customer> allCustomers = [];
+        Customer? updatedCust;
+        allRes.fold((_) {}, (list) => allCustomers = list);
+        customerRes.fold((_) {}, (c) => updatedCust = c);
+
+        if (updatedCust != null) {
+          final envelope = SyncEnvelope.create(
+            type: MessageRoutes.customerUpdated,
+            scope: 'crm',
+            senderId: 'crm_station',
+            senderRole: 'staff',
+            payload: {
+              'customer': CustomerModel.fromEntity(updatedCust!).toJson(),
+            },
+          );
+          lanSyncRepository?.broadcast(envelope);
+        }
+
+        final query = state is CustomersLoaded
+            ? (state as CustomersLoaded).searchQuery
+            : '';
+        final filtered = query.isEmpty
+            ? allCustomers
+            : allCustomers.where((c) {
+                final nameMatch = c.name.toLowerCase().contains(query.toLowerCase());
+                final phoneMatch = c.phone.toLowerCase().contains(query.toLowerCase());
+                return nameMatch || phoneMatch;
+              }).toList();
+
+        ledgerRes.fold(
+          (_) => emit(CustomersLoaded(
+            allCustomers: allCustomers,
+            displayedCustomers: filtered,
+            searchQuery: query,
+            selectedCustomer: updatedCust,
+            selectedCustomerLedger: const [],
+            isProcessing: false,
+            toastMessage: 'Charge of ${CurrencyFormatter.format(event.amount)} added to account debt.',
+          )),
+          (ledger) => emit(CustomersLoaded(
+            allCustomers: allCustomers,
+            displayedCustomers: filtered,
+            searchQuery: query,
+            selectedCustomer: updatedCust,
+            selectedCustomerLedger: ledger,
+            isProcessing: false,
+            toastMessage: 'Charge of ${CurrencyFormatter.format(event.amount)} added to account debt.',
+          )),
+        );
       },
     );
   }

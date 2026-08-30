@@ -35,14 +35,13 @@ class LanSyncDialog extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         side: const BorderSide(color: AppColors.borderDark),
       ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 620, maxHeight: 680),
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.space24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
+      child: Container(
+        width: 620,
+        height: 600,
+        padding: const EdgeInsets.all(AppDimensions.space24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
               // ── DIALOG HEADER ─────────────────────────────────────────────
               Row(
                 children: [
@@ -59,9 +58,9 @@ class LanSyncDialog extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'LAN Real-Time Sync Engine',
-                          style: GoogleFonts.outfit(
+                          style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
@@ -138,6 +137,7 @@ class LanSyncDialog extends StatelessWidget {
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
                                 statusTitle,
@@ -146,6 +146,7 @@ class LanSyncDialog extends StatelessWidget {
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
                                 ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 3),
                               Text(
@@ -154,6 +155,7 @@ class LanSyncDialog extends StatelessWidget {
                                   color: AppColors.textSecondaryDark,
                                   fontSize: 11,
                                 ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -198,16 +200,20 @@ class LanSyncDialog extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                isHost
-                                    ? 'Connected Client Stations (${displayNodes.length})'
-                                    : 'Connected Stations in Network (${displayNodes.length})',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                              Flexible(
+                                child: Text(
+                                  isHost
+                                      ? 'Connected Client Stations (${displayNodes.length})'
+                                      : 'Connected Stations in Network (${displayNodes.length})',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                              const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
@@ -309,12 +315,15 @@ class LanSyncDialog extends StatelessWidget {
                                   children: [
                                     Icon(LucideIcons.server, size: 18, color: AppColors.primary),
                                     SizedBox(width: 8),
-                                    Text(
-                                      'Host LAN Sync Hub (Primary Reception/Server)',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                        fontSize: 13,
+                                    Expanded(
+                                      child: Text(
+                                        'Start as Central Hub Host (Reception / Server)',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                   ],
@@ -360,12 +369,15 @@ class LanSyncDialog extends StatelessWidget {
                                   children: [
                                     Icon(LucideIcons.laptop, size: 18, color: AppColors.info),
                                     SizedBox(width: 8),
-                                    Text(
-                                      'Connect to Existing Host (Doctor Station / Peer)',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                        fontSize: 13,
+                                    Expanded(
+                                      child: Text(
+                                        'Connect to Existing Host (Doctor Station / Peer)',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                   ],
@@ -410,7 +422,6 @@ class LanSyncDialog extends StatelessWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }
@@ -457,12 +468,15 @@ class _StationNodeCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      node.id,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: Text(
+                        node.id,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(width: 8),

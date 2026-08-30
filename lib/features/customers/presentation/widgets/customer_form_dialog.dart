@@ -12,6 +12,7 @@ class CustomerFormDialog extends StatelessWidget {
   final TextEditingController nameController;
   final TextEditingController phoneController;
   final TextEditingController addressController;
+  final TextEditingController debtController;
   final TextEditingController notesController;
 
   const CustomerFormDialog._({
@@ -20,6 +21,7 @@ class CustomerFormDialog extends StatelessWidget {
     required this.nameController,
     required this.phoneController,
     required this.addressController,
+    required this.debtController,
     required this.notesController,
   });
 
@@ -35,6 +37,9 @@ class CustomerFormDialog extends StatelessWidget {
       nameController: TextEditingController(text: customer?.name ?? initialName ?? ''),
       phoneController: TextEditingController(text: customer?.phone ?? initialPhone ?? ''),
       addressController: TextEditingController(text: customer?.address ?? ''),
+      debtController: TextEditingController(
+        text: (customer != null && customer.totalDebt > 0) ? customer.totalDebt.toStringAsFixed(2) : '',
+      ),
       notesController: TextEditingController(text: customer?.notes ?? ''),
     );
   }
@@ -44,6 +49,7 @@ class CustomerFormDialog extends StatelessWidget {
     final phone = phoneController.text.trim();
     final address = addressController.text.trim();
     final notes = notesController.text.trim();
+    final initialDebt = double.tryParse(debtController.text.trim()) ?? (customer?.totalDebt ?? 0.0);
 
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -65,7 +71,7 @@ class CustomerFormDialog extends StatelessWidget {
       phone: phone,
       address: address.isNotEmpty ? address : null,
       notes: notes.isNotEmpty ? notes : null,
-      totalDebt: customer?.totalDebt ?? 0.0,
+      totalDebt: initialDebt.clamp(0.0, double.infinity),
       loyaltyPoints: customer?.loyaltyPoints ?? 0,
       createdAt: customer?.createdAt ?? DateTime.now(),
     );
@@ -140,6 +146,16 @@ class CustomerFormDialog extends StatelessWidget {
               icon: LucideIcons.phone,
               hint: 'e.g. 01012345678',
               keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: AppDimensions.space12),
+
+            // Initial Debt Balance Field
+            _buildTextField(
+              label: isEditing ? 'Outstanding Debt Balance (EGP)' : 'Initial Outstanding Debt (Optional)',
+              controller: debtController,
+              icon: LucideIcons.handCoins,
+              hint: '0.00',
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
             ),
             const SizedBox(height: AppDimensions.space12),
 
