@@ -9,6 +9,8 @@ class ToothChartEntryModel extends ToothChartEntry {
     super.pocketDepthMm = 2,
     super.surfaceNotation = '',
     super.notes,
+    super.specialCaseType,
+    super.history = const [],
   });
 
   factory ToothChartEntryModel.fromJson(Map<String, dynamic> json) {
@@ -16,6 +18,14 @@ class ToothChartEntryModel extends ToothChartEntry {
     final tCode = json['toothCode']?.toString() ?? tNum.toString();
     final isDec = json['isDeciduous'] == true ||
         ToothChartEntry.primaryToothCodes.contains(tCode.toUpperCase());
+
+    final histRaw = json['history'] as List<dynamic>?;
+    final historyList = histRaw != null
+        ? histRaw
+            .whereType<Map<String, dynamic>>()
+            .map((h) => ToothHistoryEntry.fromJson(h))
+            .toList()
+        : <ToothHistoryEntry>[];
 
     return ToothChartEntryModel(
       toothNumber: tNum,
@@ -25,6 +35,10 @@ class ToothChartEntryModel extends ToothChartEntry {
       pocketDepthMm: (json['pocketDepthMm'] as num?)?.toInt() ?? 2,
       surfaceNotation: json['surfaceNotation']?.toString() ?? '',
       notes: json['notes']?.toString(),
+      specialCaseType: json['specialCaseType'] != null
+          ? SpecialCaseType.fromString(json['specialCaseType']?.toString())
+          : null,
+      history: historyList,
     );
   }
 
@@ -37,6 +51,8 @@ class ToothChartEntryModel extends ToothChartEntry {
       'pocketDepthMm': pocketDepthMm,
       'surfaceNotation': surfaceNotation,
       'notes': notes,
+      'specialCaseType': specialCaseType?.name,
+      'history': history.map((h) => h.toJson()).toList(),
     };
   }
 
@@ -49,6 +65,9 @@ class ToothChartEntryModel extends ToothChartEntry {
       pocketDepthMm: entity.pocketDepthMm,
       surfaceNotation: entity.surfaceNotation,
       notes: entity.notes,
+      specialCaseType: entity.specialCaseType,
+      history: entity.history,
     );
   }
 }
+

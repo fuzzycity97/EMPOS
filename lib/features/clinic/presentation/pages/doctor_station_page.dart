@@ -241,6 +241,7 @@ class DoctorStationPage extends StatelessWidget {
                                   DentalToothMatrixWidget(
                                     toothChart: loadedState.activeToothChart ?? [],
                                     isPediatric: isPediatric,
+                                    doctorName: activeVisit.doctorName,
                                     onToothUpdated: (updatedEntry) {
                                       bloc.add(
                                         UpdateToothChartEntryEvent(
