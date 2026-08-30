@@ -128,7 +128,9 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 ## 5. Currently In Progress
 
-*No tasks currently in progress.*
+| Feature / Task | Agent / Tool | Description | Started |
+|---|---|---|---|
+| Customer Account Ledger — Partial Payment & Transaction Audit Integrity Fix | Antigravity | Investigating customer debt payment recording, balance reduction logic, ledger transaction history persistence, and status badge computation. | 2026-08-30T17:36:00Z |
 
 ---
 
