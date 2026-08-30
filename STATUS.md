@@ -128,7 +128,9 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 ## 5. Currently In Progress
 
-*No tasks currently in progress.*
+| Feature / Task | Agent / Tool | Description | Started |
+|---|---|---|---|
+| LAN Sync Engine — Client Handshake, Host Peer Count & Disconnect Fix | Antigravity | Investigating and fixing client optimistic connection state, host client registry UI reactivity, client-specific connection status display, and client disconnect handling. | 2026-08-30T17:16:00Z |
 
 ---
 
