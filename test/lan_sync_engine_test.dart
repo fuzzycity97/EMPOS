@@ -77,6 +77,9 @@ void main() {
       expect(MessageRoutes.isValidRoute(MessageRoutes.visitCompleted), isTrue);
       expect(MessageRoutes.isValidRoute(MessageRoutes.saleCompleted), isTrue);
       expect(MessageRoutes.isValidRoute(MessageRoutes.toothChartUpdated), isTrue);
+      expect(MessageRoutes.isValidRoute(MessageRoutes.nodeJoined), isTrue);
+      expect(MessageRoutes.isValidRoute(MessageRoutes.nodeJoinedAck), isTrue);
+      expect(MessageRoutes.isValidRoute(MessageRoutes.peerListUpdate), isTrue);
       expect(MessageRoutes.isValidRoute('unknown.invalid.route'), isFalse);
     });
   });
@@ -102,6 +105,7 @@ void main() {
       await hostRepo.startHostServer(port: testPort);
       expect(hostRepo.isHost, isTrue);
       expect(hostRepo.isConnected, isTrue);
+      expect(hostRepo.connectedNodes.isNotEmpty, isTrue);
 
       // 2. Client connects to Host
       final clientReceivedEvents = <SyncEnvelope>[];
@@ -115,7 +119,7 @@ void main() {
       expect(clientRepo.isConnected, isTrue);
 
       // Wait briefly for handshake
-      await Future.delayed(const Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 200));
 
       // 3. Host broadcasts event
       final doctorEvent = SyncEnvelope.create(
@@ -161,6 +165,45 @@ void main() {
 
       await clientSub.cancel();
       await hostSub.cancel();
+    });
+
+    test('Host registers connected peer and updates connectedNodes and streams reactively', () async {
+      const testPort = 9877;
+
+      // Host starts
+      await hostRepo.startHostServer(port: testPort);
+      expect(hostRepo.connectedNodes.length, 1); // Host itself
+      expect(hostRepo.connectedNodes.first.role.toLowerCase().contains('host'), isTrue);
+
+      final hostNodeUpdates = <List<ConnectedNode>>[];
+      final hostNodesSub = hostRepo.connectedNodesStream.listen(hostNodeUpdates.add);
+
+      // Client connects
+      await clientRepo.connectToHost('127.0.0.1', port: testPort);
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // Host should now have 2 nodes (Host + Client)
+      expect(hostRepo.connectedNodes.length, 2);
+      expect(hostNodeUpdates.isNotEmpty, isTrue);
+
+      // Client disconnects
+      await clientRepo.disconnect();
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // Host should now have dropped back to 1 node (Host only)
+      expect(hostRepo.connectedNodes.length, 1);
+
+      await hostNodesSub.cancel();
+    });
+
+    test('Client connect throws on unreachable host and does not remain in false connected state', () async {
+      // Connect to non-existent server port
+      expect(
+        () async => await clientRepo.connectToHost('127.0.0.1', port: 19898),
+        throwsA(anything),
+      );
+      expect(clientRepo.isConnected, isFalse);
+      expect(clientRepo.connectedNodes.isEmpty, isTrue);
     });
   });
 }

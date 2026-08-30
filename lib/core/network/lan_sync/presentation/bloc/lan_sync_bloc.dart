@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../data/repositories/lan_sync_repository_impl.dart';
 import '../../domain/repositories/lan_sync_repository.dart';
 import 'lan_sync_event.dart';
 import 'lan_sync_state.dart';
@@ -16,6 +17,8 @@ class LanSyncBloc extends Bloc<LanSyncEvent, LanSyncState> {
 
     _nodesSubscription = lanSyncRepository.connectedNodesStream.listen((nodes) {
       if (lanSyncRepository.isConnected) {
+        add(const RefreshLanSyncStatusEvent());
+      } else if (state is! LanSyncDisconnected && state is! LanSyncInitial) {
         add(const RefreshLanSyncStatusEvent());
       }
     });
@@ -34,12 +37,17 @@ class LanSyncBloc extends Bloc<LanSyncEvent, LanSyncState> {
     emit(const LanSyncConnecting());
     try {
       await lanSyncRepository.startHostServer(port: event.port);
+      final localIp = await LanSyncRepositoryImpl.getPrimaryLocalIp();
+      final localId = LanSyncRepositoryImpl.getLocalInstanceId();
+      final localRole = LanSyncRepositoryImpl.getLocalStationRole(isHost: true);
       emit(
         LanSyncConnected(
           isHost: true,
-          address: '0.0.0.0 (All LAN Interfaces)',
+          address: localIp,
           port: event.port,
           nodes: lanSyncRepository.connectedNodes,
+          localStationId: localId,
+          localStationRole: localRole,
         ),
       );
     } catch (e) {
@@ -51,15 +59,19 @@ class LanSyncBloc extends Bloc<LanSyncEvent, LanSyncState> {
     ConnectToHostEvent event,
     Emitter<LanSyncState> emit,
   ) async {
-    emit(const LanSyncConnecting());
+    emit(LanSyncConnecting(targetAddress: '${event.hostIp}:${event.port}'));
     try {
       await lanSyncRepository.connectToHost(event.hostIp, port: event.port);
+      final localId = LanSyncRepositoryImpl.getLocalInstanceId();
+      final localRole = LanSyncRepositoryImpl.getLocalStationRole(isHost: false);
       emit(
         LanSyncConnected(
           isHost: false,
           address: event.hostIp,
           port: event.port,
           nodes: lanSyncRepository.connectedNodes,
+          localStationId: localId,
+          localStationRole: localRole,
         ),
       );
     } catch (e) {
@@ -80,11 +92,22 @@ class LanSyncBloc extends Bloc<LanSyncEvent, LanSyncState> {
     Emitter<LanSyncState> emit,
   ) {
     if (lanSyncRepository.isConnected) {
+      final currentAddress = (state is LanSyncConnected)
+          ? (state as LanSyncConnected).address
+          : (lanSyncRepository.isHost ? '127.0.0.1' : 'Host Connected');
+      final currentPort =
+          (state is LanSyncConnected) ? (state as LanSyncConnected).port : 9090;
+      final localId = LanSyncRepositoryImpl.getLocalInstanceId();
+      final localRole =
+          LanSyncRepositoryImpl.getLocalStationRole(isHost: lanSyncRepository.isHost);
       emit(
         LanSyncConnected(
           isHost: lanSyncRepository.isHost,
-          address: lanSyncRepository.isHost ? '0.0.0.0' : 'Host Connected',
+          address: currentAddress,
+          port: currentPort,
           nodes: lanSyncRepository.connectedNodes,
+          localStationId: localId,
+          localStationRole: localRole,
         ),
       );
     } else {

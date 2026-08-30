@@ -21,6 +21,8 @@ class MessageRoutes {
 
   // Network & Station Topology Routes
   static const String nodeJoined = 'system.node_joined';
+  static const String nodeJoinedAck = 'system.node_joined_ack';
+  static const String peerListUpdate = 'system.peer_list_update';
   static const String nodeLeft = 'system.node_left';
   static const String ping = 'system.ping';
   static const String pong = 'system.pong';
@@ -46,6 +48,8 @@ class MessageRoutes {
     workOrderCreated,
     workOrderStageAdvanced,
     nodeJoined,
+    nodeJoinedAck,
+    peerListUpdate,
     nodeLeft,
     ping,
     pong,

@@ -13,7 +13,11 @@ class LanSyncInitial extends LanSyncState {
 }
 
 class LanSyncConnecting extends LanSyncState {
-  const LanSyncConnecting();
+  final String? targetAddress;
+  const LanSyncConnecting({this.targetAddress});
+
+  @override
+  List<Object?> get props => [targetAddress];
 }
 
 class LanSyncConnected extends LanSyncState {
@@ -21,16 +25,27 @@ class LanSyncConnected extends LanSyncState {
   final String address;
   final int port;
   final List<ConnectedNode> nodes;
+  final String localStationId;
+  final String localStationRole;
 
   const LanSyncConnected({
     required this.isHost,
     required this.address,
     this.port = 9090,
     this.nodes = const [],
+    this.localStationId = '',
+    this.localStationRole = '',
   });
 
   @override
-  List<Object?> get props => [isHost, address, port, nodes];
+  List<Object?> get props => [
+        isHost,
+        address,
+        port,
+        nodes,
+        localStationId,
+        localStationRole,
+      ];
 }
 
 class LanSyncDisconnected extends LanSyncState {
