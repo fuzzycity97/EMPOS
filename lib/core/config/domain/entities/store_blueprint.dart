@@ -1,6 +1,49 @@
 import 'package:equatable/equatable.dart';
 import 'industry_type.dart';
 
+class ModuleFeatureFlags extends Equatable {
+  final bool enableClinicalSuite;
+  final bool enablePharmacyDispensing;
+  final bool enableRetailSupermarket;
+  final bool enableRestaurantDineIn;
+  final bool enableLabDiagnostics;
+  final List<SpecificIndustry> activeSpecialties;
+  final bool enable3dAnatomicalViewer;
+  final bool enableDiagnosticLightbox;
+  final bool enableBloodworkPanel;
+  final bool enableOpticalPrescriptions;
+  final bool enableGrowthCharts;
+
+  const ModuleFeatureFlags({
+    this.enableClinicalSuite = false,
+    this.enablePharmacyDispensing = false,
+    this.enableRetailSupermarket = false,
+    this.enableRestaurantDineIn = false,
+    this.enableLabDiagnostics = false,
+    this.activeSpecialties = const [],
+    this.enable3dAnatomicalViewer = true,
+    this.enableDiagnosticLightbox = true,
+    this.enableBloodworkPanel = true,
+    this.enableOpticalPrescriptions = false,
+    this.enableGrowthCharts = false,
+  });
+
+  @override
+  List<Object?> get props => [
+        enableClinicalSuite,
+        enablePharmacyDispensing,
+        enableRetailSupermarket,
+        enableRestaurantDineIn,
+        enableLabDiagnostics,
+        activeSpecialties,
+        enable3dAnatomicalViewer,
+        enableDiagnosticLightbox,
+        enableBloodworkPanel,
+        enableOpticalPrescriptions,
+        enableGrowthCharts,
+      ];
+}
+
 class StoreBlueprint extends Equatable {
   final String storeName;
   final String storeBranch;
@@ -16,6 +59,7 @@ class StoreBlueprint extends Equatable {
   final bool isDarkMode;
   final Map<String, bool> toggles;
   final DateTime? createdAt;
+  final ModuleFeatureFlags featureFlags;
 
   const StoreBlueprint({
     required this.storeName,
@@ -32,6 +76,7 @@ class StoreBlueprint extends Equatable {
     this.isDarkMode = true,
     this.toggles = const {},
     this.createdAt,
+    this.featureFlags = const ModuleFeatureFlags(),
   });
 
   bool isEnabled(String toggleKey, {bool defaultValue = false}) {
@@ -88,6 +133,7 @@ class StoreBlueprint extends Equatable {
     bool? isDarkMode,
     Map<String, bool>? toggles,
     DateTime? createdAt,
+    ModuleFeatureFlags? featureFlags,
   }) {
     return StoreBlueprint(
       storeName: storeName ?? this.storeName,
@@ -104,6 +150,7 @@ class StoreBlueprint extends Equatable {
       isDarkMode: isDarkMode ?? this.isDarkMode,
       toggles: toggles ?? this.toggles,
       createdAt: createdAt ?? this.createdAt,
+      featureFlags: featureFlags ?? this.featureFlags,
     );
   }
 
@@ -123,5 +170,6 @@ class StoreBlueprint extends Equatable {
         isDarkMode,
         toggles,
         createdAt,
+        featureFlags,
       ];
 }
