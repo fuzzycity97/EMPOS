@@ -47,7 +47,23 @@ class CustomerLedgerDialog extends StatelessWidget {
               ledger = state.selectedCustomerLedger;
             }
 
-            final hasDebt = currentCustomer.totalDebt > 0.001;
+            // Real deterministic balance calculation from ledger history
+            double calculatedDebt = currentCustomer.totalDebt;
+            if (ledger.isNotEmpty) {
+              double totalCharges = 0.0;
+              double totalPayments = 0.0;
+              for (final e in ledger) {
+                if (e.type == CustomerLedgerType.debtCharge) {
+                  totalCharges += e.amount;
+                } else if (e.type == CustomerLedgerType.debtPayment) {
+                  totalPayments += e.amount;
+                }
+              }
+              final net = totalCharges - totalPayments;
+              calculatedDebt = net > 0.001 ? net : 0.0;
+            }
+
+            final hasDebt = calculatedDebt > 0.001;
             final hasPayments = ledger.any((e) => e.type == CustomerLedgerType.debtPayment);
 
             Color bannerColor = AppColors.success;
@@ -55,10 +71,10 @@ class CustomerLedgerDialog extends StatelessWidget {
             if (hasDebt) {
               if (hasPayments) {
                 bannerColor = AppColors.warning;
-                statusBadgeLabel = 'PARTIALLY SETTLED (${CurrencyFormatter.format(currentCustomer.totalDebt)})';
+                statusBadgeLabel = 'PARTIALLY SETTLED (${CurrencyFormatter.format(calculatedDebt)})';
               } else {
                 bannerColor = AppColors.danger;
-                statusBadgeLabel = 'ACTIVE DEBT (${CurrencyFormatter.format(currentCustomer.totalDebt)})';
+                statusBadgeLabel = 'ACTIVE DEBT (${CurrencyFormatter.format(calculatedDebt)})';
               }
             }
 
@@ -174,7 +190,7 @@ class CustomerLedgerDialog extends StatelessWidget {
                               fit: BoxFit.scaleDown,
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                CurrencyFormatter.format(currentCustomer.totalDebt),
+                                CurrencyFormatter.format(calculatedDebt),
                                 style: TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.w900,
