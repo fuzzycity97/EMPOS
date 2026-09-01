@@ -6,9 +6,9 @@ This document records license and attribution metadata for assets, procedural mo
 
 ## 1. 3D Dental Odontogram & Anatomical Tooth Projection Engine
 - **Component**: `lib/features/clinic/presentation/widgets/dental_tooth_3d_canvas_widget.dart`
-- **Asset / Mathematical Spec**: Parabolic 3D Dental Arch coordinate transforms, polygonal cusp/root anatomical meshes, and FDI ISO 3950 two-digit mapping.
+- **Asset / Mathematical Spec**: Parabolic 3D Dental Arch coordinate transforms, reusable morphological base geometry (Incisor chisel blade, Canine pointed cusp & labial ridge, Premolar bicuspid lobes, Molar quad-cusp rhomboid crown with bifurcated/trifurcated root anchors), and FDI ISO 3950 two-digit mapping.
 - **License**: MIT / CC0 (Public Domain Equivalent)
-- **Attribution**: Procedurally generated pure-Flutter vector mathematics, zero external closed-source binary dependencies.
+- **Attribution**: Procedurally generated realistic anatomical vector mathematics & multi-faceted polygons in pure Flutter, zero external closed-source binary dependencies.
 
 ---
 
