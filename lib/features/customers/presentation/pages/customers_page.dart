@@ -427,24 +427,28 @@ class _CustomersView extends StatelessWidget {
 
                     // Outstanding Debt Badge
                     SizedBox(
-                      width: 130,
+                      width: 140,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: hasDebt
-                              ? AppColors.danger.withValues(alpha: 0.15)
-                              : AppColors.success.withValues(alpha: 0.15),
+                              ? const Color(0xFFF59E0B).withValues(alpha: 0.15) // Amber
+                              : const Color(0xFF10B981).withValues(alpha: 0.15), // Green
                           borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                          border: Border.all(
+                            color: hasDebt ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+                            width: 1,
+                          ),
                         ),
                         child: Text(
                           hasDebt
-                              ? CurrencyFormatter.format(customer.totalDebt)
+                              ? 'DEBT (${CurrencyFormatter.format(customer.totalDebt)})'
                               : 'CLEARED (0.00)',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.w900,
-                            color: hasDebt ? AppColors.danger : AppColors.success,
+                            color: hasDebt ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
                             fontFamily: 'monospace',
                           ),
                         ),
