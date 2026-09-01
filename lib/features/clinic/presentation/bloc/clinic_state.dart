@@ -50,6 +50,18 @@ class ClinicLoaded extends ClinicState {
     return sorted;
   }
 
+  /// Returns all historical visits for a specific patient sorted strictly in
+  /// descending order (newest encounter first at index 0).
+  List<ClinicVisit> patientHistoryFor(String patientId) {
+    final history = queue.where((v) => v.patientId == patientId).toList();
+    history.sort((a, b) {
+      final timeA = a.completionTime ?? a.checkInTime;
+      final timeB = b.completionTime ?? b.checkInTime;
+      return timeB.compareTo(timeA);
+    });
+    return history;
+  }
+
   ClinicVisit? get activeVisit {
     if (activeVisitId == null) {
       if (inExaminationQueue.isNotEmpty) return inExaminationQueue.first;
