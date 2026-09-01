@@ -125,3 +125,54 @@ class AnatomicalConditionPayload {
     );
   }
 }
+
+enum SpatialToolType {
+  cutPlaneLinear,      // Straight-line amputation / osteotomy
+  splineGraftVector,   // Vascular bypass / nerve conduit / tendon transfer
+  polygonContourArea,  // Resection flap, craniotomy, burn surface, melanoma
+  radialCaliperGauge,  // Stenosis %, hernia ring, cervical dilation
+  localizedDosagePin,  // Botox/Filler injection, laser barrier spot
+  hardwareMeshLattice, // Orthopedic plate, stent, prosthetic hernia mesh
+}
+
+class AdvancedPathologyEntry {
+  final String id;
+  final String organNodeId;
+  final SpatialToolType toolType;
+  final String pathologyName;
+  final Map<String, dynamic> geometricParameters; // Angles, coords, lengths, dosages
+  final List<String> autoCartProcedureSkus;       // Inventory & billing bindings
+
+  const AdvancedPathologyEntry({
+    required this.id,
+    required this.organNodeId,
+    required this.toolType,
+    required this.pathologyName,
+    required this.geometricParameters,
+    this.autoCartProcedureSkus = const [],
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'organNodeId': organNodeId,
+        'toolType': toolType.name,
+        'pathologyName': pathologyName,
+        'geometricParameters': geometricParameters,
+        'autoCartProcedureSkus': autoCartProcedureSkus,
+      };
+
+  factory AdvancedPathologyEntry.fromJson(Map<String, dynamic> json) {
+    return AdvancedPathologyEntry(
+      id: json['id'] as String,
+      organNodeId: json['organNodeId'] as String,
+      toolType: SpatialToolType.values.firstWhere(
+        (t) => t.name == json['toolType'],
+        orElse: () => SpatialToolType.cutPlaneLinear,
+      ),
+      pathologyName: json['pathologyName'] as String,
+      geometricParameters: Map<String, dynamic>.from(json['geometricParameters'] as Map? ?? {}),
+      autoCartProcedureSkus: List<String>.from(json['autoCartProcedureSkus'] as List? ?? []),
+    );
+  }
+}
+
