@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../config/atomic_business_components.dart';
-import '../../config/facility_blueprint.dart';
-import '../../../features/auth/domain/entities/user_role.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../config/atomic_business_components.dart';
+import '../config/facility_blueprint.dart';
+import '../../features/auth/domain/entities/user_role.dart';
 
 enum StationDestination {
   clinicalConsultation,
@@ -77,7 +78,7 @@ class DynamicStationRouter {
             destination: StationDestination.clinicalConsultation,
             titleEn: 'Doctor Station & 3D Canvas',
             titleAr: 'محطة الطبيب والفحص ثلاثي الأبعاد',
-            icon: Icons.stethoscope,
+            icon: LucideIcons.stethoscope,
             departmentId: department.departmentId,
             requiredCapabilities: {AtomicCapability.clinicalEncounter3dCanvas},
             allowedRoles: {UserRole.admin, UserRole.manager, UserRole.doctor},
