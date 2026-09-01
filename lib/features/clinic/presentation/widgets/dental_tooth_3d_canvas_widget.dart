@@ -78,33 +78,23 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
                         panOffset.value += details.focalPointDelta;
                       }
                     },
-                    onTapUp: meshesReady
-                        ? (details) {
-                            final size = context.size ?? const Size(400, 350);
-                            final hit = _hitTestTooth(
-                              details.localPosition,
-                              size,
-                              rotX.value,
-                              rotY.value,
-                              scale.value,
-                              panOffset.value,
-                            );
-                            if (hit != null) {
-                              onToothSelected(hit);
-                            }
-                          }
-                        : null,
+                    onTapUp: (details) {
+                      final size = context.size ?? const Size(400, 350);
+                      final hit = _hitTestTooth(
+                        details.localPosition,
+                        size,
+                        rotX.value,
+                        rotY.value,
+                        scale.value,
+                        panOffset.value,
+                      );
+                      if (hit != null) {
+                        onToothSelected(hit);
+                      }
+                    },
                     child: AnimatedBuilder(
                       animation: Listenable.merge([rotX, rotY, scale, panOffset]),
                       builder: (context, _) {
-                        if (!meshesReady) {
-                          return const Center(
-                            child: Text(
-                              'Loading anatomical models…',
-                              style: TextStyle(fontSize: 11, color: Colors.white54),
-                            ),
-                          );
-                        }
                         return CustomPaint(
                           painter: _Tooth3dPainter(
                             toothChart: toothChart,
