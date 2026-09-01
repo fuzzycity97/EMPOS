@@ -628,6 +628,93 @@ class CheckoutDialog extends StatelessWidget {
               _CashPresetBtn(label: '1000', onTap: () => _setCashPreset(1000)),
             ],
           ),
+          const SizedBox(height: AppDimensions.space12),
+
+          // Live Change / Remaining Balance Calculation
+          AnimatedBuilder(
+            animation: cashReceivedController,
+            builder: (context, _) {
+              final rec = double.tryParse(cashReceivedController.text.trim()) ?? 0.0;
+              final diff = rec - cart.grandTotal;
+
+              if (diff >= 0) {
+                return Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                    border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(LucideIcons.checkCircle2, size: 16, color: AppColors.success),
+                          SizedBox(width: 6),
+                          Text(
+                            'Payment Status: Fully Paid',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.success,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'Change Due: ${CurrencyFormatter.format(diff)}',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.success,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              } else {
+                final remaining = -diff;
+                return Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                    border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(LucideIcons.alertCircle, size: 16, color: AppColors.warning),
+                          SizedBox(width: 6),
+                          Text(
+                            'Payment Status: Partially Paid',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.warning,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'Remaining Balance: ${CurrencyFormatter.format(remaining)}',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.warning,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            },
+          ),
         ],
       ),
     );
