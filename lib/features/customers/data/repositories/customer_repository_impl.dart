@@ -121,13 +121,7 @@ class CustomerRepositoryImpl implements CustomerRepository {
         return const Left(CacheFailure(message: 'Debt charge amount must be greater than zero.'));
       }
 
-      // 1. Update customer's total debt balance
-      final updatedCustomer = customer.copyWith(
-        totalDebt: customer.totalDebt + amount,
-      );
-      await localDataSource.saveCustomer(CustomerModel.fromEntity(updatedCustomer));
-
-      // 2. Record ledger charge entry
+      // 1. Record ledger charge entry
       final entry = CustomerLedgerEntryModel(
         id: 'LEDGER-CHG-${DateTime.now().millisecondsSinceEpoch}',
         customerId: customer.id,
@@ -138,6 +132,13 @@ class CustomerRepositoryImpl implements CustomerRepository {
         timestamp: DateTime.now(),
       );
       await localDataSource.saveLedgerEntry(entry);
+
+      // 2. Compute updated total debt
+      final calculatedDebt = customer.totalDebt + amount;
+
+      // 3. Persist updated customer totalDebt
+      final updatedCustomer = customer.copyWith(totalDebt: calculatedDebt);
+      await localDataSource.saveCustomer(CustomerModel.fromEntity(updatedCustomer));
 
       return Right(entry);
     } catch (e) {
@@ -162,12 +163,7 @@ class CustomerRepositoryImpl implements CustomerRepository {
         return const Left(CacheFailure(message: 'Payment amount must be greater than zero.'));
       }
 
-      // 1. Reduce customer's total debt
-      final newDebt = (customer.totalDebt - amount).clamp(0.0, double.infinity);
-      final updatedCustomer = customer.copyWith(totalDebt: newDebt);
-      await localDataSource.saveCustomer(CustomerModel.fromEntity(updatedCustomer));
-
-      // 2. Record ledger payment entry
+      // 1. Record ledger payment entry
       final entry = CustomerLedgerEntryModel(
         id: 'LEDGER-PAY-${DateTime.now().millisecondsSinceEpoch}',
         customerId: customer.id,
@@ -177,6 +173,13 @@ class CustomerRepositoryImpl implements CustomerRepository {
         timestamp: DateTime.now(),
       );
       await localDataSource.saveLedgerEntry(entry);
+
+      // 2. Compute updated total debt
+      final newDebt = (customer.totalDebt - amount).clamp(0.0, double.infinity);
+
+      // 3. Persist updated customer totalDebt
+      final updatedCustomer = customer.copyWith(totalDebt: newDebt);
+      await localDataSource.saveCustomer(CustomerModel.fromEntity(updatedCustomer));
 
       // 3. Record Pay-In to active Shift Drawer if payment tender is Cash
       if (paymentTender == TenderType.cash) {
