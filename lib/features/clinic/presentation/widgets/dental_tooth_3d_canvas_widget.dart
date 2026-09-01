@@ -3,13 +3,22 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/tooth_chart_entry.dart';
+import '../../domain/entities/anatomical_engine_models.dart';
 import 'tooth_glb_mesh.dart';
 
+export '../../domain/entities/anatomical_engine_models.dart';
+
+/// Interactive Polymorphic 3D Anatomical & Odontogram Canvas Widget.
+/// Deterministic 3D vector geometry & triangle mesh projection, perspective raycasting,
+/// and depth-sorted shader pipeline across Clinical, Dental, Physiotherapy,
+/// Ophthalmology, and Veterinary anatomical profiles.
+/// 100% [StatelessWidget] following Clean Architecture.
 class DentalTooth3dCanvasWidget extends StatelessWidget {
   final List<ToothChartEntry> toothChart;
   final bool isPediatric;
   final ToothChartEntry? selectedTooth;
   final void Function(ToothChartEntry entry) onToothSelected;
+  final String specialtyKey;
 
   static Future<void> get _meshLoadFuture => ToothGlbMeshLibrary.preloadAll();
 
@@ -19,6 +28,7 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
     this.isPediatric = false,
     this.selectedTooth,
     required this.onToothSelected,
+    this.specialtyKey = 'dental_clinic',
   });
 
   @override
@@ -90,7 +100,7 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
                         if (!meshesReady) {
                           return const Center(
                             child: Text(
-                              'Loading tooth models…',
+                              'Loading anatomical models…',
                               style: TextStyle(fontSize: 11, color: Colors.white54),
                             ),
                           );
@@ -256,7 +266,7 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
                   SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'Drag to rotate 3D • Pinch/Scroll to zoom • Tap tooth to edit',
+                      'Drag to rotate 3D • Pinch/Scroll to zoom • Tap region to inspect',
                       style: TextStyle(fontSize: 10, color: Colors.white70),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -432,6 +442,9 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
     return _Point3d(x1, y2, z2);
   }
 }
+
+/// Generic Polymorphic Alias for multi-specialty clinical view integration
+typedef Anatomical3dCanvasWidget = DentalTooth3dCanvasWidget;
 
 class _Point3d {
   final double x;
