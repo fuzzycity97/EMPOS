@@ -4,9 +4,26 @@ import 'package:empos/features/clinic/domain/entities/tooth_chart_entry.dart';
 import 'package:empos/features/clinic/presentation/widgets/dental_tooth_3d_canvas_widget.dart';
 import 'package:empos/features/clinic/presentation/widgets/dental_tooth_matrix_widget.dart';
 import 'package:empos/features/clinic/presentation/widgets/tooth_editor_sheet.dart';
+import 'package:empos/features/clinic/presentation/widgets/tooth_glb_mesh.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('3D Dental Odontogram & Tap-to-Edit Editor Tests', () {
+    setUpAll(() async {
+      await ToothGlbMeshLibrary.preloadAll();
+    });
+
+    test('ToothGlbMeshLibrary loads all four category GLB meshes', () {
+      expect(ToothGlbMeshLibrary.isReady, isTrue);
+      for (final category in ToothCategory.values) {
+        final mesh = ToothGlbMeshLibrary.meshForSync(category);
+        expect(mesh.vertices, isNotEmpty);
+        expect(mesh.indices.length, greaterThanOrEqualTo(3));
+        expect(mesh.maxRadius, greaterThan(0));
+      }
+    });
+
     testWidgets('DentalToothMatrixWidget renders 3D View by default with camera presets', (tester) async {
       final defaultTeeth = List.generate(
         32,

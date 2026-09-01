@@ -1,17 +1,17 @@
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
-import '../../domain/entities/tooth_chart_entry.dart';
 
-/// Interactive 3D Realistic Odontogram Canvas Widget.
-/// Uses pure Flutter 3D vector geometry & multi-faceted anatomical polygons
-/// (Incisor blade, Canine cusp & cingulum, Premolar bicuspid, Molar quad-cusp + bifurcated roots)
-/// with dynamic orbit, zoom/pan, camera presets, selection highlights, and clinical status shading.
-/// 100% [StatelessWidget] following Clean Architecture.
+import 'package:flutter/material.dart';
+
+import '../../domain/entities/tooth_chart_entry.dart';
+import 'tooth_glb_mesh.dart';
+
 class DentalTooth3dCanvasWidget extends StatelessWidget {
   final List<ToothChartEntry> toothChart;
   final bool isPediatric;
   final ToothChartEntry? selectedTooth;
   final void Function(ToothChartEntry entry) onToothSelected;
+
+  static Future<void> get _meshLoadFuture => ToothGlbMeshLibrary.preloadAll();
 
   const DentalTooth3dCanvasWidget({
     super.key,
@@ -26,10 +26,9 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // ValueNotifiers for 100% StatelessWidget gesture responsiveness
-    final rotX = ValueNotifier<double>(0.35); // Pitch
-    final rotY = ValueNotifier<double>(0.0); // Yaw
-    final scale = ValueNotifier<double>(1.1); // Zoom
+    final rotX = ValueNotifier<double>(0.35);
+    final rotY = ValueNotifier<double>(0.0);
+    final scale = ValueNotifier<double>(1.1);
     final panOffset = ValueNotifier<Offset>(Offset.zero);
 
     return Container(
@@ -47,200 +46,266 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          children: [
-            // 1. Interactive 3D Canvas
-            Positioned.fill(
-              child: GestureDetector(
-                onScaleStart: (_) {},
-                onScaleUpdate: (details) {
-                  if (details.pointerCount == 1) {
-                    // 1-finger drag: 3D orbital rotation
-                    rotY.value += details.focalPointDelta.dx * 0.012;
-                    rotX.value = (rotX.value - details.focalPointDelta.dy * 0.012)
-                        .clamp(-1.2, 1.2);
-                  } else {
-                    // 2-finger pinch/drag: zoom and pan
-                    scale.value = (scale.value * details.scale).clamp(0.6, 2.5);
-                    panOffset.value += details.focalPointDelta;
-                  }
-                },
-                onTapUp: (details) {
-                  // Hit-test click in 3D space
-                  final size = context.size ?? const Size(400, 350);
-                  final hit = _hitTestTooth(
-                    details.localPosition,
-                    size,
-                    rotX.value,
-                    rotY.value,
-                    scale.value,
-                    panOffset.value,
-                  );
-                  if (hit != null) {
-                    onToothSelected(hit);
-                  }
-                },
-                child: AnimatedBuilder(
-                  animation: Listenable.merge([rotX, rotY, scale, panOffset]),
-                  builder: (context, _) {
-                    return CustomPaint(
-                      painter: _Tooth3dPainter(
-                        toothChart: toothChart,
-                        isPediatric: isPediatric,
-                        selectedToothCode: selectedTooth?.effectiveToothCode,
-                        rotX: rotX.value,
-                        rotY: rotY.value,
-                        scale: scale.value,
-                        pan: panOffset.value,
-                        isDark: isDark,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
+        child: FutureBuilder<void>(
+          future: _meshLoadFuture,
+          builder: (context, snapshot) {
+            final meshesReady = snapshot.connectionState == ConnectionState.done &&
+                !snapshot.hasError &&
+                ToothGlbMeshLibrary.isReady;
 
-            // 2. Camera Controls & View Presets (Top Left Dock)
-            Positioned(
-              top: 12,
-              left: 12,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white10),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _PresetButton(
-                      label: 'Front 3D',
-                      icon: Icons.view_in_ar,
-                      onTap: () {
-                        rotX.value = 0.35;
-                        rotY.value = 0.0;
-                        scale.value = 1.1;
-                        panOffset.value = Offset.zero;
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: GestureDetector(
+                    onScaleStart: (_) {},
+                    onScaleUpdate: (details) {
+                      if (details.pointerCount == 1) {
+                        rotY.value += details.focalPointDelta.dx * 0.012;
+                        rotX.value = (rotX.value - details.focalPointDelta.dy * 0.012)
+                            .clamp(-1.2, 1.2);
+                      } else {
+                        scale.value = (scale.value * details.scale).clamp(0.6, 2.5);
+                        panOffset.value += details.focalPointDelta;
+                      }
+                    },
+                    onTapUp: meshesReady
+                        ? (details) {
+                            final size = context.size ?? const Size(400, 350);
+                            final hit = _hitTestTooth(
+                              details.localPosition,
+                              size,
+                              rotX.value,
+                              rotY.value,
+                              scale.value,
+                              panOffset.value,
+                            );
+                            if (hit != null) {
+                              onToothSelected(hit);
+                            }
+                          }
+                        : null,
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([rotX, rotY, scale, panOffset]),
+                      builder: (context, _) {
+                        if (!meshesReady) {
+                          return const Center(
+                            child: Text(
+                              'Loading tooth models…',
+                              style: TextStyle(fontSize: 11, color: Colors.white54),
+                            ),
+                          );
+                        }
+                        return CustomPaint(
+                          painter: _Tooth3dPainter(
+                            toothChart: toothChart,
+                            isPediatric: isPediatric,
+                            selectedToothCode: selectedTooth?.effectiveToothCode,
+                            rotX: rotX.value,
+                            rotY: rotY.value,
+                            scale: scale.value,
+                            pan: panOffset.value,
+                            isDark: isDark,
+                          ),
+                        );
                       },
                     ),
-                    const SizedBox(width: 4),
-                    _PresetButton(
-                      label: 'Upper Arch',
-                      icon: Icons.arrow_upward,
-                      onTap: () {
-                        rotX.value = 1.15;
-                        rotY.value = 0.0;
-                        scale.value = 1.15;
-                        panOffset.value = const Offset(0, 30);
-                      },
-                    ),
-                    const SizedBox(width: 4),
-                    _PresetButton(
-                      label: 'Lower Arch',
-                      icon: Icons.arrow_downward,
-                      onTap: () {
-                        rotX.value = -1.15;
-                        rotY.value = 0.0;
-                        scale.value = 1.15;
-                        panOffset.value = const Offset(0, -30);
-                      },
-                    ),
-                    const SizedBox(width: 4),
-                    _PresetButton(
-                      label: 'Right Sagittal',
-                      icon: Icons.rotate_right,
-                      onTap: () {
-                        rotX.value = 0.15;
-                        rotY.value = math.pi / 2;
-                        scale.value = 1.05;
-                        panOffset.value = Offset.zero;
-                      },
-                    ),
-                    const SizedBox(width: 4),
-                    _PresetButton(
-                      label: 'Left Sagittal',
-                      icon: Icons.rotate_left,
-                      onTap: () {
-                        rotX.value = 0.15;
-                        rotY.value = -math.pi / 2;
-                        scale.value = 1.05;
-                        panOffset.value = Offset.zero;
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // 3. Status Legend / Shading Key (Bottom Left)
-            Positioned(
-              bottom: 12,
-              left: 12,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black87,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: const Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    _LegendItem(color: Color(0xFF10B981), label: 'Healthy'),
-                    _LegendItem(color: Color(0xFFEF4444), label: 'Caries'),
-                    _LegendItem(color: Color(0xFF3B82F6), label: 'Filled'),
-                    _LegendItem(color: Color(0xFFF59E0B), label: 'Crown'),
-                    _LegendItem(color: Color(0xFFF97316), label: 'RCT'),
-                    _LegendItem(color: Color(0xFF64748B), label: 'Missing'),
-                    _LegendItem(color: Color(0xFF8B5CF6), label: 'Implant'),
-                  ],
-                ),
-              ),
-            ),
-
-            // 4. Instructions & Selected Tooth Hint (Top Right)
-            Positioned(
-              top: 12,
-              right: 12,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: selectedTooth != null
-                      ? Colors.blueAccent.withValues(alpha: 0.25)
-                      : Colors.black54,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: selectedTooth != null
-                        ? Colors.blueAccent
-                        : Colors.white10,
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      selectedTooth != null ? Icons.check_circle : Icons.touch_app,
-                      size: 14,
-                      color: selectedTooth != null ? Colors.blueAccent : Colors.white70,
+                _cameraPresetsDock(rotX, rotY, scale, panOffset),
+                _zoomControls(rotX, rotY, scale, panOffset),
+                _bottomBar(selectedTooth),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _cameraPresetsDock(
+    ValueNotifier<double> rotX,
+    ValueNotifier<double> rotY,
+    ValueNotifier<double> scale,
+    ValueNotifier<Offset> panOffset,
+  ) {
+    return Positioned(
+      top: 12,
+      left: 12,
+      right: 120,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _presetButton('Front 3D', () {
+                rotX.value = 0.35;
+                rotY.value = 0.0;
+                scale.value = 1.1;
+                panOffset.value = Offset.zero;
+              }),
+              const SizedBox(width: 4),
+              _presetButton('Upper Arch', () {
+                rotX.value = 1.15;
+                rotY.value = 0.0;
+                scale.value = 1.25;
+                panOffset.value = Offset.zero;
+              }),
+              const SizedBox(width: 4),
+              _presetButton('Lower Arch', () {
+                rotX.value = -1.15;
+                rotY.value = 0.0;
+                scale.value = 1.25;
+                panOffset.value = Offset.zero;
+              }),
+              const SizedBox(width: 4),
+              _presetButton('Right Sagittal', () {
+                rotX.value = 0.15;
+                rotY.value = 1.35;
+                scale.value = 1.2;
+                panOffset.value = Offset.zero;
+              }),
+              const SizedBox(width: 4),
+              _presetButton('Left Sagittal', () {
+                rotX.value = 0.15;
+                rotY.value = -1.35;
+                scale.value = 1.2;
+                panOffset.value = Offset.zero;
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _zoomControls(
+    ValueNotifier<double> rotX,
+    ValueNotifier<double> rotY,
+    ValueNotifier<double> scale,
+    ValueNotifier<Offset> panOffset,
+  ) {
+    return Positioned(
+      top: 12,
+      right: 12,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.65),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.remove, size: 16, color: Colors.white70),
+              onPressed: () => scale.value = (scale.value - 0.2).clamp(0.6, 2.5),
+              tooltip: 'Zoom Out',
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+            ),
+            IconButton(
+              icon: const Icon(Icons.add, size: 16, color: Colors.white70),
+              onPressed: () => scale.value = (scale.value + 0.2).clamp(0.6, 2.5),
+              tooltip: 'Zoom In',
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+            ),
+            IconButton(
+              icon: const Icon(Icons.restart_alt, size: 16, color: Colors.white70),
+              onPressed: () {
+                rotX.value = 0.35;
+                rotY.value = 0.0;
+                scale.value = 1.1;
+                panOffset.value = Offset.zero;
+              },
+              tooltip: 'Reset Camera',
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomBar(ToothChartEntry? selectedTooth) {
+    return Positioned(
+      bottom: 12,
+      left: 12,
+      right: 12,
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.touch_app_outlined, size: 12, color: Colors.white60),
+                  SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Drag to rotate 3D • Pinch/Scroll to zoom • Tap tooth to edit',
+                      style: TextStyle(fontSize: 10, color: Colors.white70),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      selectedTooth != null
-                          ? 'Tooth FDI ${selectedTooth!.fdiNumber} (Univ #${selectedTooth!.effectiveToothCode})'
-                          : 'Tap tooth to inspect / Drag to rotate 3D',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: selectedTooth != null ? FontWeight.bold : FontWeight.normal,
-                        color: selectedTooth != null ? Colors.white : Colors.white70,
-                      ),
-                    ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (selectedTooth != null) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blueAccent),
+              ),
+              child: Text(
+                'FDI ${selectedTooth.fdiNumber}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _presetButton(String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ),
     );
@@ -255,26 +320,41 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
     Offset pan,
   ) {
     final center = Offset(size.width / 2 + pan.dx, size.height / 2 + pan.dy);
-    final coords = _generate3dTeethPositions(isPediatric);
+    final teethData = _generate3dTeethPositions(isPediatric);
 
     ToothChartEntry? closestTooth;
-    double minDistance = 28.0 * s;
+    var minDistance = 30.0 * s;
 
-    for (final t in coords) {
+    for (final t in teethData) {
+      final entry = _findEntry(t.code);
       final p3d = _rotatePoint(t.x, t.y, t.z, rx, ry);
-      final distance = 400.0;
+      const distance = 400.0;
       final fov = distance / (distance - p3d.z);
       final screenX = center.dx + p3d.x * s * fov;
       final screenY = center.dy + p3d.y * s * fov;
 
+      final hitRadius = _categoryHitRadius(entry.category) * s * fov;
       final dist = (Offset(screenX, screenY) - tapPos).distance;
-      if (dist < minDistance) {
+      if (dist < math.min(minDistance, hitRadius)) {
         minDistance = dist;
-        closestTooth = _findEntry(t.code);
+        closestTooth = entry;
       }
     }
 
     return closestTooth;
+  }
+
+  static double _categoryHitRadius(ToothCategory category) {
+    switch (category) {
+      case ToothCategory.molar:
+        return 22;
+      case ToothCategory.premolar:
+        return 18;
+      case ToothCategory.canine:
+        return 16;
+      case ToothCategory.incisor:
+        return 14;
+    }
   }
 
   ToothChartEntry _findEntry(String code) {
@@ -294,47 +374,43 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
     final list = <_Tooth3dCoord>[];
 
     if (isPediatric) {
-      // 10 Upper Primary Teeth (A-J): FDI 55..51, 61..65
       final upperCodes = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-      for (int i = 0; i < upperCodes.length; i++) {
+      for (var i = 0; i < upperCodes.length; i++) {
         final angle = -math.pi * 0.75 + (i / (upperCodes.length - 1)) * (math.pi * 1.5);
-        final r = 75.0;
+        const r = 75.0;
         final x = r * math.sin(angle);
         final z = r * (1.0 - math.cos(angle)) * 0.7;
-        final y = -36.0;
+        const y = -36.0;
         list.add(_Tooth3dCoord(code: upperCodes[i], x: x, y: y, z: z, isUpper: true));
       }
 
-      // 10 Lower Primary Teeth (T-K): FDI 85..81, 71..75
       final lowerCodes = ['T', 'S', 'R', 'Q', 'P', 'O', 'N', 'M', 'L', 'K'];
-      for (int i = 0; i < lowerCodes.length; i++) {
+      for (var i = 0; i < lowerCodes.length; i++) {
         final angle = -math.pi * 0.75 + (i / (lowerCodes.length - 1)) * (math.pi * 1.5);
-        final r = 70.0;
+        const r = 70.0;
         final x = r * math.sin(angle);
         final z = r * (1.0 - math.cos(angle)) * 0.7;
-        final y = 36.0;
+        const y = 36.0;
         list.add(_Tooth3dCoord(code: lowerCodes[i], x: x, y: y, z: z, isUpper: false));
       }
     } else {
-      // 16 Upper Adult Teeth (1-16): FDI 18..11, 21..28
       final upperCodes = List.generate(16, (i) => (i + 1).toString());
-      for (int i = 0; i < upperCodes.length; i++) {
+      for (var i = 0; i < upperCodes.length; i++) {
         final angle = -math.pi * 0.82 + (i / (upperCodes.length - 1)) * (math.pi * 1.64);
-        final r = 100.0;
+        const r = 100.0;
         final x = r * math.sin(angle);
         final z = r * (1.0 - math.cos(angle)) * 0.8;
-        final y = -40.0;
+        const y = -40.0;
         list.add(_Tooth3dCoord(code: upperCodes[i], x: x, y: y, z: z, isUpper: true));
       }
 
-      // 16 Lower Adult Teeth (32-17): FDI 48..41, 31..38
       final lowerCodes = List.generate(16, (i) => (32 - i).toString());
-      for (int i = 0; i < lowerCodes.length; i++) {
+      for (var i = 0; i < lowerCodes.length; i++) {
         final angle = -math.pi * 0.82 + (i / (lowerCodes.length - 1)) * (math.pi * 1.64);
-        final r = 94.0;
+        const r = 94.0;
         final x = r * math.sin(angle);
         final z = r * (1.0 - math.cos(angle)) * 0.8;
-        final y = 40.0;
+        const y = 40.0;
         list.add(_Tooth3dCoord(code: lowerCodes[i], x: x, y: y, z: z, isUpper: false));
       }
     }
@@ -380,67 +456,25 @@ class _Tooth3dCoord {
   });
 }
 
-class _PresetButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _PresetButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 12, color: Colors.blueAccent),
-            const SizedBox(width: 3),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 10.5, color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LegendItem extends StatelessWidget {
+class _ProjectedTriangle {
+  final Offset a;
+  final Offset b;
+  final Offset c;
+  final double depth;
   final Color color;
-  final String label;
 
-  const _LegendItem({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 9.5, color: Colors.white70),
-        ),
-      ],
-    );
-  }
+  const _ProjectedTriangle({
+    required this.a,
+    required this.b,
+    required this.c,
+    required this.depth,
+    required this.color,
+  });
 }
 
 class _Tooth3dPainter extends CustomPainter {
+  static const _light = _Point3d(-0.35, -0.65, 0.67);
+
   final List<ToothChartEntry> toothChart;
   final bool isPediatric;
   final String? selectedToothCode;
@@ -464,49 +498,289 @@ class _Tooth3dPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2 + pan.dx, size.height / 2 + pan.dy);
-
     _drawGridBackground(canvas, size, center);
 
     final coords = DentalTooth3dCanvasWidget._generate3dTeethPositions(isPediatric);
     final renderList = <_RenderTooth>[];
+    final allTriangles = <_ProjectedTriangle>[];
 
     for (final coord in coords) {
-      final p3d = DentalTooth3dCanvasWidget._rotatePoint(
+      final entry = _findEntry(coord.code);
+      final isSelected = selectedToothCode != null &&
+          selectedToothCode!.toUpperCase() == coord.code.toUpperCase();
+      final anchor = DentalTooth3dCanvasWidget._rotatePoint(
         coord.x,
         coord.y,
         coord.z,
         rotX,
         rotY,
       );
+      const distance = 450.0;
+      final fov = distance / (distance - anchor.z);
+      final screenX = center.dx + anchor.x * scale * fov;
+      final screenY = center.dy + anchor.y * scale * fov;
 
-      final distance = 450.0;
-      final fov = distance / (distance - p3d.z);
-      final screenX = center.dx + p3d.x * scale * fov;
-      final screenY = center.dy + p3d.y * scale * fov;
+      final meshResult = _projectToothMesh(
+        entry: entry,
+        archX: coord.x,
+        archY: coord.y,
+        archZ: coord.z,
+        isUpper: coord.isUpper,
+        fov: fov,
+        center: center,
+        stateColor: _getStateColor(entry.state),
+      );
 
-      final entry = _findEntry(coord.code);
-      final isSelected = selectedToothCode != null &&
-          selectedToothCode!.toUpperCase() == coord.code.toUpperCase();
+      allTriangles.addAll(meshResult.triangles);
 
       renderList.add(
         _RenderTooth(
           entry: entry,
           screenPos: Offset(screenX, screenY),
-          depthZ: p3d.z,
+          crownScreenPos: meshResult.crownCenter,
+          depthZ: anchor.z,
           scaleFactor: fov * scale,
+          screenRadius: meshResult.screenRadius,
           isUpper: coord.isUpper,
           isSelected: isSelected,
         ),
       );
     }
 
-    // Depth sort (Painter's algorithm: back to front)
     renderList.sort((a, b) => a.depthZ.compareTo(b.depthZ));
-
     _drawArchBridges(canvas, renderList);
 
+    allTriangles.sort((a, b) => a.depth.compareTo(b.depth));
+    for (final tri in allTriangles) {
+      final path = Path()
+        ..moveTo(tri.a.dx, tri.a.dy)
+        ..lineTo(tri.b.dx, tri.b.dy)
+        ..lineTo(tri.c.dx, tri.c.dy)
+        ..close();
+      canvas.drawPath(path, Paint()..color = tri.color);
+    }
+
     for (final item in renderList) {
-      _drawRealisticAnatomicalTooth(canvas, item);
+      _drawToothOverlays(canvas, item);
+    }
+  }
+
+  _MeshProjectionResult _projectToothMesh({
+    required ToothChartEntry entry,
+    required double archX,
+    required double archY,
+    required double archZ,
+    required bool isUpper,
+    required double fov,
+    required Offset center,
+    required Color stateColor,
+  }) {
+    final mesh = ToothGlbMeshLibrary.meshForSync(entry.category);
+    final meshHeight = (mesh.crownY - mesh.rootY).abs().clamp(0.5, 999.0);
+    final categoryScale = _categoryMeshScale(entry.category);
+    final vertexScale = (categoryScale / meshHeight) * scale * fov;
+    final meshMidY = (mesh.crownY + mesh.rootY) / 2;
+
+    final isMissing = entry.state == ToothState.missing || entry.state == ToothState.extracted;
+    final triangles = <_ProjectedTriangle>[];
+
+    var crownSumX = 0.0;
+    var crownSumY = 0.0;
+    var crownCount = 0;
+    var maxScreenRadius = 12.0;
+
+    for (var i = 0; i < mesh.indices.length; i += 3) {
+      final projected = <_Point3d>[];
+      final screenPts = <Offset>[];
+
+      for (var j = 0; j < 3; j++) {
+        final v = mesh.vertices[mesh.indices[i + j]];
+        final localY = (v[1] - meshMidY) * (isUpper ? 1.0 : -1.0);
+        final wx = archX + v[0] * vertexScale / fov;
+        final wy = archY + localY * vertexScale / fov;
+        final wz = archZ + v[2] * vertexScale / fov;
+        final rotated = DentalTooth3dCanvasWidget._rotatePoint(wx, wy, wz, rotX, rotY);
+        projected.add(rotated);
+        const distance = 450.0;
+        final triFov = distance / (distance - rotated.z);
+        final sx = center.dx + rotated.x * scale * triFov;
+        final sy = center.dy + rotated.y * scale * triFov;
+        screenPts.add(Offset(sx, sy));
+
+        if (v[1] > meshMidY) {
+          crownSumX += sx;
+          crownSumY += sy;
+          crownCount++;
+        }
+      }
+
+      final normal = _triangleNormal(projected[0], projected[1], projected[2]);
+      final shade = (_dot(normal, _light) * 0.5 + 0.5).clamp(0.25, 1.0);
+      final base = isMissing ? stateColor.withValues(alpha: 0.18) : stateColor;
+      final enamel = Color.lerp(base, Colors.white, shade * 0.55)!;
+      final depth = (projected[0].z + projected[1].z + projected[2].z) / 3;
+
+      triangles.add(
+        _ProjectedTriangle(
+          a: screenPts[0],
+          b: screenPts[1],
+          c: screenPts[2],
+          depth: depth,
+          color: enamel,
+        ),
+      );
+    }
+
+    final crownCenter = crownCount > 0
+        ? Offset(crownSumX / crownCount, crownSumY / crownCount)
+        : Offset(
+            center.dx + archX * scale * fov,
+            center.dy + archY * scale * fov,
+          );
+
+    for (final tri in triangles) {
+      for (final pt in [tri.a, tri.b, tri.c]) {
+        final d = (pt - crownCenter).distance;
+        if (d > maxScreenRadius) maxScreenRadius = d;
+      }
+    }
+
+    return _MeshProjectionResult(
+      triangles: triangles,
+      crownCenter: crownCenter,
+      screenRadius: maxScreenRadius.clamp(10.0, 36.0),
+    );
+  }
+
+  static double _categoryMeshScale(ToothCategory category) {
+    switch (category) {
+      case ToothCategory.molar:
+        return 30;
+      case ToothCategory.premolar:
+        return 24;
+      case ToothCategory.canine:
+        return 22;
+      case ToothCategory.incisor:
+        return 20;
+    }
+  }
+
+  static _Point3d _triangleNormal(_Point3d a, _Point3d b, _Point3d c) {
+    final ux = b.x - a.x;
+    final uy = b.y - a.y;
+    final uz = b.z - a.z;
+    final vx = c.x - a.x;
+    final vy = c.y - a.y;
+    final vz = c.z - a.z;
+    final nx = uy * vz - uz * vy;
+    final ny = uz * vx - ux * vz;
+    final nz = ux * vy - uy * vx;
+    final len = math.sqrt(nx * nx + ny * ny + nz * nz);
+    if (len == 0) return const _Point3d(0, 1, 0);
+    return _Point3d(nx / len, ny / len, nz / len);
+  }
+
+  static double _dot(_Point3d a, _Point3d b) => a.x * b.x + a.y * b.y + a.z * b.z;
+
+  void _drawToothOverlays(Canvas canvas, _RenderTooth item) {
+    final pos = item.crownScreenPos;
+    final r = item.screenRadius;
+    final sf = item.scaleFactor.clamp(0.5, 2.2);
+    final stateColor = _getStateColor(item.entry.state);
+    final isMissing = item.entry.state == ToothState.missing ||
+        item.entry.state == ToothState.extracted;
+
+    if (item.isSelected) {
+      final selGlow = Paint()
+        ..color = Colors.blueAccent.withValues(alpha: 0.45)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+      canvas.drawCircle(pos, r + 6, selGlow);
+
+      final selRing = Paint()
+        ..color = Colors.blueAccent
+        ..strokeWidth = 2.5
+        ..style = PaintingStyle.stroke;
+      canvas.drawCircle(pos, r + 3, selRing);
+    }
+
+    if (isMissing) {
+      final outline = Paint()
+        ..color = stateColor.withValues(alpha: 0.7)
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke;
+      canvas.drawCircle(pos, r * 0.85, outline);
+    }
+
+    _drawStatusDecals(canvas, pos, r, item.entry.state);
+
+    final labelText = item.entry.fdiNumber;
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: labelText,
+        style: TextStyle(
+          fontSize: (10.0 * sf).clamp(8.0, 14.0),
+          fontWeight: FontWeight.bold,
+          color: item.isSelected ? Colors.blueAccent : Colors.white,
+          shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final labelOffset = Offset(
+      pos.dx - textPainter.width / 2,
+      pos.dy + (item.isUpper ? -r - textPainter.height - 4 : r + 4),
+    );
+    textPainter.paint(canvas, labelOffset);
+
+    if (item.entry.pocketDepthMm > 3) {
+      final pColor = item.entry.pocketDepthMm >= 6 ? Colors.red : Colors.amber;
+      canvas.drawCircle(Offset(pos.dx + r * 0.65, pos.dy - r * 0.55), 4 * sf, Paint()..color = pColor);
+    }
+  }
+
+  void _drawStatusDecals(Canvas canvas, Offset pos, double r, ToothState state) {
+    if (state == ToothState.crown) {
+      final crownPaint = Paint()
+        ..color = const Color(0xFFF59E0B)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      canvas.drawCircle(pos, r * 0.72, crownPaint);
+    } else if (state == ToothState.rootCanal) {
+      canvas.drawCircle(
+        pos,
+        r * 0.38,
+        Paint()..color = const Color(0xFFF97316),
+      );
+    } else if (state == ToothState.implant) {
+      final impPaint = Paint()
+        ..color = const Color(0xFF8B5CF6)
+        ..strokeWidth = 2.0;
+      canvas.drawLine(Offset(pos.dx, pos.dy - r * 0.65), Offset(pos.dx, pos.dy + r * 0.65), impPaint);
+      canvas.drawLine(Offset(pos.dx - r * 0.45, pos.dy), Offset(pos.dx + r * 0.45, pos.dy), impPaint);
+    } else if (state == ToothState.fractured) {
+      final crackPaint = Paint()
+        ..color = const Color(0xFFDC2626)
+        ..strokeWidth = 2.0;
+      final path = Path()
+        ..moveTo(pos.dx - r * 0.55, pos.dy - r * 0.55)
+        ..lineTo(pos.dx, pos.dy)
+        ..lineTo(pos.dx + r * 0.55, pos.dy + r * 0.55);
+      canvas.drawPath(path, crackPaint);
+    } else if (state == ToothState.bridge) {
+      final bridgePaint = Paint()
+        ..color = const Color(0xFF06B6D4)
+        ..strokeWidth = 2.0
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(Offset(pos.dx - r * 0.8, pos.dy), Offset(pos.dx + r * 0.8, pos.dy), bridgePaint);
+    } else if (state == ToothState.impacted) {
+      canvas.drawCircle(
+        pos,
+        r * 0.5,
+        Paint()
+          ..color = const Color(0xFFE11D48).withValues(alpha: 0.35)
+          ..style = PaintingStyle.fill,
+      );
     }
   }
 
@@ -515,10 +789,10 @@ class _Tooth3dPainter extends CustomPainter {
       ..color = Colors.white.withValues(alpha: 0.04)
       ..strokeWidth = 1;
 
-    for (double x = 0; x < size.width; x += 40) {
+    for (var x = 0.0; x < size.width; x += 40) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
     }
-    for (double y = 0; y < size.height; y += 40) {
+    for (var y = 0.0; y < size.height; y += 40) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
@@ -526,7 +800,6 @@ class _Tooth3dPainter extends CustomPainter {
       ..color = Colors.blue.withValues(alpha: 0.15)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
-
     canvas.drawCircle(center, 90 * scale, axisPaint);
   }
 
@@ -540,7 +813,7 @@ class _Tooth3dPainter extends CustomPainter {
       ..sort((a, b) => a.screenPos.dx.compareTo(b.screenPos.dx));
     if (uppers.length > 1) {
       final path = Path()..moveTo(uppers.first.screenPos.dx, uppers.first.screenPos.dy);
-      for (int i = 1; i < uppers.length; i++) {
+      for (var i = 1; i < uppers.length; i++) {
         path.lineTo(uppers[i].screenPos.dx, uppers[i].screenPos.dy);
       }
       canvas.drawPath(path, archPaint);
@@ -550,321 +823,10 @@ class _Tooth3dPainter extends CustomPainter {
       ..sort((a, b) => a.screenPos.dx.compareTo(b.screenPos.dx));
     if (lowers.length > 1) {
       final path = Path()..moveTo(lowers.first.screenPos.dx, lowers.first.screenPos.dy);
-      for (int i = 1; i < lowers.length; i++) {
+      for (var i = 1; i < lowers.length; i++) {
         path.lineTo(lowers[i].screenPos.dx, lowers[i].screenPos.dy);
       }
       canvas.drawPath(path, archPaint);
-    }
-  }
-
-  void _drawRealisticAnatomicalTooth(Canvas canvas, _RenderTooth item) {
-    final pos = item.screenPos;
-    final sf = item.scaleFactor.clamp(0.5, 2.2);
-    final stateColor = _getStateColor(item.entry.state);
-    final isMissing = item.entry.state == ToothState.missing ||
-        item.entry.state == ToothState.extracted;
-    final cat = item.entry.category;
-
-    // 1. Selection Glow & Ring
-    if (item.isSelected) {
-      final selGlow = Paint()
-        ..color = Colors.blueAccent.withValues(alpha: 0.5)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-      canvas.drawCircle(pos, 24 * sf, selGlow);
-
-      final selRing = Paint()
-        ..color = Colors.blueAccent
-        ..strokeWidth = 2.5
-        ..style = PaintingStyle.stroke;
-      canvas.drawCircle(pos, 22 * sf, selRing);
-    }
-
-    // 2. Anatomical Dimensions according to Tooth Morphology
-    double crownW;
-    double crownH;
-    double rootLen;
-    switch (cat) {
-      case ToothCategory.molar:
-        crownW = 28.0 * sf;
-        crownH = 22.0 * sf;
-        rootLen = 22.0 * sf;
-        break;
-      case ToothCategory.premolar:
-        crownW = 22.0 * sf;
-        crownH = 20.0 * sf;
-        rootLen = 20.0 * sf;
-        break;
-      case ToothCategory.canine:
-        crownW = 18.0 * sf;
-        crownH = 24.0 * sf;
-        rootLen = 26.0 * sf;
-        break;
-      case ToothCategory.incisor:
-        crownW = 19.0 * sf;
-        crownH = 22.0 * sf;
-        rootLen = 22.0 * sf;
-        break;
-    }
-
-    final rootDir = item.isUpper ? -1.0 : 1.0;
-
-    // 3. Draw Anatomically Accurate Roots
-    if (!isMissing) {
-      _drawAnatomicalRoots(canvas, pos, crownW, rootLen, rootDir, cat, stateColor);
-    }
-
-    // 4. Draw Anatomically Formed Crown (Enamel + Morphological Facets)
-    _drawAnatomicalCrown(canvas, pos, crownW, crownH, rootDir, cat, stateColor, isMissing);
-
-    // 5. Draw Occlusal Morphological Grooves, Pit, & Clinical Decals
-    if (!isMissing) {
-      _drawMorphologyDetails(canvas, pos, crownW, crownH, cat, item.entry.state, sf);
-    }
-
-    // 6. FDI & Universal Number Label
-    final labelText = item.entry.fdiNumber;
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: labelText,
-        style: TextStyle(
-          fontSize: (10.0 * sf).clamp(8.0, 14.0),
-          fontWeight: FontWeight.bold,
-          color: item.isSelected ? Colors.blueAccent : Colors.white,
-          shadows: const [
-            Shadow(color: Colors.black, blurRadius: 4),
-          ],
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-
-    final labelY = item.isUpper
-        ? pos.dy - (crownH / 2) - (rootLen * 0.8) - textPainter.height - 2
-        : pos.dy + (crownH / 2) + (rootLen * 0.8) + 2;
-
-    textPainter.paint(canvas, Offset(pos.dx - textPainter.width / 2, labelY));
-
-    // 7. Periodontal Pocket Depth Indicator if pathological (> 3mm)
-    if (item.entry.pocketDepthMm > 3) {
-      final pColor = item.entry.pocketDepthMm >= 6 ? Colors.red : Colors.amber;
-      final pocketBadge = Paint()..color = pColor;
-      canvas.drawCircle(Offset(pos.dx + crownW * 0.55, pos.dy - crownH * 0.4), 4.5 * sf, pocketBadge);
-    }
-  }
-
-  void _drawAnatomicalRoots(
-    Canvas canvas,
-    Offset pos,
-    double crownW,
-    double rootLen,
-    double dir,
-    ToothCategory cat,
-    Color stateColor,
-  ) {
-    final rootPaint = Paint()
-      ..color = const Color(0xFFD6C7A1).withValues(alpha: 0.85) // Natural dentin/cementum tone
-      ..style = PaintingStyle.fill;
-
-    final rootShade = Paint()
-      ..color = Colors.black26
-      ..strokeWidth = 1.2
-      ..style = PaintingStyle.stroke;
-
-    final rootPath = Path();
-
-    if (cat == ToothCategory.molar) {
-      // Multi-rooted anatomy: Mesial and Distal bifurcated curved roots
-      final rY = pos.dy + (rootLen * dir);
-      final baseY = pos.dy;
-
-      // Root 1 (Mesial)
-      rootPath.moveTo(pos.dx - crownW * 0.4, baseY);
-      rootPath.quadraticBezierTo(pos.dx - crownW * 0.6, baseY + (rootLen * 0.6 * dir), pos.dx - crownW * 0.35, rY);
-      rootPath.quadraticBezierTo(pos.dx - crownW * 0.25, baseY + (rootLen * 0.5 * dir), pos.dx - crownW * 0.1, baseY);
-
-      // Root 2 (Distal)
-      rootPath.moveTo(pos.dx + crownW * 0.1, baseY);
-      rootPath.quadraticBezierTo(pos.dx + crownW * 0.25, baseY + (rootLen * 0.5 * dir), pos.dx + crownW * 0.35, rY);
-      rootPath.quadraticBezierTo(pos.dx + crownW * 0.6, baseY + (rootLen * 0.6 * dir), pos.dx + crownW * 0.4, baseY);
-    } else if (cat == ToothCategory.premolar) {
-      // Tapered single root with bifurcated apex hint
-      final rY = pos.dy + (rootLen * dir);
-      final baseY = pos.dy;
-      rootPath.moveTo(pos.dx - crownW * 0.35, baseY);
-      rootPath.quadraticBezierTo(pos.dx - crownW * 0.2, baseY + (rootLen * 0.6 * dir), pos.dx, rY);
-      rootPath.quadraticBezierTo(pos.dx + crownW * 0.2, baseY + (rootLen * 0.6 * dir), pos.dx + crownW * 0.35, baseY);
-    } else {
-      // Long robust single root (Incisor / Canine)
-      final rY = pos.dy + (rootLen * dir);
-      final baseY = pos.dy;
-      rootPath.moveTo(pos.dx - crownW * 0.3, baseY);
-      rootPath.quadraticBezierTo(pos.dx - crownW * 0.15, baseY + (rootLen * 0.5 * dir), pos.dx, rY);
-      rootPath.quadraticBezierTo(pos.dx + crownW * 0.15, baseY + (rootLen * 0.5 * dir), pos.dx + crownW * 0.3, baseY);
-    }
-    rootPath.close();
-
-    canvas.drawPath(rootPath, rootPaint);
-    canvas.drawPath(rootPath, rootShade);
-  }
-
-  void _drawAnatomicalCrown(
-    Canvas canvas,
-    Offset pos,
-    double w,
-    double h,
-    double dir,
-    ToothCategory cat,
-    Color stateColor,
-    bool isMissing,
-  ) {
-    final crownPath = Path();
-    final halfW = w / 2;
-    final halfH = h / 2;
-
-    if (cat == ToothCategory.molar) {
-      // Quad-cuspal rectangular / rhomboid rounded morphology with defined line angles
-      crownPath.moveTo(pos.dx - halfW * 0.9, pos.dy - halfH * 0.7);
-      // Buccal cusps
-      crownPath.quadraticBezierTo(pos.dx - halfW * 0.5, pos.dy - halfH, pos.dx, pos.dy - halfH * 0.85);
-      crownPath.quadraticBezierTo(pos.dx + halfW * 0.5, pos.dy - halfH, pos.dx + halfW * 0.9, pos.dy - halfH * 0.7);
-      // Distal curve
-      crownPath.quadraticBezierTo(pos.dx + halfW * 1.05, pos.dy, pos.dx + halfW * 0.9, pos.dy + halfH * 0.7);
-      // Lingual cusps
-      crownPath.quadraticBezierTo(pos.dx + halfW * 0.5, pos.dy + halfH, pos.dx, pos.dy + halfH * 0.85);
-      crownPath.quadraticBezierTo(pos.dx - halfW * 0.5, pos.dy + halfH, pos.dx - halfW * 0.9, pos.dy + halfH * 0.7);
-      // Mesial curve
-      crownPath.quadraticBezierTo(pos.dx - halfW * 1.05, pos.dy, pos.dx - halfW * 0.9, pos.dy - halfH * 0.7);
-    } else if (cat == ToothCategory.premolar) {
-      // Oval bicuspid crown with buccal and lingual rounded lobes
-      crownPath.moveTo(pos.dx - halfW * 0.85, pos.dy - halfH * 0.6);
-      crownPath.quadraticBezierTo(pos.dx, pos.dy - halfH, pos.dx + halfW * 0.85, pos.dy - halfH * 0.6);
-      crownPath.quadraticBezierTo(pos.dx + halfW, pos.dy, pos.dx + halfW * 0.85, pos.dy + halfH * 0.6);
-      crownPath.quadraticBezierTo(pos.dx, pos.dy + halfH, pos.dx - halfW * 0.85, pos.dy + halfH * 0.6);
-      crownPath.quadraticBezierTo(pos.dx - halfW, pos.dy, pos.dx - halfW * 0.85, pos.dy - halfH * 0.6);
-    } else if (cat == ToothCategory.canine) {
-      // Pointed diamond-shaped cusp with prominent labial ridge
-      crownPath.moveTo(pos.dx, pos.dy - halfH * 1.05); // Sharp incisal cusp tip
-      crownPath.lineTo(pos.dx + halfW * 0.9, pos.dy - halfH * 0.2);
-      crownPath.quadraticBezierTo(pos.dx + halfW * 0.8, pos.dy + halfH * 0.8, pos.dx, pos.dy + halfH);
-      crownPath.quadraticBezierTo(pos.dx - halfW * 0.8, pos.dy + halfH * 0.8, pos.dx - halfW * 0.9, pos.dy - halfH * 0.2);
-    } else {
-      // Incisor chisel-shaped crown with straight incisal edge & rounded cervical margin
-      crownPath.moveTo(pos.dx - halfW * 0.95, pos.dy - halfH * 0.85);
-      crownPath.lineTo(pos.dx + halfW * 0.95, pos.dy - halfH * 0.85); // Straight incisal edge
-      crownPath.quadraticBezierTo(pos.dx + halfW * 0.9, pos.dy, pos.dx + halfW * 0.7, pos.dy + halfH * 0.9);
-      crownPath.quadraticBezierTo(pos.dx, pos.dy + halfH, pos.dx - halfW * 0.7, pos.dy + halfH * 0.9);
-      crownPath.quadraticBezierTo(pos.dx - halfW * 0.9, pos.dy, pos.dx - halfW * 0.95, pos.dy - halfH * 0.85);
-    }
-    crownPath.close();
-
-    if (!isMissing) {
-      // Enamel Specular 3D Gradient Shading
-      final bounds = crownPath.getBounds();
-      final gradient = RadialGradient(
-        center: const Alignment(-0.35, -0.45),
-        radius: 0.9,
-        colors: [
-          const Color(0xFFFFFFFF), // Specular light highlight
-          const Color(0xFFF1EFE7), // Natural translucent enamel
-          stateColor.withValues(alpha: 0.45), // Diagnostic status tint overlay
-          stateColor.withValues(alpha: 0.9), // Deep shadow edge
-        ],
-        stops: const [0.0, 0.45, 0.8, 1.0],
-      );
-
-      final paint = Paint()
-        ..shader = gradient.createShader(bounds)
-        ..style = PaintingStyle.fill;
-      canvas.drawPath(crownPath, paint);
-
-      // Outer anatomical rim line
-      final rimPaint = Paint()
-        ..color = stateColor.withValues(alpha: 0.8)
-        ..strokeWidth = 1.5
-        ..style = PaintingStyle.stroke;
-      canvas.drawPath(crownPath, rimPaint);
-    } else {
-      // Dashed contour for missing / extracted tooth
-      final dashPaint = Paint()
-        ..color = stateColor
-        ..strokeWidth = 1.5
-        ..style = PaintingStyle.stroke;
-      canvas.drawPath(crownPath, dashPaint);
-    }
-  }
-
-  void _drawMorphologyDetails(
-    Canvas canvas,
-    Offset pos,
-    double w,
-    double h,
-    ToothCategory cat,
-    ToothState state,
-    double sf,
-  ) {
-    final groovePaint = Paint()
-      ..color = const Color(0xFF5C5543).withValues(alpha: 0.6)
-      ..strokeWidth = 1.2
-      ..style = PaintingStyle.stroke;
-
-    final halfW = w / 2;
-    final halfH = h / 2;
-
-    if (cat == ToothCategory.molar) {
-      // Central fossa with cruciate fissure pattern (4 cusps: MB, ML, DB, DL)
-      final p = Path();
-      p.moveTo(pos.dx - halfW * 0.5, pos.dy);
-      p.lineTo(pos.dx + halfW * 0.5, pos.dy);
-      p.moveTo(pos.dx, pos.dy - halfH * 0.5);
-      p.lineTo(pos.dx, pos.dy + halfH * 0.5);
-      canvas.drawPath(p, groovePaint);
-      // Central pit
-      canvas.drawCircle(pos, 1.8 * sf, Paint()..color = const Color(0xFF5C5543));
-    } else if (cat == ToothCategory.premolar) {
-      // Central developmental groove separating buccal and lingual triangular ridges
-      final p = Path();
-      p.moveTo(pos.dx - halfW * 0.4, pos.dy);
-      p.lineTo(pos.dx + halfW * 0.4, pos.dy);
-      canvas.drawPath(p, groovePaint);
-    } else if (cat == ToothCategory.canine) {
-      // Prominent longitudinal labial ridge
-      final p = Path();
-      p.moveTo(pos.dx, pos.dy - halfH * 0.8);
-      p.lineTo(pos.dx, pos.dy + halfH * 0.6);
-      canvas.drawPath(p, groovePaint);
-    } else if (cat == ToothCategory.incisor) {
-      // Incisal developmental mamelon grooves
-      canvas.drawLine(Offset(pos.dx - halfW * 0.3, pos.dy - halfH * 0.7), Offset(pos.dx - halfW * 0.3, pos.dy - halfH * 0.3), groovePaint);
-      canvas.drawLine(Offset(pos.dx + halfW * 0.3, pos.dy - halfH * 0.7), Offset(pos.dx + halfW * 0.3, pos.dy - halfH * 0.3), groovePaint);
-    }
-
-    // Specific clinical procedure decals
-    if (state == ToothState.crown) {
-      final crownPaint = Paint()
-        ..color = const Color(0xFFF59E0B)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2;
-      canvas.drawCircle(pos, halfW * 0.65, crownPaint);
-    } else if (state == ToothState.rootCanal) {
-      final endoPaint = Paint()
-        ..color = const Color(0xFFF97316)
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(pos, 4.0 * sf, endoPaint);
-    } else if (state == ToothState.implant) {
-      final impPaint = Paint()
-        ..color = const Color(0xFF8B5CF6)
-        ..strokeWidth = 2.2;
-      canvas.drawLine(Offset(pos.dx, pos.dy - halfH * 0.6), Offset(pos.dx, pos.dy + halfH * 0.6), impPaint);
-      canvas.drawLine(Offset(pos.dx - halfW * 0.4, pos.dy), Offset(pos.dx + halfW * 0.4, pos.dy), impPaint);
-    } else if (state == ToothState.fractured) {
-      final crackPaint = Paint()
-        ..color = const Color(0xFFDC2626)
-        ..strokeWidth = 2.0;
-      final path = Path()
-        ..moveTo(pos.dx - halfW * 0.5, pos.dy - halfH * 0.5)
-        ..lineTo(pos.dx, pos.dy)
-        ..lineTo(pos.dx + halfW * 0.5, pos.dy + halfH * 0.5);
-      canvas.drawPath(path, crackPaint);
     }
   }
 
@@ -922,19 +884,35 @@ class _Tooth3dPainter extends CustomPainter {
   }
 }
 
+class _MeshProjectionResult {
+  final List<_ProjectedTriangle> triangles;
+  final Offset crownCenter;
+  final double screenRadius;
+
+  const _MeshProjectionResult({
+    required this.triangles,
+    required this.crownCenter,
+    required this.screenRadius,
+  });
+}
+
 class _RenderTooth {
   final ToothChartEntry entry;
   final Offset screenPos;
+  final Offset crownScreenPos;
   final double depthZ;
   final double scaleFactor;
+  final double screenRadius;
   final bool isUpper;
   final bool isSelected;
 
   const _RenderTooth({
     required this.entry,
     required this.screenPos,
+    required this.crownScreenPos,
     required this.depthZ,
     required this.scaleFactor,
+    required this.screenRadius,
     required this.isUpper,
     required this.isSelected,
   });
