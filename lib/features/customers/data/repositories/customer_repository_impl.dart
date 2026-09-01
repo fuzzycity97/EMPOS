@@ -26,16 +26,42 @@ class CustomerRepositoryImpl implements CustomerRepository {
   }) async {
     try {
       final customers = await localDataSource.getCustomers();
+
+      final reconciledCustomers = await Future.wait(customers.map((c) async {
+        try {
+          final ledger = await localDataSource.getLedgerEntries(c.id);
+          if (ledger.isNotEmpty) {
+            double totalCharges = 0.0;
+            double totalPayments = 0.0;
+            for (final e in ledger) {
+              if (e.type == CustomerLedgerType.debtCharge) {
+                totalCharges += e.amount;
+              } else if (e.type == CustomerLedgerType.debtPayment) {
+                totalPayments += e.amount;
+              }
+            }
+            final net = totalCharges - totalPayments;
+            final accurateDebt = net > 0.001 ? net : 0.0;
+            if ((c.totalDebt - accurateDebt).abs() > 0.001) {
+              final updated = c.copyWith(totalDebt: accurateDebt);
+              await localDataSource.saveCustomer(CustomerModel.fromEntity(updated));
+              return updated;
+            }
+          }
+        } catch (_) {}
+        return c;
+      }));
+
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
         final query = searchQuery.trim().toLowerCase();
-        final filtered = customers.where((c) {
+        final filtered = reconciledCustomers.where((c) {
           final matchName = c.name.toLowerCase().contains(query);
           final matchPhone = c.phone.toLowerCase().contains(query);
           return matchName || matchPhone;
         }).toList();
         return Right(filtered);
       }
-      return Right(customers);
+      return Right(reconciledCustomers);
     } catch (e) {
       return Left(CacheFailure(message: 'Failed to retrieve customers: $e'));
     }
@@ -48,6 +74,27 @@ class CustomerRepositoryImpl implements CustomerRepository {
       if (customer == null) {
         return const Left(CacheFailure(message: 'Customer not found.'));
       }
+      try {
+        final ledger = await localDataSource.getLedgerEntries(customer.id);
+        if (ledger.isNotEmpty) {
+          double totalCharges = 0.0;
+          double totalPayments = 0.0;
+          for (final e in ledger) {
+            if (e.type == CustomerLedgerType.debtCharge) {
+              totalCharges += e.amount;
+            } else if (e.type == CustomerLedgerType.debtPayment) {
+              totalPayments += e.amount;
+            }
+          }
+          final net = totalCharges - totalPayments;
+          final accurateDebt = net > 0.001 ? net : 0.0;
+          if ((customer.totalDebt - accurateDebt).abs() > 0.001) {
+            final updated = customer.copyWith(totalDebt: accurateDebt);
+            await localDataSource.saveCustomer(CustomerModel.fromEntity(updated));
+            return Right(updated);
+          }
+        }
+      } catch (_) {}
       return Right(customer);
     } catch (e) {
       return Left(CacheFailure(message: 'Failed to retrieve customer $customerId: $e'));
