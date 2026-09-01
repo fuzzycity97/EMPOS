@@ -3,265 +3,345 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/network/sync_network_client.dart';
+import '../../domain/services/sync_connection_manager.dart';
 
-enum SyncConnectionMode {
-  localLan,
-  globalCloud,
-}
+enum SyncConnectionMode { lan, cloud }
 
-/// First-Run Database & Real-Time Sync Configuration Wizard.
+/// Interactive First-Run Connection Setup & Role Switcher Wizard.
 /// 100% [StatelessWidget] architecture.
 class FirstRunSyncWizardPage extends StatelessWidget {
+  final SyncConnectionManager connectionManager;
+  final ValueNotifier<AppNodeRole> roleNotifier;
   final ValueNotifier<SyncConnectionMode> modeNotifier;
-  final ValueNotifier<ServerHealthResult?> healthResultNotifier;
   final ValueNotifier<bool> isTestingNotifier;
-  final TextEditingController urlController;
+  final ValueNotifier<ServerHealthResult?> testResultNotifier;
+  final TextEditingController hostPortController;
+  final TextEditingController clientUrlController;
   final TextEditingController apiKeyController;
-  final SyncNetworkClient networkClient;
-  final void Function(String verifiedUrl, String? apiKey)? onConnectionEstablished;
+  final VoidCallback? onProceedToTerminal;
 
   FirstRunSyncWizardPage({
     super.key,
+    SyncConnectionManager? connectionManager,
+    ValueNotifier<AppNodeRole>? roleNotifier,
     ValueNotifier<SyncConnectionMode>? modeNotifier,
-    ValueNotifier<ServerHealthResult?>? healthResultNotifier,
     ValueNotifier<bool>? isTestingNotifier,
-    TextEditingController? urlController,
+    ValueNotifier<ServerHealthResult?>? testResultNotifier,
+    TextEditingController? hostPortController,
+    TextEditingController? clientUrlController,
     TextEditingController? apiKeyController,
-    SyncNetworkClient? networkClient,
-    this.onConnectionEstablished,
-  })  : modeNotifier = modeNotifier ?? ValueNotifier<SyncConnectionMode>(SyncConnectionMode.localLan),
-        healthResultNotifier = healthResultNotifier ?? ValueNotifier<ServerHealthResult?>(null),
+    this.onProceedToTerminal,
+  })  : connectionManager = connectionManager ?? SyncConnectionManager(),
+        roleNotifier = roleNotifier ?? ValueNotifier<AppNodeRole>(AppNodeRole.client),
+        modeNotifier = modeNotifier ?? ValueNotifier<SyncConnectionMode>(SyncConnectionMode.lan),
         isTestingNotifier = isTestingNotifier ?? ValueNotifier<bool>(false),
-        urlController = urlController ?? TextEditingController(text: 'http://192.168.1.100:3000'),
-        apiKeyController = apiKeyController ?? TextEditingController(),
-        networkClient = networkClient ?? SyncNetworkClient();
+        testResultNotifier = testResultNotifier ?? ValueNotifier<ServerHealthResult?>(null),
+        hostPortController = hostPortController ?? TextEditingController(text: '3000'),
+        clientUrlController = clientUrlController ?? TextEditingController(text: 'http://192.168.1.100:3000'),
+        apiKeyController = apiKeyController ?? TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF090D16) : const Color(0xFFF1F5F9),
+      backgroundColor: isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(AppDimensions.space24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 580),
             child: Container(
-              padding: const EdgeInsets.all(32),
+              padding: const EdgeInsets.all(AppDimensions.space24),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.surfaceDark : Colors.white,
                 borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
                 border: Border.all(color: isDark ? AppColors.borderDark : Colors.black12),
-                boxShadow: [
+                boxShadow: const [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
-                    blurRadius: 24,
-                    offset: const Offset(0, 12),
+                    color: Colors.black12,
+                    blurRadius: 20,
+                    offset: Offset(0, 10),
                   ),
                 ],
               ),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Logo & Heading
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
+                  // ── Header Icon & Title ─────────────────────────────
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                        ),
+                        child: const Icon(LucideIcons.network, size: 28, color: AppColors.primaryLight),
                       ),
-                      child: const Icon(LucideIcons.radioTower, size: 36, color: AppColors.primaryLight),
-                    ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Device Role & Database Sync Setup',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Select whether this terminal is the Main Hub or a Satellite Station.',
+                              style: TextStyle(fontSize: 12, color: AppColors.textSecondaryDark),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'OmniTrack Real-Time Sync Setup',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Connect this terminal to the central database server to sync inventory, sales, and clinical queues.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12.5, color: AppColors.textSecondaryDark),
-                  ),
-                  const SizedBox(height: 24),
+                  const Divider(height: 32),
 
-                  // Mode Selector Tabs
-                  ValueListenableBuilder<SyncConnectionMode>(
-                    valueListenable: modeNotifier,
-                    builder: (context, mode, _) {
+                  // ── Role Switcher: Host vs. Client ──────────────────
+                  const Text('Device Operating Role', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  ValueListenableBuilder<AppNodeRole>(
+                    valueListenable: roleNotifier,
+                    builder: (context, currentRole, _) {
                       return Row(
                         children: [
                           Expanded(
-                            child: _modeOptionButton(
-                              title: 'Local (LAN Mode)',
-                              subtitle: 'High-speed local network',
-                              icon: LucideIcons.network,
-                              isSelected: mode == SyncConnectionMode.localLan,
-                              onTap: () {
-                                modeNotifier.value = SyncConnectionMode.localLan;
-                                if (urlController.text.contains('cloudflare') || urlController.text.isEmpty) {
-                                  urlController.text = 'http://192.168.1.100:3000';
-                                }
-                                healthResultNotifier.value = null;
-                              },
+                            child: InkWell(
+                              onTap: () => roleNotifier.value = AppNodeRole.host,
+                              borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: currentRole == AppNodeRole.host
+                                      ? AppColors.primary.withValues(alpha: 0.15)
+                                      : (isDark ? const Color(0xFF030712) : const Color(0xFFF1F5F9)),
+                                  borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                                  border: Border.all(
+                                    color: currentRole == AppNodeRole.host ? AppColors.primaryLight : Colors.transparent,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      LucideIcons.server,
+                                      size: 24,
+                                      color: currentRole == AppNodeRole.host ? AppColors.primaryLight : AppColors.textMutedDark,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    const Text('Host Server (Hub)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                    const Text('Hosts DB & Sync Daemon', style: TextStyle(fontSize: 10, color: AppColors.textSecondaryDark)),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: _modeOptionButton(
-                              title: 'Global (Cloud Mode)',
-                              subtitle: 'Cloudflare / Public URL',
-                              icon: LucideIcons.cloud,
-                              isSelected: mode == SyncConnectionMode.globalCloud,
-                              onTap: () {
-                                modeNotifier.value = SyncConnectionMode.globalCloud;
-                                if (!urlController.text.startsWith('https://')) {
-                                  urlController.text = 'https://omni-sync.example.com';
-                                }
-                                healthResultNotifier.value = null;
-                              },
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-
-                  // URL Input
-                  const Text('SERVER BASE ADDRESS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textMutedDark)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: urlController,
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(LucideIcons.globe, size: 18),
-                      hintText: 'http://192.168.1.100:3000',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusSmall)),
-                      filled: true,
-                      fillColor: isDark ? const Color(0xFF030712) : const Color(0xFFF8FAFC),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Optional API Key
-                  ValueListenableBuilder<SyncConnectionMode>(
-                    valueListenable: modeNotifier,
-                    builder: (context, mode, _) {
-                      if (mode == SyncConnectionMode.localLan) return const SizedBox.shrink();
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('PAIRING TOKEN / API KEY (OPTIONAL)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textMutedDark)),
-                          const SizedBox(height: 6),
-                          TextField(
-                            controller: apiKeyController,
-                            obscureText: true,
-                            decoration: InputDecoration(
-                              prefixIcon: const Icon(LucideIcons.key, size: 18),
-                              hintText: 'Bearer token or pairing key',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusSmall)),
-                              filled: true,
-                              fillColor: isDark ? const Color(0xFF030712) : const Color(0xFFF8FAFC),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                        ],
-                      );
-                    },
-                  ),
-
-                  // Health Check Status Feedback
-                  ValueListenableBuilder<ServerHealthResult?>(
-                    valueListenable: healthResultNotifier,
-                    builder: (context, health, _) {
-                      if (health == null) return const SizedBox.shrink();
-
-                      final isOnline = health.isOnline;
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isOnline ? AppColors.success.withValues(alpha: 0.12) : AppColors.danger.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                          border: Border.all(color: isOnline ? AppColors.success.withValues(alpha: 0.3) : AppColors.danger.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(isOnline ? LucideIcons.checkCircle2 : LucideIcons.alertTriangle, size: 18, color: isOnline ? AppColors.success : AppColors.danger),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isOnline ? 'Server Online (${health.latencyMs}ms)' : 'Connection Failed',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: isOnline ? AppColors.success : AppColors.danger),
+                            child: InkWell(
+                              onTap: () => roleNotifier.value = AppNodeRole.client,
+                              borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: currentRole == AppNodeRole.client
+                                      ? AppColors.primary.withValues(alpha: 0.15)
+                                      : (isDark ? const Color(0xFF030712) : const Color(0xFFF1F5F9)),
+                                  borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                                  border: Border.all(
+                                    color: currentRole == AppNodeRole.client ? AppColors.primaryLight : Colors.transparent,
+                                    width: 1.5,
                                   ),
-                                  Text(
-                                    isOnline
-                                        ? 'Engine v${health.version ?? "1.0.0"} • Active Terminals: ${health.connectedClients}'
-                                        : (health.errorMessage ?? 'Target address is unreachable.'),
-                                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondaryDark),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      LucideIcons.laptop,
+                                      size: 24,
+                                      color: currentRole == AppNodeRole.client ? AppColors.primaryLight : AppColors.textMutedDark,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    const Text('Client Terminal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                    const Text('Doctor / Cashier Station', style: TextStyle(fontSize: 10, color: AppColors.textSecondaryDark)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Host vs Client Parameters ───────────────────────
+                  ValueListenableBuilder<AppNodeRole>(
+                    valueListenable: roleNotifier,
+                    builder: (context, role, _) {
+                      if (role == AppNodeRole.host) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Daemon Listen Port', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: hostPortController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                prefixIcon: Icon(LucideIcons.hash, size: 16),
+                                hintText: '3000',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppColors.info.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(LucideIcons.info, size: 16, color: AppColors.info),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'This device will act as the master sync hub on 0.0.0.0:3000 for all client stations.',
+                                      style: TextStyle(fontSize: 11, color: AppColors.info),
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
                           ],
-                        ),
+                        );
+                      }
+
+                      // Client Mode Form
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Host Server URL', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: clientUrlController,
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(LucideIcons.globe, size: 16),
+                              hintText: 'http://192.168.1.100:3000',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          const Text('Optional Pairing Token / API Key', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: apiKeyController,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(LucideIcons.key, size: 16),
+                              hintText: 'Leave blank for open LAN pairing',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Test Connection Button
+                          ValueListenableBuilder<bool>(
+                            valueListenable: isTestingNotifier,
+                            builder: (context, isTesting, _) {
+                              return ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                                  foregroundColor: isDark ? Colors.white : Colors.black87,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                icon: isTesting
+                                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : const Icon(LucideIcons.activity, size: 16),
+                                label: Text(isTesting ? 'Pinging Host...' : 'Test Connection'),
+                                onPressed: isTesting
+                                    ? null
+                                    : () async {
+                                        isTestingNotifier.value = true;
+                                        final client = SyncNetworkClient(clientUrlController.text);
+                                        final result = await client.checkServerHealth();
+                                        isTestingNotifier.value = false;
+                                        testResultNotifier.value = result;
+                                      },
+                              );
+                            },
+                          ),
+
+                          // Test Result Badge
+                          ValueListenableBuilder<ServerHealthResult?>(
+                            valueListenable: testResultNotifier,
+                            builder: (context, result, _) {
+                              if (result == null) return const SizedBox.shrink();
+                              final isSuccess = result.isSuccess;
+                              return Container(
+                                margin: const EdgeInsets.only(top: 10),
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: (isSuccess ? AppColors.success : AppColors.danger).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                                  border: Border.all(color: isSuccess ? AppColors.success : AppColors.danger),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(isSuccess ? LucideIcons.checkCircle : LucideIcons.alertCircle, size: 16, color: isSuccess ? AppColors.success : AppColors.danger),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        isSuccess
+                                            ? 'Connected • Latency: ${result.latencyMs}ms • v${result.version ?? "1.0.0"}'
+                                            : 'Connection Failed: ${result.errorMessage}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: isSuccess ? AppColors.success : AppColors.danger,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       );
                     },
                   ),
+                  const SizedBox(height: 24),
 
-                  // Actions: Test & Connect
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ValueListenableBuilder<bool>(
-                          valueListenable: isTestingNotifier,
-                          builder: (context, isTesting, _) {
-                            return OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusSmall)),
-                              ),
-                              icon: isTesting
-                                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                                  : const Icon(LucideIcons.activity, size: 16),
-                              label: Text(isTesting ? 'Testing...' : 'Test Connection'),
-                              onPressed: isTesting ? null : () => _performHealthCheck(context),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ValueListenableBuilder<ServerHealthResult?>(
-                          valueListenable: healthResultNotifier,
-                          builder: (context, health, _) {
-                            final isVerified = health?.isOnline == true;
-                            return ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: isVerified ? AppColors.success : AppColors.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusSmall)),
-                              ),
-                              icon: const Icon(LucideIcons.arrowRight, size: 16),
-                              label: const Text('Proceed to App', style: TextStyle(fontWeight: FontWeight.bold)),
-                              onPressed: isVerified
-                                  ? () => onConnectionEstablished?.call(urlController.text.trim(), apiKeyController.text.trim())
-                                  : null,
-                            );
-                          },
-                        ),
-                      ),
-                    ],
+                  // ── Save & Proceed Button ───────────────────────────
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimensions.radiusSmall)),
+                    ),
+                    onPressed: () async {
+                      final role = roleNotifier.value;
+                      if (role == AppNodeRole.host) {
+                        final port = int.tryParse(hostPortController.text) ?? 3000;
+                        await connectionManager.startHostMode(port: port, persist: true);
+                      } else {
+                        final url = clientUrlController.text.trim();
+                        final token = apiKeyController.text.trim();
+                        await connectionManager.connectAsClient(
+                          url,
+                          'LAN',
+                          authToken: token.isNotEmpty ? token : null,
+                          persist: true,
+                        );
+                      }
+                      onProceedToTerminal?.call();
+                    },
+                    child: const Text('Save Configuration & Launch Terminal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5)),
                   ),
                 ],
               ),
@@ -270,54 +350,5 @@ class FirstRunSyncWizardPage extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Widget _modeOptionButton({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withValues(alpha: 0.12) : const Color(0xFF030712),
-          borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-          border: Border.all(
-            color: isSelected ? AppColors.primaryLight : AppColors.borderDark,
-            width: isSelected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: isSelected ? AppColors.primaryLight : AppColors.textSecondaryDark),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: isSelected ? AppColors.primaryLight : Colors.white)),
-                  Text(subtitle, style: const TextStyle(fontSize: 10, color: AppColors.textSecondaryDark)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _performHealthCheck(BuildContext context) async {
-    final url = urlController.text.trim();
-    if (url.isEmpty) return;
-
-    isTestingNotifier.value = true;
-    final res = await networkClient.checkServerHealth(url, apiKey: apiKeyController.text.trim());
-    isTestingNotifier.value = false;
-    healthResultNotifier.value = res;
   }
 }
