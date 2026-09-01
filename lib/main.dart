@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'app.dart';
 import 'core/di/injection_container.dart' as di;
+import 'features/sync/domain/services/sync_connection_manager.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +37,12 @@ Future<void> main() async {
 
   // Initialize Clean Architecture Service Locator (GetIt)
   await di.initServiceLocator();
+
+  // Bootstrap Auto-Reconnection & Persistent Node Role (Host vs Client)
+  try {
+    final syncManager = SyncConnectionManager();
+    await syncManager.bootstrapAutoConnect();
+  } catch (_) {}
 
   runApp(const EmposApp());
 }
