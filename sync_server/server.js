@@ -34,9 +34,26 @@ app.get('/health', (req, res) => {
 // 2. Process & broadcast new sale transaction
 app.post('/sale', (req, res) => {
   const sale = req.body;
-  if (!sale || !sale.invoiceId) {
-    return res.status(400).json({ error: 'Invalid sale payload: invoiceId required' });
+  if (!sale || (!sale.invoiceId && !sale.id)) {
+    return res.status(400).json({ error: 'Invalid sale payload: invoiceId or id required' });
   }
+
+  const transactionId = sale.invoiceId || sale.id;
+  const payload = {
+    transactionId,
+    invoiceId: transactionId,
+    departmentId: sale.departmentId || 'retail_main',
+    dept: sale.dept || 'Main Store',
+    patient: sale.patient || sale.customerName || 'Walk-In Customer',
+    amount: sale.grossTotal || sale.amount || 0.0,
+    grossTotal: sale.grossTotal || sale.amount || 0.0,
+    netTotal: sale.netTotal || sale.amount || 0.0,
+    time: 'Just now',
+    timestamp: new Date().toISOString(),
+    status: sale.status || 'PAID',
+    items: sale.items || [],
+    providerCommissions: sale.providerCommissions || {},
+  };
 
   // Persist to local JSON ledger
   try {
@@ -44,15 +61,15 @@ app.post('/sale', (req, res) => {
     if (fs.existsSync(SALES_LOG_PATH)) {
       sales = JSON.parse(fs.readFileSync(SALES_LOG_PATH, 'utf8') || '[]');
     }
-    sales.push({ ...sale, receivedAt: new Date().toISOString() });
+    sales.push(payload);
     fs.writeFileSync(SALES_LOG_PATH, JSON.stringify(sales, null, 2));
   } catch (err) {
     console.error('Failed to append sale log:', err);
   }
 
   // Real-time broadcast to all connected Manager apps & POS terminals
-  io.emit('sale_event', sale);
-  res.status(201).json({ success: true, invoiceId: sale.invoiceId });
+  io.emit('sale_event', payload);
+  res.status(201).json({ success: true, transactionId });
 });
 
 // 3. OTA Catalog & Price Push
