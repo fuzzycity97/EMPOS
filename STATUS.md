@@ -146,7 +146,62 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 ---
 
-## 7. Known Issues / Inconsistencies
+## 7. Architectural Schemas, Data Contracts & Known Resolutions
+
+### 7.1 Data Contracts & Core Schemas
+
+1. **Node Profile Configuration (`NodeProfileConfig`)**:
+   ```dart
+   class NodeProfileConfig {
+     final AppNodeRole role; // AppNodeRole.host vs AppNodeRole.client
+     final String serverUrl; // e.g. "http://192.168.1.50:3000" or Cloudflare tunnel
+     final int hostPort;     // default 3000
+     final String mode;      // "LAN" or "CLOUD"
+     final String? authToken;
+   }
+   ```
+   - Persisted in `SharedPreferences` as `'node_profile_config'`.
+   - Hydrated during pre-render app boot (`main.dart` -> `SyncConnectionManager.bootstrapAutoConnect()`).
+
+2. **Multi-Specialty 3D Surgical Annotation (`AdvancedPathologyEntry`)**:
+   ```dart
+   class AdvancedPathologyEntry {
+     final String id;
+     final SpatialToolType toolType; // linearCutPlane, convexHullPolygon, vectorSplineGraft, radialCaliperGauge, localizedDosagePin, prostheticLattice
+     final List<Offset> points;
+     final double value;            // e.g. Stenosis %, Cup-to-Disc ratio, Burn Area %
+     final Map<String, dynamic> metadata; // Auto-attached consumable billing codes & procedural parameters
+   }
+   ```
+
+3. **Smart Doctor Timetable & Working Shift (`DoctorWorkingShift`)**:
+   ```dart
+   class DoctorWorkingShift {
+     final String doctorId;
+     final int dayOfWeek; // 1 = Monday ... 7 = Sunday
+     final TimeOfDay startTime;
+     final TimeOfDay endTime;
+     final int slotDurationMinutes; // 15, 20, or 30 min
+     final List<TimeRange> breakTimes; // Prayer, lunch, clinic rounds
+   }
+   ```
+   - Evaluated by `SmartSchedulingEngine` using interval intersection math $[T_{\text{start}}, T_{\text{end}})$.
+
+4. **Customer Debt Ledger Entry (`CustomerLedgerEntry`)**:
+   ```dart
+   class CustomerLedgerEntry {
+     final String id;
+     final String customerId;
+     final CustomerLedgerType type; // debtCharge (+) vs debtPayment (-)
+     final double amount;
+     final DateTime timestamp;
+     final String notes;
+     final TenderType? paymentTender;
+   }
+   ```
+   - Enforces deterministic balance: $\text{Outstanding Debt} = \sum \text{Charges} - \sum \text{Payments}$.
+
+### 7.2 Resolved Operational Inconsistencies
 - **Resolved**: First-Run Sync Configuration & Live Health Ping. Implemented `FirstRunSyncWizardPage` and `SyncNetworkClient` supporting LAN/Cloud connections with live millisecond latency verification and error blocking before entering the main app shell.
 - **Resolved**: Real-Time Sync Daemon & Event Stream. Built `sync_server/server.js` and `sync_server/index.js` with Express and Socket.IO on port 3000 handling `/health`, `/sale`, `/ota/push`, graceful termination (`SIGINT`/`SIGTERM`), and terminal roster broadcasting.
 - **Resolved**: Executive Manager Operations & Monitoring. Implemented `ExecutiveManagerDashboardScreen` and `ManagerProfitSplitEngine` with live WebSocket sales feed, Net Profit pool calculations, staff payroll advance deductions, and cross-department inventory alerts.
