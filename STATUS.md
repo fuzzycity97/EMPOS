@@ -130,7 +130,8 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | Feature / Task | Agent / Tool | Description | Started |
 |---|---|---|---|
-| None currently claimed | — | — | — |
+| Customer Account Ledger — Partial Payment & Transaction Audit Integrity Fix | Antigravity | Investigating customer debt payment recording, balance reduction logic, ledger transaction history persistence, and status badge computation. | 2026-08-30T17:36:00Z |
+| Tooth Chart — Replace Placeholder Box Models With Real Tooth-Shaped 3D Models | Cursor | Source CC0 category-based tooth GLB meshes (incisor/canine/premolar/molar), wire into existing 3D odontogram pipeline, verify status tinting/overlay on real run. | 2026-09-01T14:11:00Z |
 
 ---
 
