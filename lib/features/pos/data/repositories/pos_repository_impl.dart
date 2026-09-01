@@ -309,7 +309,11 @@ class PosRepositoryImpl implements PosRepository {
                     await customerRepository!.saveCustomer(updatedCustomer);
                   }
 
-                  // If checkout was paid via Store Credit, charge customer ledger
+                  // Calculate total paid across all tenders
+                  final totalTendered = payments.fold<double>(0.0, (sum, p) => sum + p.amount);
+                  final unpaidBalance = cart.grandTotal - totalTendered;
+
+                  // 1. If checkout was paid via Store Credit tender, charge customer ledger
                   for (final p in payments) {
                     if (p.tenderType == TenderType.customerAccount && p.amount > 0) {
                       await customerRepository!.chargeCustomerDebt(
@@ -319,6 +323,16 @@ class PosRepositoryImpl implements PosRepository {
                         notes: 'Store Credit Charge (Order #$orderNumber)',
                       );
                     }
+                  }
+
+                  // 2. If checkout was a partial payment with unpaid remaining balance, charge customer ledger as active debt
+                  if (unpaidBalance > 0.001) {
+                    await customerRepository!.chargeCustomerDebt(
+                      customerId: c.id,
+                      amount: unpaidBalance,
+                      relatedOrderId: orderNumber,
+                      notes: 'Partial payment remaining balance on Order #$orderNumber (Paid ${totalTendered.toStringAsFixed(2)} / Total ${cart.grandTotal.toStringAsFixed(2)})',
+                    );
                   }
                   break;
                 }
