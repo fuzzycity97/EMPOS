@@ -272,7 +272,8 @@ class PosRepositoryImpl implements PosRepository {
       }
 
       final totalPaid = payments.fold(0.0, (sum, p) => sum + p.amount);
-      if (totalPaid < cart.grandTotal && (cart.grandTotal - totalPaid) > 0.009) {
+      final hasCustomer = customerPhone != null && customerPhone.trim().isNotEmpty;
+      if (!hasCustomer && totalPaid < cart.grandTotal && (cart.grandTotal - totalPaid) > 0.009) {
         return Left(ValidationFailure(
           message:
               'Insufficient payment. Total due is ${cart.grandTotal.toStringAsFixed(2)}, but paid amount is ${totalPaid.toStringAsFixed(2)}.',
