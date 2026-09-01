@@ -147,11 +147,19 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                         const SizedBox(height: 16),
                       ],
 
-                      // 4. Prescriptions & Procedures
+                      // 4. Structured Laboratory & Bloodwork Tracking Panel
+                      _buildLaboratorySection(isDark),
+                      const SizedBox(height: 16),
+
+                      // 5. Diagnostic Attachments & Lightbox Preview
+                      _buildDiagnosticAttachmentsSection(isDark),
+                      const SizedBox(height: 16),
+
+                      // 6. Prescriptions & Procedures
                       _buildPrescriptionsAndProcedures(isDark),
                       const SizedBox(height: 16),
 
-                      // 5. Financial & Billing Summary
+                      // 7. Financial & Billing Summary
                       _buildFinancialSummary(isDark),
                     ],
                   ),
@@ -435,6 +443,157 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: color, fontFamily: 'monospace'),
         ),
       ],
+    );
+  }
+
+  Widget _buildLaboratorySection(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceElevatedDark : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+        border: Border.all(color: isDark ? AppColors.borderDark : Colors.black12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader('Laboratory Panels & Bloodwork (CBC / BMP)', LucideIcons.flaskConical),
+          const SizedBox(height: 10),
+          Table(
+            columnWidths: const {
+              0: FlexColumnWidth(2.2),
+              1: FlexColumnWidth(1.4),
+              2: FlexColumnWidth(1.8),
+              3: FlexColumnWidth(1.2),
+            },
+            children: [
+              const TableRow(
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: AppColors.borderDark, width: 1)),
+                ),
+                children: [
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Text('Test Parameter', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textMutedDark)),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Text('Result Value', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textMutedDark)),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Text('Reference Range', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textMutedDark)),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Text('Status', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textMutedDark)),
+                  ),
+                ],
+              ),
+              _labRow('White Blood Cells (WBC)', '7.2 x10³/µL', '4.5 - 11.0', 'NORMAL', AppColors.success),
+              _labRow('Hemoglobin (Hgb)', '14.1 g/dL', '13.5 - 17.5', 'NORMAL', AppColors.success),
+              _labRow('Platelet Count', '245 x10³/µL', '150 - 450', 'NORMAL', AppColors.success),
+              _labRow('Fasting Blood Glucose', '104 mg/dL', '70 - 99', 'HIGH', AppColors.danger),
+              _labRow('Serum Creatinine', '0.92 mg/dL', '0.70 - 1.30', 'NORMAL', AppColors.success),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  TableRow _labRow(String name, String value, String ref, String flag, Color flagColor) {
+    return TableRow(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Text(name, style: const TextStyle(fontSize: 11, color: AppColors.textPrimaryDark)),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'monospace', color: Colors.white)),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Text(ref, style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondaryDark)),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: flagColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: flagColor.withValues(alpha: 0.4)),
+            ),
+            child: Text(
+              flag,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: flagColor),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDiagnosticAttachmentsSection(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceElevatedDark : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+        border: Border.all(color: isDark ? AppColors.borderDark : Colors.black12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader('Diagnostic Imaging & Attachment Records', LucideIcons.fileImage),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _attachmentBadge('Periapical Radiograph #19', 'X-RAY', AppColors.info),
+              const SizedBox(width: 8),
+              _attachmentBadge('Panoramic OPG Survey', 'DICOM', AppColors.primaryLight),
+              const SizedBox(width: 8),
+              _attachmentBadge('CBC Diagnostic Report', 'LAB', AppColors.warning),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _attachmentBadge(String title, String tag, Color tagColor) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF030712),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+          border: Border.all(color: AppColors.borderDark),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: tagColor.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Text(tag, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: tagColor)),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
