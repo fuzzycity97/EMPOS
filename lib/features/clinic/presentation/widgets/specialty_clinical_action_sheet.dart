@@ -229,7 +229,7 @@ class SpecialtyClinicalActionSheet extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Multi-Surface Tooth Polygon Selector', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            const Text('Multi-Surface Tooth Polygon Selector (MODBL)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
             const SizedBox(height: 8),
             ValueListenableBuilder<Set<String>>(
               valueListenable: selectedToothSurfacesNotifier,
@@ -267,11 +267,50 @@ class SpecialtyClinicalActionSheet extends StatelessWidget {
         );
 
       case SpecialtyPracticeVertical.optometryClinic:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Ophthalmic Caliper & Retinal Detachment Zone', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            const SizedBox(height: 6),
+            ValueListenableBuilder<double>(
+              valueListenable: severityNotifier,
+              builder: (context, severity, _) {
+                return Row(
+                  children: [
+                    Expanded(
+                      child: Slider(
+                        value: severity,
+                        min: 0.1,
+                        max: 1.0,
+                        divisions: 9,
+                        label: 'Cup/Disc: ${(severity).toStringAsFixed(1)}',
+                        onChanged: (val) {
+                          severityNotifier.value = val;
+                          if (val > 0.6) {
+                            autoAttachedConsumablesNotifier.value = [
+                              'Visual Field (Humphrey) Diagnostic Fee',
+                              'OCT Retinal Nerve Fiber Layer Scan',
+                            ];
+                          }
+                        },
+                      ),
+                    ),
+                    Text(
+                      'C:D ${(severity).toStringAsFixed(1)}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'monospace'),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        );
+
       case SpecialtyPracticeVertical.clinic:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Incision Length & Severity Score', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            const Text('Surgical Caliper, Stenosis % & Incision Profiler', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
             const SizedBox(height: 6),
             ValueListenableBuilder<double>(
               valueListenable: severityNotifier,
@@ -285,11 +324,20 @@ class SpecialtyClinicalActionSheet extends StatelessWidget {
                         max: 1.0,
                         divisions: 9,
                         label: '${(severity * 100).toStringAsFixed(0)}%',
-                        onChanged: (val) => severityNotifier.value = val,
+                        onChanged: (val) {
+                          severityNotifier.value = val;
+                          if (val >= 0.7) {
+                            autoAttachedConsumablesNotifier.value = [
+                              'Vascular Balloon Angioplasty Catheter',
+                              'Drug-Eluting Coronary Stent (3.0x18mm)',
+                              'Sterile Angiography Pack',
+                            ];
+                          }
+                        },
                       ),
                     ),
                     Text(
-                      '${(severity * 100).toStringAsFixed(0)}% Severity',
+                      '${(severity * 100).toStringAsFixed(0)}% Occlusion',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'monospace'),
                     ),
                   ],
