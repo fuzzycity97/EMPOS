@@ -10,7 +10,9 @@ const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST']
-  }
+  },
+  pingInterval: 5000,
+  pingTimeout: 3000,
 });
 
 app.use(express.json());
@@ -60,22 +62,56 @@ app.post('/ota/push', (req, res) => {
   res.json({ success: true, broadcastCount: io.engine.clientsCount });
 });
 
-// WebSocket Connection & Roster Management
+// WebSocket Connection & Real-Time Lifecycle Audit Stream
 io.on('connection', (socket) => {
   const terminalId = socket.handshake.query.terminalId || `terminal_${socket.id}`;
+  const ip = socket.handshake.address;
+  const timestamp = new Date().toISOString();
+
   activeTerminals.set(socket.id, {
     terminalId,
-    connectedAt: new Date().toISOString(),
-    ip: socket.handshake.address
+    connectedAt: timestamp,
+    ip
+  });
+
+  // Broadcast connection log event to all connected monitoring dashboards
+  io.emit('connection_log_event', {
+    type: 'CONNECTED',
+    terminalId,
+    ip,
+    timestamp,
+    activeCount: io.engine.clientsCount
   });
 
   io.emit('terminal_roster_update', Array.from(activeTerminals.values()));
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', (reason) => {
     activeTerminals.delete(socket.id);
+    io.emit('connection_log_event', {
+      type: 'DISCONNECTED',
+      terminalId,
+      ip,
+      reason: reason || 'Client Disconnected',
+      timestamp: new Date().toISOString(),
+      activeCount: io.engine.clientsCount
+    });
     io.emit('terminal_roster_update', Array.from(activeTerminals.values()));
   });
 });
+
+// Graceful Termination: notify and disconnect all clients immediately
+const gracefulShutdown = () => {
+  console.log('[OmniSync] Server shutting down... Disconnecting active sockets.');
+  io.emit('server_shutdown', { timestamp: new Date().toISOString() });
+  io.disconnectSockets(true);
+  server.close(() => {
+    console.log('[OmniSync] Server closed successfully.');
+    process.exit(0);
+  });
+};
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
