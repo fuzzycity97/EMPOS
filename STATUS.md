@@ -131,6 +131,7 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | App-Wide Auto-Connect Bootstrap Lifecycle | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented SyncConnectionManager.bootstrapAutoConnect() restoring cached NodeProfileConfig on app startup (lib/main.dart & lib/features/sync/domain/services/sync_connection_manager.dart). Automatically binds embedded server daemon on port 9090/3000 if host profile cached, or initiates socket.io client connection with exponential backoff retry (1s, 2s, 4s, 8s, 16s, 32s) if client profile cached. Injected into Clean Architecture GetIt container. Verified on real startup and lifecycle test suite (3/3 passing, 0 analyzer issues). |
 | Server Heartbeat Lifecycle & Graceful Teardown | Fully implemented | Antigravity | **Independently Audited & Verified**: Added SIGINT/SIGTERM process listeners in sync_server/index.js broadcasting server_shutdown packet, gracefully closing all active socket connections (io.disconnectSockets(true)), and terminating the HTTP server. Updated client-side SyncConnectionManager to differentiate deliberate server shutdowns (transitions immediately to Disconnected, auto-reconnect suspended) from accidental connection drops (triggers exponential backoff retry: 1s, 2s, 4s, 8s, 16s, 32s). Verified in live lifecycle test suite (2/2 passing, 0 analyzer issues). |
+| Dynamic Net Balance Computation & Reactive Customer/Patient Badge | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented dynamic net outstanding ledger computation (netOutstanding = sum(charges) - sum(payments)) in CustomerLedgerDialog with color-coded status badges (ACTIVE DEBT red #EF4444, PARTIALLY SETTLED amber #F59E0B, CLEARED green #10B981). Built reactive CustomerBanner / PatientHeaderCard and CustomerDebtBadge in lib/features/customers/presentation/widgets/customer_banner.dart live-listening to CustomerBloc streams, immediately transitioning from DEBT (EGP 6,000.00) to CLEARED (0.00) without manual refresh. Verified across test suite (2/2 passing, 0 analyzer issues). |
 | First-Run Sync Wizard UI | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented FirstRunSyncWizardPage in lib/features/sync/presentation/first_run_sync_wizard_page.dart wired to lib/app.dart on first launch when no NodeProfileConfig exists. Features Host Server vs Satellite Client segmented role selection, custom port configuration (default 3000), LAN auto-discovery with UDP scanning, manual Cloudflare Tunnel URL input, live GET /health round-trip latency test button, and persistent profile storage. Verified in widget test suite (3/3 passing, 0 analyzer issues). |
 | Green/Red Status Pill & Connection Audit Changelog | Fully implemented | Antigravity | **Independently Audited & Verified**: Upgraded SyncConnectionPillBadge (lib/features/sync/presentation/widgets/sync_connection_pill_badge.dart) with reactive green (#10B981) "Host Server (Port 3000)" or "Client (Connected - Xms)" and red (#EF4444) "Disconnected (Reconnecting...)" pills. Tapping opens the responsive bottom sheet drawer displaying an append-only, reverse-chronological connection audit changelog stream with node metadata, event badges, messages, and timestamps. Verified in widget test suite (2/2 passing, 0 analyzer issues). |
 
@@ -142,7 +143,7 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | Feature / Task | Agent / Tool | Description | Started |
 |---|---|---|---|
-| None currently claimed | None | All tasks complete, verified across test suites. Ready for next operational directive. | 2026-09-04T06:27:00Z |
+| None currently claimed | None | All tasks complete, verified across test suites. Ready for next operational directive. | 2026-09-04T06:37:00Z |
 
 ---
 
@@ -220,6 +221,8 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 ---
 
 ## 8. Change Log
+
+  - **2026-09-04 (Antigravity)**: Completed Task 6/11 (Dynamic Net Balance Computation & Reactive Patient/Customer Badge): Implemented dynamic net ledger computation in CustomerLedgerDialog (netOutstanding = sum(charges) - sum(payments)) with color-coded status badges (ACTIVE DEBT / PARTIALLY SETTLED / CLEARED). Implemented reactive CustomerBanner and CustomerDebtBadge (aliased as PatientHeaderCard) in lib/features/customers/presentation/widgets/customer_banner.dart listening directly to CustomerBloc stream to update balance badges live from DEBT (EGP 6,000.00) to CLEARED (0.00) without manual refresh. Verified with test suite (2/2 passing, 0 analyzer issues).
 
   - **2026-09-04 (Antigravity)**: Completed Task 4/11 (First-Run Sync Wizard UI): Created `FirstRunSyncWizardPage` with Host Server vs Satellite Client selection, port configuration, LAN UDP auto-discovery, manual Cloudflare URL inputs, and live `GET /health` round-trip latency pinging. Wired into `lib/app.dart` startup routing to automatically present the setup wizard on unconfigured launches and seamlessly transition to `MainShell` upon saving. Verified with test suite (3/3 passing, 0 analyzer issues).
 
