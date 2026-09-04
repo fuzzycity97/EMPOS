@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
+import '../../../../core/di/injection_container.dart' as di;
+import '../../../../core/network/lan_sync/domain/repositories/lan_sync_repository.dart';
 
 enum AppNodeRole { host, client, unconfigured }
 enum SyncConnectionState { connected, disconnected, connecting, reconnecting, hosting }
@@ -51,12 +54,18 @@ class NodeProfileConfig {
 class SyncConnectionManager extends ChangeNotifier {
   static const String _storageKey = 'omni_node_profile_state';
 
+  static final SyncConnectionManager _instance = SyncConnectionManager._internal();
+  factory SyncConnectionManager() => _instance;
+  SyncConnectionManager._internal();
+
   AppNodeRole _activeRole = AppNodeRole.unconfigured;
   SyncConnectionState _state = SyncConnectionState.disconnected;
   NodeProfileConfig? _cachedProfile;
   io.Socket? _clientSocket;
   final List<Map<String, dynamic>> _connectionChangelog = [];
   int _latencyMs = 0;
+  int _retryAttempt = 0;
+  Timer? _retryTimer;
 
   AppNodeRole get activeRole => _activeRole;
   SyncConnectionState get state => _state;
@@ -103,6 +112,9 @@ class SyncConnectionManager extends ChangeNotifier {
     _state = SyncConnectionState.hosting;
     _latencyMs = 0;
 
+    _retryTimer?.cancel();
+    _retryAttempt = 0;
+
     _clientSocket?.dispose();
     _clientSocket = null;
 
@@ -117,11 +129,23 @@ class SyncConnectionManager extends ChangeNotifier {
     _cachedProfile = profile;
     if (persist) await _persistProfile(profile);
 
+    // Automatically bind the embedded server daemon if registered in DI
+    try {
+      if (di.sl.isRegistered<LanSyncRepository>()) {
+        final lanRepo = di.sl<LanSyncRepository>();
+        if (!lanRepo.isHost) {
+          await lanRepo.startHostServer(port: port == 3000 ? 9090 : port);
+        }
+      }
+    } catch (e) {
+      _logEvent('HOST_DAEMON_BIND_ERROR', 'Failed to bind embedded server daemon: $e', isSuccess: false);
+    }
+
     _logEvent('HOST_STARTED', 'Operating as Host Master on port $port', isSuccess: true);
     notifyListeners();
   }
 
-  /// Configures and connects the application as a Client Terminal
+  /// Configures and connects the application as a Client Terminal with exponential backoff
   Future<void> connectAsClient(
     String serverUrl,
     String mode, {
@@ -142,7 +166,8 @@ class SyncConnectionManager extends ChangeNotifier {
           .enableAutoConnect()
           .enableReconnection()
           .setReconnectionDelay(1000)
-          .setReconnectionDelayMax(5000)
+          .setReconnectionDelayMax(16000)
+          .setRandomizationFactor(0.5)
           .setReconnectionAttempts(double.infinity)
           .setQuery({'authToken': authToken ?? ''})
           .build(),
@@ -152,6 +177,8 @@ class SyncConnectionManager extends ChangeNotifier {
       stopwatch.stop();
       _latencyMs = stopwatch.elapsedMilliseconds;
       _state = SyncConnectionState.connected;
+      _retryAttempt = 0;
+      _retryTimer?.cancel();
 
       final profile = NodeProfileConfig(
         role: AppNodeRole.client,
@@ -171,24 +198,58 @@ class SyncConnectionManager extends ChangeNotifier {
     _clientSocket!.onDisconnect((reason) {
       _state = SyncConnectionState.disconnected;
       _logEvent('DISCONNECTED', 'Connection closed: $reason', isSuccess: false);
+      _scheduleExponentialRetry(serverUrl, mode, authToken: authToken);
       notifyListeners();
     });
 
     _clientSocket!.onConnectError((err) {
       _state = SyncConnectionState.reconnecting;
       _logEvent('CONNECT_ERROR', 'Failed to reach host: $err. Retrying...', isSuccess: false);
+      _scheduleExponentialRetry(serverUrl, mode, authToken: authToken);
       notifyListeners();
     });
 
     _clientSocket!.on('server_shutdown', (_) {
       _state = SyncConnectionState.disconnected;
       _logEvent('SERVER_SHUTDOWN', 'Host server terminated. Switched to offline.', isSuccess: false);
+      _scheduleExponentialRetry(serverUrl, mode, authToken: authToken);
       notifyListeners();
+    });
+
+    // Also attempt LAN Sync repository connection if in LAN mode or IP host provided
+    if (mode == 'LAN') {
+      try {
+        if (di.sl.isRegistered<LanSyncRepository>()) {
+          final uri = Uri.tryParse(serverUrl);
+          final host = uri?.host.isNotEmpty == true ? uri!.host : serverUrl.replaceAll(RegExp(r'^https?:\/\/'), '').split(':').first;
+          final port = uri?.hasPort == true ? uri!.port : 9090;
+          if (host.isNotEmpty && host != 'localhost') {
+            await di.sl<LanSyncRepository>().connectToHost(host, port: port);
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
+  void _scheduleExponentialRetry(String serverUrl, String mode, {String? authToken}) {
+    _retryTimer?.cancel();
+    // Exponential backoff: 2^n seconds capped at 32s (1s, 2s, 4s, 8s, 16s, 32s)
+    final delaySeconds = math.min(32, math.pow(2, _retryAttempt).toInt());
+    _logEvent('RETRY_SCHEDULED', 'Reconnection attempt ${_retryAttempt + 1} scheduled in ${delaySeconds}s (exponential backoff)');
+    _retryTimer = Timer(Duration(seconds: delaySeconds), () async {
+      _retryAttempt++;
+      if (_state != SyncConnectionState.connected && _state != SyncConnectionState.hosting && _activeRole == AppNodeRole.client) {
+        _logEvent('RETRY_ATTEMPT', 'Attempting reconnection #$_retryAttempt to $serverUrl');
+        await connectAsClient(serverUrl, mode, authToken: authToken, persist: false);
+      }
     });
   }
 
   /// Updates node role dynamically and saves the change
   Future<void> switchRole(AppNodeRole newRole, {String? serverUrl, int port = 3000}) async {
+    _retryTimer?.cancel();
+    _retryAttempt = 0;
+
     if (newRole == AppNodeRole.host) {
       await startHostMode(port: port, persist: true);
     } else if (newRole == AppNodeRole.client && serverUrl != null) {
@@ -221,6 +282,8 @@ class SyncConnectionManager extends ChangeNotifier {
   }
 
   void disconnectManual() {
+    _retryTimer?.cancel();
+    _retryAttempt = 0;
     _clientSocket?.disconnect();
     _clientSocket?.dispose();
     _clientSocket = null;

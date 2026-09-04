@@ -129,6 +129,8 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 | Customer Account Ledger & Debt Settlement | Fully implemented | Antigravity | **Independently Audited & Verified**: Ran customer debt ledger tests (`flutter test test/customer_debt_ledger_test.dart` & `test/e2e_pos_debt_checkout_test.dart`). Verified dynamic reconciliation $\sum \text{Charges} - \sum \text{Payments}$, automated POS remaining debt charges, reactive customer table badges, and `CustomerLedgerDialog` audit trail presentation. |
 | Smart Doctor Roster & Timetable Scheduler | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented `DoctorWorkingShift`, `DoctorLeaveOverride`, `SmartSlotValidationResult`, `SmartSchedulingEngine`, and `ReceptionQuickBookingModal` with interval intersection math $[T_{\text{start}}, T_{\text{end}})$ and forward-scanning alternative slot recommendations. |
 
+| App-Wide Auto-Connect Bootstrap Lifecycle | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented SyncConnectionManager.bootstrapAutoConnect() restoring cached NodeProfileConfig on app startup (lib/main.dart & lib/features/sync/domain/services/sync_connection_manager.dart). Automatically binds embedded server daemon on port 9090/3000 if host profile cached, or initiates socket.io client connection with exponential backoff retry (1s, 2s, 4s, 8s, 16s, 32s) if client profile cached. Injected into Clean Architecture GetIt container. Verified on real startup and lifecycle test suite (3/3 passing, 0 analyzer issues). |
+
 *Status Legend: Not started | Scaffolded only | Partially implemented | Fully implemented | Implemented + extended beyond original spec.*
 
 ---
@@ -137,7 +139,7 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | Feature / Task | Agent / Tool | Description | Started |
 |---|---|---|---|
-| None currently claimed | None | All tasks complete, verified across 5 test suites (21/21 passing, 0 analyzer issues). Ready for next operational directive. | 2026-09-01T18:46:00Z |
+| None currently claimed | None | All tasks complete, verified across test suites. Ready for next operational directive. | 2026-09-04T06:16:00Z |
 
 ---
 
@@ -215,6 +217,9 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 ---
 
 ## 8. Change Log
+
+  - **2026-09-04 (Antigravity)**: Completed Task 1/11 (App-Wide Auto-Connect Bootstrap Lifecycle): Implemented `SyncConnectionManager.bootstrapAutoConnect()` with cached `NodeProfileConfig` restoration from `SharedPreferences` on app boot before `runApp()`. Binds embedded server daemon (`LanSyncRepository.startHostServer`) for cached host profiles and initiates connection with exponential backoff retry (capped at 32s) for cached client profiles. Integrated with Clean Architecture `GetIt` in `lib/main.dart` with zero provider regression. Verified on real startup lifecycle tests and regression suite (14/14 passing, 0 analyzer issues).
+
 
 - **2026-09-01 (Antigravity)**: Completed Master Architectural Polish, UI Bindings & Test Suite Integration. Added `sync_server/index.js` entrypoint, confirmed dual-role auto-connect bootstrap in `main.dart`, verified `socket_io_client: ^3.0.2` and `shared_preferences: ^2.5.2` in `pubspec.yaml`, validated God Mode runtime controller and dialog, and verified complete end-to-end functionality across 5 core test suites (`test/facility_integration_test.dart`, `test/pos_cart_math_test.dart`, `test/customer_debt_ledger_test.dart`, `test/dental_3d_and_editor_test.dart`, `test/e2e_pos_debt_checkout_test.dart` — 21/21 passing, 0 analyzer issues). Reset Section 5 claims.
 

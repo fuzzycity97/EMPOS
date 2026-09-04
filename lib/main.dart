@@ -39,10 +39,15 @@ Future<void> main() async {
   await di.initServiceLocator();
 
   // Bootstrap Auto-Reconnection & Persistent Node Role (Host vs Client)
+  final syncConnectionManager = SyncConnectionManager();
   try {
-    final syncManager = SyncConnectionManager();
-    await syncManager.bootstrapAutoConnect();
-  } catch (_) {}
+    await syncConnectionManager.bootstrapAutoConnect();
+    if (!di.sl.isRegistered<SyncConnectionManager>()) {
+      di.sl.registerSingleton<SyncConnectionManager>(syncConnectionManager);
+    }
+  } catch (e) {
+    debugPrint('Auto-connect bootstrap failed gracefully: $e');
+  }
 
   runApp(const EmposApp());
 }
