@@ -158,7 +158,7 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | Feature / Task | Agent / Tool | Description | Started |
 |---|---|---|---|
-| None currently claimed | None | All 11 tasks completed and verified across the ecosystem | 2026-09-04T07:30:00Z |
+| None currently claimed | None | All 11 tasks & Task 10a capability model completed and verified | 2026-09-04T07:45:00Z |
 
 ---
 
@@ -228,6 +228,45 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
    - **Per-Tenant Gating**: Capability permissions are stored and evaluated per clinic account ID (`ClinicSubscriptionProfile`). Mutating a capability for Tenant A dispatches targeted LAN sync events strictly to Tenant A clients without broadcasting to other clinics.
    - **Client Experience**: `SubscriptionGatedWidget` wraps capability-restricted screens/components, presenting a generic "Feature Unavailable" message without exposing implementation flags or system internals.
 
+5. **Universal Granular Capability Registry & Tier Preset Architecture (`CapabilityRegistry`, `SubscriptionTierPreset`, `AccountSubscriptionProfile`)**:
+   ```dart
+   class CapabilityItem {
+     final String id; // e.g. 'dental3D.modblSurfaceCharting', 'scheduling.conflictGuard', 'sw.clinic_allergy_flags'
+     final String name;
+     final String description;
+     final CapabilityCategory category; // 16 functional categories
+     final IndustryVertical? vertical;  // 11 verticals or null if universal
+     final String? blueprintId;         // 41 specific blueprints
+     final SubscriptionPlanTier minTier;// free, basic, pro, enterprise
+     final bool isRequiredCompliance;   // Rule A: compliance logs locked ON
+     final List<String> tags;           // Rule B: searchable synonyms & plain-language terms
+   }
+
+   class SubscriptionTierPreset {
+     final SubscriptionPlanTier tier;
+     final String name;
+     final String description;
+     final Set<String> includedCapabilityIds;
+     final bool includesAllByDefault; // true for enterprise
+     final int maxTerminals;
+     final int maxStaffAccounts;
+   }
+
+   class AccountSubscriptionProfile {
+     final String accountId;
+     final String businessName;
+     final IndustryVertical vertical;
+     final SubscriptionPlanTier assignedTier;
+     final Map<String, bool> individualOverrides; // layers over preset defaults
+     final bool isActive;
+     final Map<String, dynamic> metadata;
+   }
+   ```
+   - **Full Granular Catalog**: Over 540 granular capabilities cataloged across all 11 verticals and 41 business blueprints in `lib/core/config/subscription/capability_registry.dart`.
+   - **Preset Hierarchy**: `Free` (minimal operations, single terminal, offline persistence) $\subset$ `Basic` (LAN sync, conflict guard, basic stock, customer debt ledger) $\subset$ `Pro` (3D clinical tools, FEFO tracking, multi-party commission splits, KDS, work orders) $\subset$ `Enterprise` (`includesAllByDefault == true`, unrestricted ecosystem access, auto-unlocks all future capabilities).
+   - **Layered Individual Overrides**: Super-admin can override any capability up or down per account (`setCapabilityOverride`) without mutating the base preset.
+   - **Rule A & B Compliant**: `isRequiredCompliance` preserves statutory requirements even when an account is inactive or stripped. `CapabilityRegistry.search(query)` enables instant typed search across names, IDs, categories, and plain-language synonyms.
+
 ### 7.2 Resolved Operational Inconsistencies
 - **Resolved**: First-Run Sync Configuration & Live Health Ping. Implemented `FirstRunSyncWizardPage` and `SyncNetworkClient` supporting LAN/Cloud connections with live millisecond latency verification and error blocking before entering the main app shell.
 - **Resolved**: Real-Time Sync Daemon & Event Stream. Built `sync_server/server.js` and `sync_server/index.js` with Express and Socket.IO on port 3000 handling `/health`, `/sale`, `/ota/push`, graceful termination (`SIGINT`/`SIGTERM`), and terminal roster broadcasting.
@@ -242,6 +281,8 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 ---
 
 ## 8. Change Log
+
+  - **2026-09-04 (Antigravity)**: Completed Task 10a/11 (Subscription System: Tier Presets & Granular Capability Model - Universal, All Categories): Implemented universal `CapabilityRegistry` in `lib/core/config/subscription/capability_registry.dart` cataloging over 540 granular capabilities and constituent sub-features across all 11 industry verticals and 41 specific business blueprints from the builder taxonomy. Created `subscription_tier_models.dart` defining `SubscriptionPlanTier` (Free, Basic, Pro, Enterprise, Custom), `CapabilityCategory` (16 categories), `CapabilityItem`, `SubscriptionTierPreset` (with Enterprise auto-unlocking all existing & future capabilities by default), and `AccountSubscriptionProfile`. Implemented `SubscriptionTierController` in `lib/core/config/subscription/subscription_tier_controller.dart` providing isolated per-account state management and non-destructive individual capability overrides layered over preset defaults. Enforced Rule A (compliance toggles locked) and Rule B (typed search across names and plain-language terms). Verified with automated unit test suite `test/task_10a_subscription_system_test.dart` (5/5 passing, 0 analyzer issues) and regression suite (5/5 passing).
 
   - **2026-09-04 (Antigravity)**: Completed Task 11/11 (Executive Manager Live Monitoring Dashboard & Real-Time Sync Telemetry): Implemented 100% `StatelessWidget` architecture in `lib/features/manager/presentation/pages/executive_manager_dashboard_page.dart` featuring dynamic live sales WebSocket stream (`io.emit('sale_event')` from `sync_server/index.js`), real-time Margin & Profit KPI telemetry updating without polling, Employee debt ledger panel computing net payable (`baseSalary + commissions + bonuses - unsettledAdvances`) with real `Settle Period` audit record creation and advance clearing, and cross-department low-stock / FEFO expiry alert panel generated via `generateAlertsFromInventory`. Verified with automated test suite `test/task_11_executive_manager_dashboard_test.dart` (4/4 passing, 0 analyzer issues) and verified `GET /health`, `POST /sale`, `POST /ota/push` endpoints in `sync_server/index.js`.
 
