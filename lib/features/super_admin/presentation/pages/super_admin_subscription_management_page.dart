@@ -1,3 +1,5 @@
+import '../../../../core/config/subscription/cloud_relay_admin_client.dart';
+import '../../../../core/config/subscription/cloud_relay_models.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -44,6 +46,7 @@ class _SuperAdminSubscriptionManagementPageState
   void initState() {
     super.initState();
     _seedDefaultAccountsIfEmpty();
+    CloudRelayAdminClient.instance.connect();
   }
 
   void _seedDefaultAccountsIfEmpty() {
@@ -525,22 +528,58 @@ class _SuperAdminSubscriptionManagementPageState
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Tier Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: tierColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: tierColor.withValues(alpha: 0.5)),
-                        ),
-                        child: Text(
-                          account.assignedTier.name.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w900,
-                            color: tierColor,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: tierColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: tierColor.withValues(alpha: 0.5)),
+                            ),
+                            child: Text(
+                              account.assignedTier.name.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                color: tierColor,
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 6),
+                          ListenableBuilder(
+                            listenable: CloudRelayAdminClient.instance,
+                            builder: (context, _) {
+                              final presence = CloudRelayAdminClient.instance.getPresence(account.accountId);
+                              final status = CloudRelayAdminClient.instance.getDeliveryStatus(account.accountId);
+                              final isOnline = presence?.isOnline ?? false;
+                              final dotColor = isOnline
+                                  ? AppColors.success
+                                  : (status == RelayDeliveryStatus.queuedOffline ? AppColors.warning : const Color(0xFF64748B));
+                              final label = isOnline
+                                  ? 'Live'
+                                  : (status == RelayDeliveryStatus.queuedOffline ? 'Queued' : 'Offline');
+
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: dotColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: dotColor.withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(width: 5, height: 5, decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle)),
+                                    const SizedBox(width: 4),
+                                    Text(label, style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: dotColor)),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ),
                       // Status Pill
                       Row(

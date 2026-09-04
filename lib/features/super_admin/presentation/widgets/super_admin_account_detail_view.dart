@@ -6,6 +6,8 @@ import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/config/subscription/subscription_tier_models.dart';
 import '../../../../core/config/subscription/subscription_tier_controller.dart';
 import 'super_admin_audit_trail_view.dart';
+import '../../../../core/config/subscription/cloud_relay_admin_client.dart';
+import '../../../../core/config/subscription/cloud_relay_models.dart';
 
 /// Detailed inspection view for a single tenant business account.
 /// Displays tier presets, granular capability breakdown with override badges,
@@ -134,6 +136,51 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
               ],
             ),
           ),
+          ListenableBuilder(
+            listenable: CloudRelayAdminClient.instance,
+            builder: (context, _) {
+              final status = CloudRelayAdminClient.instance.getDeliveryStatus(widget.account.accountId);
+              final pres = CloudRelayAdminClient.instance.getPresence(widget.account.accountId);
+              final isOnline = pres?.isOnline ?? false;
+              final badgeColor = isOnline
+                  ? AppColors.success
+                  : (status == RelayDeliveryStatus.queuedOffline ? AppColors.warning : const Color(0xFF64748B));
+              final badgeText = isOnline
+                  ? 'Delivered (Clinic Online)'
+                  : (status == RelayDeliveryStatus.queuedOffline
+                      ? 'Clinic offline — will apply on next connect'
+                      : 'Relay: Standby (Offline)');
+
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                  border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(color: badgeColor, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      badgeText,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: badgeColor,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
           if (widget.onClose != null)
             IconButton(
               icon: const Icon(LucideIcons.x, size: 18),
@@ -227,6 +274,13 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
                         clearOverrides: false,
                         adminId: widget.adminId,
                       );
+                      CloudRelayAdminClient.instance.dispatchToggle(
+                        accountId: widget.account.accountId,
+                        action: 'assign_tier',
+                        targetKey: 'tier',
+                        newValue: newTier.name,
+                        adminOverrideId: widget.adminId,
+                      );
                     }
                   },
                 ),
@@ -244,6 +298,13 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
                   label: Text('Reset ${widget.account.individualOverrides.length} Overrides'),
                   onPressed: () {
                     widget.controller.resetOverridesToPreset(widget.account.accountId, adminId: widget.adminId);
+                    CloudRelayAdminClient.instance.dispatchToggle(
+                      accountId: widget.account.accountId,
+                      action: 'reset_overrides',
+                      targetKey: 'all',
+                      newValue: null,
+                      adminOverrideId: widget.adminId,
+                    );
                   },
                 ),
             ],
@@ -703,6 +764,13 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
                               val,
                               adminId: widget.adminId,
                             );
+                            CloudRelayAdminClient.instance.dispatchToggle(
+                              accountId: widget.account.accountId,
+                              action: 'set_override',
+                              targetKey: cap.id,
+                              newValue: val,
+                              adminOverrideId: widget.adminId,
+                            );
                           },
                   ),
                   if (hasOverride)
@@ -714,6 +782,13 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
                           widget.account.accountId,
                           cap.id,
                           adminId: widget.adminId,
+                        );
+                        CloudRelayAdminClient.instance.dispatchToggle(
+                          accountId: widget.account.accountId,
+                          action: 'remove_override',
+                          targetKey: cap.id,
+                          newValue: null,
+                          adminOverrideId: widget.adminId,
                         );
                       },
                     ),

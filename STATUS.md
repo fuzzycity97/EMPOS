@@ -110,7 +110,7 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | Feature / Module | Status | Owner (if active) | Notes |
 |---|---|---|---|
-| Subscription Tier Feature Gating & Super-Admin Console | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented `SubscriptionTierController` and `SubscriptionGatePanel` under `lib/features/super_admin/` for per-account capability gating. Built `SuperAdminSubscriptionManagementPage` and `SuperAdminAccountDetailView` under `lib/features/super_admin/presentation/` implementing the universal Super-Admin Subscription Panel with real-time search, multi-faceted filtering, granular capability override toggles, real usage signals, persistent notes, and billing history. Hardened with Task 10c Super-Admin Security: (1) Compile-flag route isolation (`--dart-define=ENABLE_SUPER_ADMIN=true`) tree-shaking admin code out of normal clinic builds, (2) Strict RFC 6238 TOTP dual-factor authentication (`SuperAdminAuthService`), and (3) Append-only toggle audit trail (`SubscriptionAuditLog`) recording operator identity, before/after values, and timestamps on every mutation. Verified via comprehensive security suite `test/task_10c_super_admin_security_test.dart` (6/6 passing) and full regression suites (23/23 passing across 10, 10a, 10b, 10c). |
+| Subscription Tier Feature Gating & Super-Admin Console | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented `SubscriptionTierController` and `SubscriptionGatePanel` under `lib/features/super_admin/` for per-account capability gating. Built `SuperAdminSubscriptionManagementPage` and `SuperAdminAccountDetailView` under `lib/features/super_admin/presentation/` implementing the universal Super-Admin Subscription Panel with real-time search, multi-faceted filtering, granular capability override toggles, real usage signals, persistent notes, and billing history. Hardened with Task 10c Super-Admin Security (compile-flag route isolation, RFC 6238 TOTP 2FA, append-only toggle audit trail). Extended in Task 10d with Cloud Relay: standalone Node.js cloud relay service (`sync_server/cloud_relay/cloud_relay_server.js`), clinic-side outbound WebSocket client (`CloudRelayClinicClient`) with offline queue flush & local cache persistence, and admin-side delivery status tracking (`CloudRelayAdminClient`). Verified via 5 comprehensive suites (28/28 tests passing, 0 analyzer issues across 10, 10a, 10b, 10c, 10d). |
 | Multi-Specialty 3D Clinical Action Matrix | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented per-specialty 3D action tools with automated billing cart bindings: (1) Dental 5-surface MODBL polygon restoration with composite resin codes (D2391/D2392/D2393), (2) Cardiology/Vascular stenosis caliper (10%-100%) and stent/bypass graft spline placement with PCI/CABG codes (CARD-92928/CARD-33510), (3) Ophthalmology C:D ratio dial with automated glaucoma suspect follow-up suggestions (Humphrey Visual Field OPH-92083 and OCT RNFL OPH-92134), (4) Orthopedics straight-line cut-plane amputation tool with distal wireframe fade and dual-arm joint ROM goniometer (ORTHO-27705/ORTHO-95851), (5) Dermatology Rule-of-Nines TBSA burn surface calculator and linear suture length caliper (DERM-16020/DERM-12002). Verified via `test/task_9_multi_specialty_3d_action_matrix_test.dart` (10/10 passing, 0 analyzer issues). |
 | Fast Parallel Test Runner Tooling | Fully implemented | Antigravity | **Tooling & Convenience Script**: Created `run_tests.ps1` supporting full-suite (`./run_tests.ps1`) and targeted test execution (`./run_tests.ps1 <path>`). Automatically injects `--reporter expanded` for real-time per-test progress and `--concurrency=N` using host processor count (`$env:NUMBER_OF_PROCESSORS`, 16 cores) for parallel test execution. Embedded quota-efficiency rules in Section 0.5. |
 | Master Sync Server & Mesh Hub | Fully implemented | Antigravity | **Independently Audited & Verified**: Investigated and fixed peer connection handshake and registry reactivity. Replaced optimistic client connection flag with real `channel.ready` verification and two-way application handshake (`system.node_joined`, `system.node_joined_ack`, `system.peer_list_update`). Host now registers client instance IDs (e.g. `doctor`, `receptionist`) and roles, reactive `connectedNodesStream` broadcasts peer updates across the mesh, and `LanSyncDialog` renders distinct, unambiguous host/client cards. Verified via two-node simulation (`flutter test test/lan_sync_engine_test.dart` & `test/lan_sync_dialog_and_bloc_test.dart`): Host peer count updated to 2 stations on client join, dropped back to 1 on clean client disconnect, and unreachable connection attempts cleanly throw without false-positive connected UI. |
@@ -158,14 +158,14 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | Feature / Task | Agent / Tool | Description | Started |
 |---|---|---|---|
-| None currently claimed | None | All tasks through 10c complete and verified | 2026-09-04T10:30:00Z |
+| None currently claimed | None | All tasks through 10d complete and verified | 2026-09-04T10:45:00Z |
 
 ---
 
 ## 6. Open Questions / Needs Decision
 
-- **Task 10c Dependency**: The `SuperAdminSubscriptionManagementPage` assumes access via a SuperAdmin-gated route (`SuperAdminSession`). Final platform route integration and cryptographic audit history log wiring will be bound during Task 10c.
-- **None currently blocking**. All core modules, multi-vertical capability composition, 3D anatomical viewer, diagnostic lightbox, POS cross-billing, sync server daemon, and executive manager dashboard are fully implemented with 25 passing test suites and zero analyzer issues.
+- **Cloud Relay Hosting & Production Deployment (Task 10d)**: The standalone Node.js cloud relay service (`sync_server/cloud_relay/cloud_relay_server.js`) is completely implemented with zero external dependencies and standalone RFC 6455 WebSocket support. Production hosting selection (e.g. Railway, Render, Fly.io, AWS EC2, or self-hosted VPS), TLS termination/certificates, and deployment pipelines are operational infrastructure decisions reserved for the human operator and not resolved here.
+- **None currently blocking**. All core modules, multi-vertical capability composition, 3D anatomical viewer, diagnostic lightbox, POS cross-billing, sync server daemon, executive manager dashboard, granular capability registry, super-admin panel, compile-flag 2FA security, and cross-network cloud relay are fully implemented with 28 passing tests and zero analyzer issues.
 
 ---
 
@@ -312,8 +312,49 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 ---
 
+### 7.4 Cloud Relay Architecture for Cross-Network Subscription Sync (Task 10d)
+
+1. **The Architectural Gap & Hop Strategy**:
+   - The Phase 1 sync engine uses UDP broadcast discovery and WebSocket connections strictly on the link-local LAN (Doctor↔Receptionist in the same building). UDP packets cannot cross subnet boundaries or route across the public internet.
+   - The Cloud Relay (`sync_server/cloud_relay/cloud_relay_server.js`) provides a lightweight, always-on cloud hop. Both the Super-Admin panel and every remote clinic instance make *outbound* persistent WebSocket connections to the relay, effortlessly traversing client-side NATs and firewalls without requiring static public IPs or router port forwards.
+
+2. **Zero-Dependency Node.js Service**:
+   - **Stack**: Standard Node.js (`node:http`, `node:crypto`) implementing pure RFC 6455 WebSocket handshake, framing, unmasking, ping/pong, and error recovery with zero external npm dependencies. Runs immediately on any standard Node.js runtime (`node cloud_relay_server.js`).
+   - **Endpoints**:
+     - `GET /health`: JSON service health, uptime, connected client counts, total queued events.
+     - `GET /presence/:accountId`: Real-time online/offline presence and queued event count for an account.
+     - `ws://HOST:PORT`: Persistent bi-directional WebSocket interface.
+
+3. **Strict Separation of Concerns**:
+   - The Cloud Relay handles **only** subscription tier changes, capability overrides, and account presence telemetry.
+   - All clinical records (patient charts, medical histories, images, prescriptions) and POS transactions stay strictly on local storage and the existing LAN sync server.
+
+4. **Event Protocol & Offline Server-Side Queuing**:
+   - **Registration**:
+     - Clinic: `{ type: 'register', role: 'clinic', accountId: '...', instanceId: '...' }`
+     - Admin: `{ type: 'register', role: 'admin', adminId: '...' }`
+   - **Admin Toggle Dispatch**:
+     - `{ type: 'subscription_toggle', eventId: '...', accountId: '...', action: '...', targetKey: '...', newValue: '...', adminId: '...' }`
+   - **Delivery Logic**:
+     - If clinic socket is connected: immediately dispatches `{ type: 'subscription_update', ... }` live to clinic; sends `{ type: 'ack', deliveryStatus: 'delivered' }` to admin.
+     - If clinic socket is offline: enqueues event in `offlineQueues.get(accountId)`; sends `{ type: 'ack', deliveryStatus: 'queued' }` to admin.
+   - **Reconnect Flush**:
+     - When a clinic reconnects, relay immediately dispatches `{ type: 'subscription_batch_update', events: [...] }`.
+     - Clinic applies batch and sends `{ type: 'ack_batch', eventIds: [...] }`, clearing the server-side queue.
+
+5. **Local Offline Cache Persistence**:
+   - In `CloudRelayClinicClient`, whenever an update arrives, it is applied to `SubscriptionTierController` and written to local persistent storage.
+   - If the clinic app cold-launches while offline (zero internet / unreachable relay), it instantly hydrates its last-known subscription profile from local persistent cache, guaranteeing uninterrupted operation.
+
+---
+
 ## 8. Change Log
 
+  - **2026-09-04 (Antigravity)**: Completed Task 10d/11 (Cloud Relay: Sync Subscription Toggles to Remote Clinic Apps):
+    1. **Minimal Cloud Relay Service**: Built zero-dependency standalone Node.js service [sync_server/cloud_relay/cloud_relay_server.js](sync_server/cloud_relay/cloud_relay_server.js) with native RFC 6455 WebSocket handling, REST health/presence endpoints, account presence tracking, and server-side offline FIFO event queuing.
+    2. **Clinic-Side WebSocket Client**: Built [lib/core/config/subscription/cloud_relay_clinic_client.dart](lib/core/config/subscription/cloud_relay_clinic_client.dart) maintaining outbound connection to cloud relay, real-time event application to `SubscriptionTierController`, batch acknowledgment, and local offline cache persistence so toggles survive app cold launches without internet.
+    3. **Admin-Side Relay Controller & UI Integration**: Built [lib/core/config/subscription/cloud_relay_admin_client.dart](lib/core/config/subscription/cloud_relay_admin_client.dart) and updated [super_admin_account_detail_view.dart](lib/features/super_admin/presentation/widgets/super_admin_account_detail_view.dart) and [super_admin_subscription_management_page.dart](lib/features/super_admin/presentation/pages/super_admin_subscription_management_page.dart) with real-time delivery status pills ("Delivered (Clinic Online)", "Clinic offline — will apply on next connect") and automatic toggle mutation dispatch.
+    4. **Comprehensive Test Suite**: Built [test/task_10d_cloud_relay_test.dart](test/task_10d_cloud_relay_test.dart) verifying live delivery, offline queuing & reconnect batch flush, local persistent cache hydration on cold boot, and side-by-side coexistence with the local LAN sync engine (5/5 passing). Full regression verified across Tasks 10, 10a, 10b, 10c, 10d (28/28 tests passing, 0 analyzer issues).
   - **2026-09-04 (Antigravity)**: Completed Task 10c/11 (Super-Admin Security: Compile-Flag-Isolated Admin Access, 2FA Login & Toggle Audit Trail):
     1. **Compile-Flag Isolation**: Defined `kEnableSuperAdmin = const bool.fromEnvironment('ENABLE_SUPER_ADMIN', defaultValue: false);` and wired `SuperAdminSecurityGuard.onGenerateRoute` in `app.dart` to guarantee tree-shaking dead-code elimination in clinic builds. Confirmed all build scripts omit the flag. Documented as an interim measure pending future per-role build infrastructure.
     2. **Real RFC 6238 TOTP 2FA**: Implemented `TotpAuthenticator` and `SuperAdminAuthService`. Strictly requires vendor master password AND 6-digit TOTP code for console admission; single-factor password-only login fails every time.
