@@ -131,6 +131,7 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | App-Wide Auto-Connect Bootstrap Lifecycle | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented SyncConnectionManager.bootstrapAutoConnect() restoring cached NodeProfileConfig on app startup (lib/main.dart & lib/features/sync/domain/services/sync_connection_manager.dart). Automatically binds embedded server daemon on port 9090/3000 if host profile cached, or initiates socket.io client connection with exponential backoff retry (1s, 2s, 4s, 8s, 16s, 32s) if client profile cached. Injected into Clean Architecture GetIt container. Verified on real startup and lifecycle test suite (3/3 passing, 0 analyzer issues). |
 | Server Heartbeat Lifecycle & Graceful Teardown | Fully implemented | Antigravity | **Independently Audited & Verified**: Added SIGINT/SIGTERM process listeners in sync_server/index.js broadcasting server_shutdown packet, gracefully closing all active socket connections (io.disconnectSockets(true)), and terminating the HTTP server. Updated client-side SyncConnectionManager to differentiate deliberate server shutdowns (transitions immediately to Disconnected, auto-reconnect suspended) from accidental connection drops (triggers exponential backoff retry: 1s, 2s, 4s, 8s, 16s, 32s). Verified in live lifecycle test suite (2/2 passing, 0 analyzer issues). |
+| First-Run Sync Wizard UI | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented FirstRunSyncWizardPage in lib/features/sync/presentation/first_run_sync_wizard_page.dart wired to lib/app.dart on first launch when no NodeProfileConfig exists. Features Host Server vs Satellite Client segmented role selection, custom port configuration (default 3000), LAN auto-discovery with UDP scanning, manual Cloudflare Tunnel URL input, live GET /health round-trip latency test button, and persistent profile storage. Verified in widget test suite (3/3 passing, 0 analyzer issues). |
 | Green/Red Status Pill & Connection Audit Changelog | Fully implemented | Antigravity | **Independently Audited & Verified**: Upgraded SyncConnectionPillBadge (lib/features/sync/presentation/widgets/sync_connection_pill_badge.dart) with reactive green (#10B981) "Host Server (Port 3000)" or "Client (Connected - Xms)" and red (#EF4444) "Disconnected (Reconnecting...)" pills. Tapping opens the responsive bottom sheet drawer displaying an append-only, reverse-chronological connection audit changelog stream with node metadata, event badges, messages, and timestamps. Verified in widget test suite (2/2 passing, 0 analyzer issues). |
 
 *Status Legend: Not started | Scaffolded only | Partially implemented | Fully implemented | Implemented + extended beyond original spec.*
@@ -141,7 +142,7 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | Feature / Task | Agent / Tool | Description | Started |
 |---|---|---|---|
-| None currently claimed | None | All tasks complete, verified across test suites. Ready for next operational directive. | 2026-09-04T06:23:00Z |
+| None currently claimed | None | All tasks complete, verified across test suites. Ready for next operational directive. | 2026-09-04T06:27:00Z |
 
 ---
 
@@ -219,6 +220,8 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 ---
 
 ## 8. Change Log
+
+  - **2026-09-04 (Antigravity)**: Completed Task 4/11 (First-Run Sync Wizard UI): Created `FirstRunSyncWizardPage` with Host Server vs Satellite Client selection, port configuration, LAN UDP auto-discovery, manual Cloudflare URL inputs, and live `GET /health` round-trip latency pinging. Wired into `lib/app.dart` startup routing to automatically present the setup wizard on unconfigured launches and seamlessly transition to `MainShell` upon saving. Verified with test suite (3/3 passing, 0 analyzer issues).
 
   - **2026-09-04 (Antigravity)**: Completed Task 3/11 (Green/Red Status Pill & Connection Audit Changelog): Upgraded SyncConnectionPillBadge in lib/features/sync/presentation/widgets/sync_connection_pill_badge.dart to reactively reflect connection status with green #10B981 ("Host Server (Port 3000)" or "Client (Connected - Xms)") and red #EF4444 ("Disconnected (Reconnecting...)"). Tapping opens the DraggableScrollableSheet Connection Audit Changelog drawer displaying real-time append-only event logs, timestamps, status badges, and node metadata. Verified with widget test suite (2/2 passing, 0 analyzer issues).
 

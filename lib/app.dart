@@ -11,6 +11,8 @@ import 'core/constants/app_dimensions.dart';
 import 'core/di/injection_container.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/main_shell.dart';
+import 'features/sync/domain/services/sync_connection_manager.dart';
+import 'features/sync/presentation/first_run_sync_wizard_page.dart';
 
 class EmposApp extends StatelessWidget {
   final ConfigBloc? bloc;
@@ -55,6 +57,9 @@ class _EmposAppView extends StatelessWidget {
         if (state is ConfigLoaded) {
           final blueprint = state.blueprint;
           final primaryColor = AppTheme.parseHexColor(blueprint.themeColorHex);
+          final syncManager = sl.isRegistered<SyncConnectionManager>()
+              ? sl<SyncConnectionManager>()
+              : SyncConnectionManager();
 
           return MaterialApp(
             title: '${blueprint.storeName} — Enterprise POS & ERP',
@@ -62,7 +67,19 @@ class _EmposAppView extends StatelessWidget {
             theme: AppTheme.dynamicDarkTheme(primaryColor),
             darkTheme: AppTheme.dynamicDarkTheme(primaryColor),
             themeMode: blueprint.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-            home: MainShell(),
+            home: ListenableBuilder(
+              listenable: syncManager,
+              builder: (context, _) {
+                final isConfigured = syncManager.cachedProfile != null &&
+                    syncManager.cachedProfile!.role != AppNodeRole.unconfigured;
+                if (!isConfigured) {
+                  return FirstRunSyncWizardPage(
+                    connectionManager: syncManager,
+                  );
+                }
+                return MainShell();
+              },
+            ),
           );
         }
 
@@ -72,9 +89,9 @@ class _EmposAppView extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Splash Screen while loading Blueprint configuration
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 class _BootstrapSplashScreen extends StatelessWidget {
   const _BootstrapSplashScreen();
 
