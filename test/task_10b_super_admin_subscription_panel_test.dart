@@ -7,6 +7,7 @@ import 'package:empos/core/config/subscription/subscription_tier_controller.dart
 import 'package:empos/features/super_admin/domain/entities/super_admin_models.dart';
 import 'package:empos/features/super_admin/presentation/pages/super_admin_subscription_management_page.dart';
 import 'package:empos/features/super_admin/presentation/widgets/super_admin_account_detail_view.dart';
+import 'package:empos/core/config/subscription/cloud_relay_admin_client.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,7 @@ void main() {
     late SuperAdminSession validSession;
 
     setUp(() {
+      CloudRelayAdminClient.instance.resetForTesting();
       registry = CapabilityRegistry.instance;
       controller = SubscriptionTierController(registry: registry);
       validSession = SuperAdminSession(
@@ -72,7 +74,11 @@ void main() {
       );
     });
 
-    void setDesktopViewport(WidgetTester tester) {
+        tearDown(() {
+      CloudRelayAdminClient.instance.resetForTesting();
+    });
+
+void setDesktopViewport(WidgetTester tester) {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
