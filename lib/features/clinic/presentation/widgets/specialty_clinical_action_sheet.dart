@@ -4,7 +4,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../domain/entities/anatomical_annotation_models.dart';
-import '../../domain/entities/anatomical_engine_models.dart';
 
 /// Interactive Specialty Clinical Action & 3D Cut-Plane Annotation Sheet.
 /// 100% [StatelessWidget] architecture.

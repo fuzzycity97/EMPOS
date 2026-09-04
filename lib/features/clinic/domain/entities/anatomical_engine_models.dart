@@ -1,5 +1,3 @@
-import 'dart:ui';
-import 'package:flutter/material.dart';
 
 enum AnatomicalSeverity { normal, mild, moderate, severe, critical, treated }
 
