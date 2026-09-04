@@ -14,6 +14,7 @@ class LanSyncBloc extends Bloc<LanSyncEvent, LanSyncState> {
     on<ConnectToHostEvent>(_onConnectToHost);
     on<DisconnectLanSyncEvent>(_onDisconnect);
     on<RefreshLanSyncStatusEvent>(_onRefreshStatus);
+    on<AutoRestoreLanSyncEvent>(_onAutoRestore);
 
     _nodesSubscription = lanSyncRepository.connectedNodesStream.listen((nodes) {
       if (lanSyncRepository.isConnected) {
@@ -22,6 +23,30 @@ class LanSyncBloc extends Bloc<LanSyncEvent, LanSyncState> {
         add(const RefreshLanSyncStatusEvent());
       }
     });
+  }
+
+  Future<void> _onAutoRestore(
+    AutoRestoreLanSyncEvent event,
+    Emitter<LanSyncState> emit,
+  ) async {
+    try {
+      await lanSyncRepository.autoRestoreConnection();
+      if (lanSyncRepository.isConnected) {
+        final localId = LanSyncRepositoryImpl.getLocalInstanceId();
+        final localRole = LanSyncRepositoryImpl.getLocalStationRole(isHost: lanSyncRepository.isHost);
+        final localIp = await LanSyncRepositoryImpl.getPrimaryLocalIp();
+        emit(
+          LanSyncConnected(
+            isHost: lanSyncRepository.isHost,
+            address: localIp,
+            port: 9090,
+            nodes: lanSyncRepository.connectedNodes,
+            localStationId: localId,
+            localStationRole: localRole,
+          ),
+        );
+      }
+    } catch (_) {}
   }
 
   @override

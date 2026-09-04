@@ -7,6 +7,7 @@ import '../config/presentation/bloc/config_bloc.dart';
 import '../config/presentation/bloc/config_state.dart';
 import '../config/presentation/widgets/advanced_settings_dialog.dart';
 import '../network/lan_sync/presentation/bloc/lan_sync_bloc.dart';
+import '../network/lan_sync/presentation/bloc/lan_sync_event.dart';
 import '../network/lan_sync/presentation/bloc/lan_sync_state.dart';
 import '../network/lan_sync/presentation/widgets/lan_sync_dialog.dart';
 import '../../features/auth/domain/entities/user_role.dart';
@@ -111,7 +112,7 @@ class MainShell extends StatelessWidget {
         BlocProvider(create: (_) => sl<WorkOrderBloc>()..add(const LoadWorkOrdersEvent())),
         BlocProvider(create: (_) => sl<FinanceSplitBloc>()),
         BlocProvider(create: (_) => sl<ClinicBloc>()..add(const LoadClinicQueueEvent())),
-        BlocProvider(create: (_) => sl<LanSyncBloc>()),
+        BlocProvider(create: (_) => sl<LanSyncBloc>()..add(const AutoRestoreLanSyncEvent())),
         BlocProvider(create: (_) => sl<AuthBloc>()..add(const AppStarted())),
       ],
       child: BlocBuilder<AuthBloc, AuthState>(

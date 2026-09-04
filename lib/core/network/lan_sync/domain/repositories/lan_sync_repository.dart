@@ -11,6 +11,7 @@ abstract class LanSyncRepository {
 
   Future<void> startHostServer({int port = 9090});
   Future<void> connectToHost(String hostIp, {int port = 9090});
+  Future<void> autoRestoreConnection();
   Future<void> broadcast(SyncEnvelope envelope);
   Future<void> disconnect();
 }

@@ -33,3 +33,7 @@ class DisconnectLanSyncEvent extends LanSyncEvent {
 class RefreshLanSyncStatusEvent extends LanSyncEvent {
   const RefreshLanSyncStatusEvent();
 }
+
+class AutoRestoreLanSyncEvent extends LanSyncEvent {
+  const AutoRestoreLanSyncEvent();
+}

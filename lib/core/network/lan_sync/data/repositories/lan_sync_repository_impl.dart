@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:hive/hive.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -11,6 +13,7 @@ import '../message_routes.dart';
 
 class LanSyncRepositoryImpl implements LanSyncRepository {
   static const String offlineQueueBoxName = 'empos_offline_sync_queue';
+  static const String _lanProfileStorageKey = 'empos_lan_sync_profile';
 
   HttpServer? _server;
   WebSocketChannel? _clientChannel;
@@ -243,6 +246,16 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
     _isHost = true;
     _isConnected = true;
 
+    // Persist Host profile for auto-reconnection on next boot
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lanProfileStorageKey, jsonEncode({
+        'role': 'host',
+        'port': port,
+        'timestamp': DateTime.now().toIso8601String(),
+      }));
+    } catch (_) {}
+
     if (!_connectedNodesController.isClosed) {
       _connectedNodesController.add(connectedNodes);
     }
@@ -275,6 +288,17 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
     _shouldAutoReconnect = true;
     _targetHostIp = hostIp;
     _targetPort = port;
+
+    // Persist Client profile for auto-reconnection on next boot
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lanProfileStorageKey, jsonEncode({
+        'role': 'client',
+        'hostIp': hostIp,
+        'port': port,
+        'timestamp': DateTime.now().toIso8601String(),
+      }));
+    } catch (_) {}
 
     await _establishClientConnection(hostIp, port);
   }
@@ -417,11 +441,16 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
 
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(const Duration(seconds: 2), () async {
+    _reconnectTimer = Timer(const Duration(seconds: 3), () async {
       if (_shouldAutoReconnect && !_isConnected && !_isHost && _targetHostIp != null) {
         try {
           await _establishClientConnection(_targetHostIp!, _targetPort);
-        } catch (_) {}
+        } catch (_) {
+          // If attempt fails, schedule next retry loop
+          if (_shouldAutoReconnect && !_isConnected && !_isHost) {
+            _scheduleReconnect();
+          }
+        }
       }
     });
   }
@@ -519,6 +548,26 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
     if (!_connectedNodesController.isClosed) {
       _connectedNodesController.add([]);
     }
+  }
+
+  @override
+  Future<void> autoRestoreConnection() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_lanProfileStorageKey);
+      if (raw != null && raw.isNotEmpty) {
+        final data = jsonDecode(raw) as Map<String, dynamic>;
+        final role = data['role'] as String?;
+        final port = data['port'] as int? ?? 9090;
+        final hostIp = data['hostIp'] as String?;
+
+        if (role == 'host') {
+          await startHostServer(port: port);
+        } else if (role == 'client' && hostIp != null && hostIp.isNotEmpty) {
+          await connectToHost(hostIp, port: port);
+        }
+      }
+    } catch (_) {}
   }
 
   void dispose() {
