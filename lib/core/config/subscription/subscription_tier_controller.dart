@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../domain/entities/industry_type.dart';
 import 'capability_registry.dart';
 import 'subscription_tier_models.dart';
+import 'subscription_audit_log.dart';
 
 /// Super-Admin Subscription Tier Controller.
 /// Manages tenant business accounts, tier preset assignments, and granular
@@ -47,10 +48,12 @@ class SubscriptionTierController extends ChangeNotifier {
     String accountId,
     SubscriptionPlanTier tier, {
     bool clearOverrides = false,
+    String adminId = 'superadmin',
   }) {
     final account = _accounts[accountId];
     if (account == null) return;
 
+    final oldTier = account.assignedTier.name;
     final updated = account.copyWith(
       assignedTier: tier,
       individualOverrides: clearOverrides ? {} : account.individualOverrides,
@@ -58,6 +61,14 @@ class SubscriptionTierController extends ChangeNotifier {
     );
 
     _accounts[accountId] = updated;
+    SubscriptionAuditLog.instance.record(
+      accountId: accountId,
+      adminId: adminId,
+      action: SubscriptionAuditAction.tierChanged,
+      targetKey: 'tier',
+      oldValue: oldTier,
+      newValue: tier.name,
+    );
     notifyListeners();
   }
 
@@ -66,10 +77,15 @@ class SubscriptionTierController extends ChangeNotifier {
   void setCapabilityOverride(
     String accountId,
     String capabilityId,
-    bool isEnabled,
-  ) {
+    bool isEnabled, {
+    String adminId = 'superadmin',
+  }) {
     final account = _accounts[accountId];
     if (account == null) return;
+
+    final oldValue = account.individualOverrides.containsKey(capabilityId)
+        ? account.individualOverrides[capabilityId].toString()
+        : 'preset_default';
 
     final newOverrides = Map<String, bool>.from(account.individualOverrides);
     newOverrides[capabilityId] = isEnabled;
@@ -80,14 +96,27 @@ class SubscriptionTierController extends ChangeNotifier {
     );
 
     _accounts[accountId] = updated;
+    SubscriptionAuditLog.instance.record(
+      accountId: accountId,
+      adminId: adminId,
+      action: SubscriptionAuditAction.overrideSet,
+      targetKey: capabilityId,
+      oldValue: oldValue,
+      newValue: isEnabled.toString(),
+    );
     notifyListeners();
   }
 
   /// Removes an individual capability override, reverting it back to preset default.
-  void removeCapabilityOverride(String accountId, String capabilityId) {
+  void removeCapabilityOverride(
+    String accountId,
+    String capabilityId, {
+    String adminId = 'superadmin',
+  }) {
     final account = _accounts[accountId];
     if (account == null) return;
 
+    final oldValue = account.individualOverrides[capabilityId]?.toString() ?? 'unknown';
     final newOverrides = Map<String, bool>.from(account.individualOverrides);
     newOverrides.remove(capabilityId);
 
@@ -97,20 +126,40 @@ class SubscriptionTierController extends ChangeNotifier {
     );
 
     _accounts[accountId] = updated;
+    SubscriptionAuditLog.instance.record(
+      accountId: accountId,
+      adminId: adminId,
+      action: SubscriptionAuditAction.overrideCleared,
+      targetKey: capabilityId,
+      oldValue: oldValue,
+      newValue: 'preset_default',
+    );
     notifyListeners();
   }
 
   /// Clears all individual overrides for an account, returning strictly to preset defaults.
-  void resetOverridesToPreset(String accountId) {
+  void resetOverridesToPreset(
+    String accountId, {
+    String adminId = 'superadmin',
+  }) {
     final account = _accounts[accountId];
     if (account == null) return;
 
+    final overrideCount = account.individualOverrides.length;
     final updated = account.copyWith(
       individualOverrides: {},
       updatedAt: DateTime.now(),
     );
 
     _accounts[accountId] = updated;
+    SubscriptionAuditLog.instance.record(
+      accountId: accountId,
+      adminId: adminId,
+      action: SubscriptionAuditAction.overridesReset,
+      targetKey: 'all_overrides',
+      oldValue: '$overrideCount overrides',
+      newValue: '0 overrides (preset_default)',
+    );
     notifyListeners();
   }
 

@@ -1,3 +1,4 @@
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -7,6 +8,7 @@ import '../../../../core/config/subscription/subscription_tier_models.dart';
 import '../../../../core/config/subscription/subscription_tier_controller.dart';
 import '../../domain/entities/super_admin_models.dart';
 import '../widgets/super_admin_account_detail_view.dart';
+import '../widgets/super_admin_audit_trail_view.dart';
 
 /// Super-Admin Subscription Management Page.
 /// Provides exhaustive account listing, real-time search, multi-faceted filtering,
@@ -14,12 +16,16 @@ import '../widgets/super_admin_account_detail_view.dart';
 class SuperAdminSubscriptionManagementPage extends StatefulWidget {
   final SuperAdminSession? session;
   final SubscriptionTierController controller;
+  final String adminId;
+  final VoidCallback? onLogout;
 
-  const SuperAdminSubscriptionManagementPage({
+  SuperAdminSubscriptionManagementPage({
     super.key,
-    required this.session,
-    required this.controller,
-  });
+    this.session,
+    SubscriptionTierController? controller,
+    this.adminId = 'superadmin',
+    this.onLogout,
+  })  : controller = controller ?? SubscriptionTierController();
 
   @override
   State<SuperAdminSubscriptionManagementPage> createState() =>
@@ -108,6 +114,58 @@ class _SuperAdminSubscriptionManagementPageState
           ],
         ),
         actions: [
+          if (widget.onLogout != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: ElevatedButton.icon(
+                key: const ValueKey('super_admin_logout_button'),
+                onPressed: widget.onLogout,
+                icon: const Icon(LucideIcons.logOut, size: 14),
+                label: const Text('Logout'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error.withValues(alpha: 0.15),
+                  foregroundColor: AppColors.error,
+                  elevation: 0,
+                  side: const BorderSide(color: AppColors.error),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  textStyle: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          IconButton(
+            key: const ValueKey('super_admin_view_global_audit_log_button'),
+            icon: const Icon(LucideIcons.fileClock, size: 18),
+            tooltip: 'Fleet Audit Trail',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (dialogCtx) => AlertDialog(
+                  backgroundColor: AppColors.backgroundDark,
+                  title: Row(
+                    children: [
+                      const Icon(LucideIcons.fileClock, color: AppColors.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Fleet Subscription Audit Trail',
+                        style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                  content: const SizedBox(
+                    width: 650,
+                    height: 450,
+                    child: SuperAdminAuditTrailView(),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogCtx).pop(),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -191,6 +249,7 @@ class _SuperAdminSubscriptionManagementPageState
                                           key: ValueKey(selectedAccount.accountId),
                                           account: selectedAccount,
                                           controller: widget.controller,
+                                          adminId: widget.adminId,
                                         ),
                                 ),
                               ],
@@ -574,6 +633,7 @@ class _SuperAdminSubscriptionManagementPageState
             key: ValueKey(selectedAccount.accountId),
             account: selectedAccount,
             controller: widget.controller,
+            adminId: widget.adminId,
           ),
         ),
       ],

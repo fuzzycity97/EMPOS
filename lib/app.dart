@@ -6,6 +6,7 @@ import 'core/config/presentation/bloc/config_bloc.dart';
 import 'core/config/presentation/bloc/config_event.dart';
 import 'core/config/presentation/bloc/config_state.dart';
 import 'core/config/presentation/pages/store_builder_wizard_page.dart';
+import 'core/config/super_admin_feature_guard.dart';
 import 'core/constants/app_colors.dart';
 import 'core/constants/app_dimensions.dart';
 import 'core/di/injection_container.dart';
@@ -67,6 +68,7 @@ class _EmposAppView extends StatelessWidget {
             theme: AppTheme.dynamicDarkTheme(primaryColor),
             darkTheme: AppTheme.dynamicDarkTheme(primaryColor),
             themeMode: blueprint.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            onGenerateRoute: SuperAdminSecurityGuard.onGenerateRoute,
             home: ListenableBuilder(
               listenable: syncManager,
               builder: (context, _) {

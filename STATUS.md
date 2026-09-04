@@ -110,7 +110,7 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | Feature / Module | Status | Owner (if active) | Notes |
 |---|---|---|---|
-| Subscription Tier Feature Gating & Super-Admin Console | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented `SubscriptionTierController` and `SubscriptionGatePanel` under `lib/features/super_admin/` for per-account capability gating. Built `SuperAdminSubscriptionManagementPage` and `SuperAdminAccountDetailView` under `lib/features/super_admin/presentation/` implementing the complete universal Super-Admin Subscription Panel with real-time search by business name, multi-faceted filtering (vertical, plan tier, active status), detailed per-account capability breakdown with visual `[OVERRIDE]` vs `[Preset Default]` badges, real usage signals (last sync time, connected terminals, records, invoices), persistent editable notes, and structured billing history view. Verified with `test/task_10b_super_admin_subscription_panel_test.dart` (7/7 passing, 0 analyzer issues) and regression suites across Tasks 10 and 10a (17/17 passing). |
+| Subscription Tier Feature Gating & Super-Admin Console | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented `SubscriptionTierController` and `SubscriptionGatePanel` under `lib/features/super_admin/` for per-account capability gating. Built `SuperAdminSubscriptionManagementPage` and `SuperAdminAccountDetailView` under `lib/features/super_admin/presentation/` implementing the universal Super-Admin Subscription Panel with real-time search, multi-faceted filtering, granular capability override toggles, real usage signals, persistent notes, and billing history. Hardened with Task 10c Super-Admin Security: (1) Compile-flag route isolation (`--dart-define=ENABLE_SUPER_ADMIN=true`) tree-shaking admin code out of normal clinic builds, (2) Strict RFC 6238 TOTP dual-factor authentication (`SuperAdminAuthService`), and (3) Append-only toggle audit trail (`SubscriptionAuditLog`) recording operator identity, before/after values, and timestamps on every mutation. Verified via comprehensive security suite `test/task_10c_super_admin_security_test.dart` (6/6 passing) and full regression suites (23/23 passing across 10, 10a, 10b, 10c). |
 | Multi-Specialty 3D Clinical Action Matrix | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented per-specialty 3D action tools with automated billing cart bindings: (1) Dental 5-surface MODBL polygon restoration with composite resin codes (D2391/D2392/D2393), (2) Cardiology/Vascular stenosis caliper (10%-100%) and stent/bypass graft spline placement with PCI/CABG codes (CARD-92928/CARD-33510), (3) Ophthalmology C:D ratio dial with automated glaucoma suspect follow-up suggestions (Humphrey Visual Field OPH-92083 and OCT RNFL OPH-92134), (4) Orthopedics straight-line cut-plane amputation tool with distal wireframe fade and dual-arm joint ROM goniometer (ORTHO-27705/ORTHO-95851), (5) Dermatology Rule-of-Nines TBSA burn surface calculator and linear suture length caliper (DERM-16020/DERM-12002). Verified via `test/task_9_multi_specialty_3d_action_matrix_test.dart` (10/10 passing, 0 analyzer issues). |
 | Fast Parallel Test Runner Tooling | Fully implemented | Antigravity | **Tooling & Convenience Script**: Created `run_tests.ps1` supporting full-suite (`./run_tests.ps1`) and targeted test execution (`./run_tests.ps1 <path>`). Automatically injects `--reporter expanded` for real-time per-test progress and `--concurrency=N` using host processor count (`$env:NUMBER_OF_PROCESSORS`, 16 cores) for parallel test execution. Embedded quota-efficiency rules in Section 0.5. |
 | Master Sync Server & Mesh Hub | Fully implemented | Antigravity | **Independently Audited & Verified**: Investigated and fixed peer connection handshake and registry reactivity. Replaced optimistic client connection flag with real `channel.ready` verification and two-way application handshake (`system.node_joined`, `system.node_joined_ack`, `system.peer_list_update`). Host now registers client instance IDs (e.g. `doctor`, `receptionist`) and roles, reactive `connectedNodesStream` broadcasts peer updates across the mesh, and `LanSyncDialog` renders distinct, unambiguous host/client cards. Verified via two-node simulation (`flutter test test/lan_sync_engine_test.dart` & `test/lan_sync_dialog_and_bloc_test.dart`): Host peer count updated to 2 stations on client join, dropped back to 1 on clean client disconnect, and unreachable connection attempts cleanly throw without false-positive connected UI. |
@@ -158,7 +158,7 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | Feature / Task | Agent / Tool | Description | Started |
 |---|---|---|---|
-| None currently claimed | None | All tasks through 10b complete and verified | 2026-09-04T08:00:00Z |
+| None currently claimed | None | All tasks through 10c complete and verified | 2026-09-04T10:30:00Z |
 
 ---
 
@@ -282,8 +282,43 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 ---
 
+### 7.3 Super-Admin Access Boundary & Security Architecture (Task 10c)
+
+1. **Compile-Time Flag Isolation (Interim Measure)**:
+   - **Mechanism**: Super-admin routes, auth gates, and management panels are guarded behind `const bool kEnableSuperAdmin = bool.fromEnvironment('ENABLE_SUPER_ADMIN', defaultValue: false);`. In standard clinic builds, the constant evaluates to `false` at compile-time, allowing Dart's AOT tree-shaking compiler to strip super-admin UI and auth code completely from the final binary.
+   - **Interim Architecture Note**: This compile-flag approach is an interim stopgap necessitated because per-role/per-category build generation does not exist yet within the current single-app model. Once dedicated build infrastructure exists, the super-admin panel should graduate to ship as a genuinely separate standalone binary/app.
+   - **Clinic Build Verification**: Confirmed standard production build scripts (`compile_full_ecosystem.ps1`, `scripts/build_android_apk.ps1`, `scripts/build_windows_msi.ps1`) never pass `ENABLE_SUPER_ADMIN=true`.
+
+2. **Dual-Factor (2FA) Authentication Architecture**:
+   - **Separation of Concerns**: Completely isolated from clinic staff login (`UserRole`, `AuthBloc`). Staff credentials have zero access to super-admin subsystems.
+   - **Dual Factor Mandate**: Login strictly requires both factor 1 (vendor master secret credential) AND factor 2 (RFC 6238 Time-based One-Time Password 6-digit code). Single-factor password-only attempts are rejected with `SuperAdminAuthFailure.invalidTotpCode`.
+   - **TOTP Engine (`TotpAuthenticator`)**: Pure RFC 6238 HMAC-SHA1 dynamic truncation with 30-second step intervals and ±30s clock skew window tolerance. Generates standard `otpauth://` URIs compatible with Google Authenticator, Authy, and 1Password.
+
+3. **Append-Only Toggle Audit Trail Schema (`SubscriptionAuditLog`)**:
+   - Every plan tier assignment, individual capability override toggle, override removal, and preset reset logs an immutable `SubscriptionAuditRecord`:
+     ```dart
+     class SubscriptionAuditRecord {
+       final String id;           // Unique record UUID/identifier
+       final String accountId;    // Tenant business account ID
+       final String adminId;      // Operator identifier who made the change
+       final SubscriptionAuditAction action; // tierChanged, overrideSet, overrideCleared, overridesReset
+       final String targetKey;    // Capability key or 'tier'
+       final String oldValue;     // Before state
+       final String newValue;     // After state
+       final DateTime timestamp;  // Immutable UTC timestamp
+     }
+     ```
+   - **Append-Only Guarantee**: `SubscriptionAuditLog` only exposes `append()` and `record()`. Records are exposed via `List.unmodifiable()`. Surfaced in `SuperAdminAccountDetailView` (per-account audit tab) and `SuperAdminSubscriptionManagementPage` (fleet audit dialog).
+
+---
+
 ## 8. Change Log
 
+  - **2026-09-04 (Antigravity)**: Completed Task 10c/11 (Super-Admin Security: Compile-Flag-Isolated Admin Access, 2FA Login & Toggle Audit Trail):
+    1. **Compile-Flag Isolation**: Defined `kEnableSuperAdmin = const bool.fromEnvironment('ENABLE_SUPER_ADMIN', defaultValue: false);` and wired `SuperAdminSecurityGuard.onGenerateRoute` in `app.dart` to guarantee tree-shaking dead-code elimination in clinic builds. Confirmed all build scripts omit the flag. Documented as an interim measure pending future per-role build infrastructure.
+    2. **Real RFC 6238 TOTP 2FA**: Implemented `TotpAuthenticator` and `SuperAdminAuthService`. Strictly requires vendor master password AND 6-digit TOTP code for console admission; single-factor password-only login fails every time.
+    3. **Append-Only Toggle Audit Trail**: Implemented `SubscriptionAuditRecord` and `SubscriptionAuditLog`. Wired mutation logging into `SubscriptionTierController` for tier preset assignments, capability override toggles, removals, and resets with operator identity (`adminId`). Surfaced in `SuperAdminAccountDetailView` (Account Audit Trail) and `SuperAdminSubscriptionManagementPage` (Fleet Audit Trail dialog).
+    4. **Deliberate Security Verification**: Created `test/task_10c_super_admin_security_test.dart` verifying unflagged route exclusion, dual-factor authentication enforcement, append-only immutability, and 2FA gate UI (6/6 passing). Re-verified full subscription suite across Tasks 10, 10a, 10b, 10c (23/23 passing, 0 analyzer issues).
   - **2026-09-04 (Antigravity)**: Completed Task 10b/11 (Super-Admin Subscription Panel - Search, Filter, Usage, Notes): Built `SuperAdminSubscriptionManagementPage` and `SuperAdminAccountDetailView` under `lib/features/super_admin/presentation/`. Delivered: (1) Account list with business name, category/vertical breadcrumb, tier badge, creation date, and last active timestamp; (2) Real-time search and multi-faceted filtering (vertical, plan tier, active/suspended status); (3) Granular capability inspection view clearly distinguishing preset defaults from manual overrides with one-click revert and toggle controls; (4) Real telemetry signals (last sync time, terminal count, client records, invoices); (5) Persistent editable notes field with live audit metadata updating; (6) Structured billing history view with empty state. Verified with automated widget test suite `test/task_10b_super_admin_subscription_panel_test.dart` (7/7 passing, 0 analyzer issues) and verified regression safety across Tasks 10 and 10a.
 
   - **2026-09-04 (Antigravity)**: Completed Task 10a/11 (Subscription System: Tier Presets & Granular Capability Model - Universal, All Categories): Implemented universal `CapabilityRegistry` in `lib/core/config/subscription/capability_registry.dart` cataloging over 540 granular capabilities and constituent sub-features across all 11 industry verticals and 41 specific business blueprints from the builder taxonomy. Created `subscription_tier_models.dart` defining `SubscriptionPlanTier` (Free, Basic, Pro, Enterprise, Custom), `CapabilityCategory` (16 categories), `CapabilityItem`, `SubscriptionTierPreset` (with Enterprise auto-unlocking all existing & future capabilities by default), and `AccountSubscriptionProfile`. Implemented `SubscriptionTierController` in `lib/core/config/subscription/subscription_tier_controller.dart` providing isolated per-account state management and non-destructive individual capability overrides layered over preset defaults. Enforced Rule A (compliance toggles locked) and Rule B (typed search across names and plain-language terms). Verified with automated unit test suite `test/task_10a_subscription_system_test.dart` (5/5 passing, 0 analyzer issues) and regression suite (5/5 passing).

@@ -1,9 +1,11 @@
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/config/subscription/subscription_tier_models.dart';
 import '../../../../core/config/subscription/subscription_tier_controller.dart';
+import 'super_admin_audit_trail_view.dart';
 
 /// Detailed inspection view for a single tenant business account.
 /// Displays tier presets, granular capability breakdown with override badges,
@@ -12,12 +14,14 @@ class SuperAdminAccountDetailView extends StatefulWidget {
   final AccountSubscriptionProfile account;
   final SubscriptionTierController controller;
   final VoidCallback? onClose;
+  final String adminId;
 
   const SuperAdminAccountDetailView({
     super.key,
     required this.account,
     required this.controller,
     this.onClose,
+    this.adminId = 'superadmin',
   });
 
   @override
@@ -91,6 +95,10 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
 
                 // 5. Granular Capability Breakdown
                 _buildCapabilityBreakdownSection(context, isDark, preset),
+                const SizedBox(height: 24),
+
+                // 6. Append-Only Capability & Tier Audit Trail
+                _buildAuditTrailSection(context, isDark),
               ],
             ),
           ),
@@ -155,13 +163,22 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(LucideIcons.shieldCheck, size: 16, color: AppColors.primaryLight),
-                  SizedBox(width: 8),
-                  Text('Subscription Plan Tier Assignment', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                ],
+              const Expanded(
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.shieldCheck, size: 16, color: AppColors.primaryLight),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Subscription Plan Tier Assignment',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Row(
                 children: [
                   Text(
@@ -208,6 +225,7 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
                         widget.account.accountId,
                         newTier,
                         clearOverrides: false,
+                        adminId: widget.adminId,
                       );
                     }
                   },
@@ -225,7 +243,7 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
                   icon: const Icon(LucideIcons.rotateCcw, size: 14),
                   label: Text('Reset ${widget.account.individualOverrides.length} Overrides'),
                   onPressed: () {
-                    widget.controller.resetOverridesToPreset(widget.account.accountId);
+                    widget.controller.resetOverridesToPreset(widget.account.accountId, adminId: widget.adminId);
                   },
                 ),
             ],
@@ -493,16 +511,22 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Row(
-              children: [
-                Icon(LucideIcons.sliders, size: 16, color: AppColors.primaryLight),
-                SizedBox(width: 8),
-                Text(
-                  'Granular Capability Breakdown & Individual Overrides',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-              ],
+            const Expanded(
+              child: Row(
+                children: [
+                  Icon(LucideIcons.sliders, size: 16, color: AppColors.primaryLight),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Granular Capability Breakdown & Individual Overrides',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(width: 8),
             Text(
               '${capabilities.length} Capabilities Displayed',
               style: TextStyle(fontSize: 12, color: isDark ? AppColors.textMutedDark : AppColors.textMutedLight),
@@ -677,6 +701,7 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
                               widget.account.accountId,
                               cap.id,
                               val,
+                              adminId: widget.adminId,
                             );
                           },
                   ),
@@ -688,6 +713,7 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
                         widget.controller.removeCapabilityOverride(
                           widget.account.accountId,
                           cap.id,
+                          adminId: widget.adminId,
                         );
                       },
                     ),
@@ -697,6 +723,65 @@ class _SuperAdminAccountDetailViewState extends State<SuperAdminAccountDetailVie
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildAuditTrailSection(BuildContext context, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+        border: Border.all(color: isDark ? AppColors.borderDark : Colors.black12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(AppDimensions.radiusMedium),
+                topRight: Radius.circular(AppDimensions.radiusMedium),
+              ),
+              border: Border(bottom: BorderSide(color: isDark ? AppColors.borderDark : Colors.black12)),
+            ),
+            child: Row(
+              children: [
+                Icon(LucideIcons.fileClock, size: 16, color: AppColors.primaryLight),
+                const SizedBox(width: 8),
+                Text(
+                  'Account Capability & Tier Audit Trail (Append-Only)',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'IMMUTABLE LOG',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.success,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SuperAdminAuditTrailView(
+            accountIdFilter: widget.account.accountId,
+          ),
+        ],
+      ),
     );
   }
 }
