@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
@@ -7,6 +7,7 @@ import '../../../../core/constants/app_dimensions.dart';
 import '../../domain/entities/clinic_visit.dart';
 import '../../domain/entities/patient_profile.dart';
 import 'dental_tooth_matrix_widget.dart';
+import '../../domain/entities/tooth_chart_entry.dart';
 
 /// Deep Read-Only Medical History & Consultation Drill-Down Dialog.
 /// 100% [StatelessWidget] following Clean Architecture.
@@ -14,12 +15,14 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
   final ClinicVisit visit;
   final StoreBlueprint blueprint;
   final PatientProfile? patient;
+  final List<ToothChartEntry>? cumulativeToothChart;
 
   const HistoricalVisitDetailsDialog({
     super.key,
     required this.visit,
     required this.blueprint,
     this.patient,
+    this.cumulativeToothChart,
   });
 
   @override
@@ -29,6 +32,9 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
     final isPediatric = (patient?.calculatedAge != null && patient!.calculatedAge! < 12) ||
         visit.chiefComplaint.toLowerCase().contains('pediatric') ||
         visit.chiefComplaint.toLowerCase().contains('child');
+    final effectiveToothChart = visit.toothChart.isNotEmpty
+        ? visit.toothChart
+        : (cumulativeToothChart ?? []);
 
     return Dialog(
       backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
@@ -136,11 +142,11 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                       const SizedBox(height: 16),
 
                       // 3. Odontogram / Tooth Chart (Dental Blueprint or if teeth entries exist)
-                      if (blueprint.isDental || visit.toothChart.isNotEmpty) ...[
+                      if (blueprint.isDental || effectiveToothChart.isNotEmpty) ...[
                         _buildSectionHeader('Dental Odontogram State', LucideIcons.smile),
                         const SizedBox(height: 8),
                         DentalToothMatrixWidget(
-                          toothChart: visit.toothChart,
+                          toothChart: effectiveToothChart,
                           isPediatric: isPediatric,
                           onToothUpdated: null, // Read-only mode
                         ),

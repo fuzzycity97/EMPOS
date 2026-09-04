@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -284,7 +284,19 @@ class PatientIntakeDialog extends StatelessWidget {
                           ? '$complaint$metaStr'
                           : 'General Clinical Examination$metaStr';
 
-                      final targetPatientId = existingId ?? 'pat_${DateTime.now().millisecondsSinceEpoch}';
+                      // Resolve patient ID: use autocomplete selection or fallback to matching by phone/name in existing records
+                      String? resolvedPatientId = existingId;
+                      if (resolvedPatientId == null && existingPatients.isNotEmpty) {
+                        final matched = existingPatients.cast<PatientProfile?>().firstWhere(
+                          (p) => (phone.isNotEmpty && p?.phone.trim() == phone) ||
+                                 (name.isNotEmpty && p?.name.trim().toLowerCase() == name.toLowerCase()),
+                          orElse: () => null,
+                        );
+                        if (matched != null) {
+                          resolvedPatientId = matched.id;
+                        }
+                      }
+                      final targetPatientId = resolvedPatientId ?? 'pat_${DateTime.now().millisecondsSinceEpoch}';
 
                       // Dispatch check-in event using seeded doctor ID for exact LAN routing
                       activeBloc.add(
