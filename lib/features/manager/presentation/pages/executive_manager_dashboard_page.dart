@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
-import '../domain/entities/manager_profit_split_engine.dart';
+import '../../../catalog/domain/entities/product.dart';
+import '../../domain/entities/manager_profit_split_engine.dart';
 
 /// Interactive Executive Manager Live Dashboard Page.
 /// 100% [StatelessWidget] architecture.
@@ -12,7 +12,10 @@ class ExecutiveManagerDashboardPage extends StatelessWidget {
   final ValueNotifier<List<Map<String, dynamic>>> liveSalesNotifier;
   final ValueNotifier<List<Map<String, dynamic>>> inventoryAlertsNotifier;
   final ValueNotifier<int> onlineTerminalsNotifier;
+  final ValueNotifier<List<Map<String, dynamic>>> settlementAuditNotifier;
+  final Stream<Map<String, dynamic>>? liveSalesStream;
   final VoidCallback? onSettlePayroll;
+  final void Function(Map<String, dynamic> settlementRecord)? onRecordSettlement;
 
   ExecutiveManagerDashboardPage({
     super.key,
@@ -20,11 +23,22 @@ class ExecutiveManagerDashboardPage extends StatelessWidget {
     ValueNotifier<List<Map<String, dynamic>>>? liveSalesNotifier,
     ValueNotifier<List<Map<String, dynamic>>>? inventoryAlertsNotifier,
     ValueNotifier<int>? onlineTerminalsNotifier,
+    ValueNotifier<List<Map<String, dynamic>>>? settlementAuditNotifier,
+    this.liveSalesStream,
     this.onSettlePayroll,
+    this.onRecordSettlement,
   })  : payrollNotifier = payrollNotifier ?? ValueNotifier<List<StaffPayrollEntry>>(_samplePayroll),
         liveSalesNotifier = liveSalesNotifier ?? ValueNotifier<List<Map<String, dynamic>>>(_sampleLiveSales),
         inventoryAlertsNotifier = inventoryAlertsNotifier ?? ValueNotifier<List<Map<String, dynamic>>>(_sampleAlerts),
-        onlineTerminalsNotifier = onlineTerminalsNotifier ?? ValueNotifier<int>(3);
+        onlineTerminalsNotifier = onlineTerminalsNotifier ?? ValueNotifier<int>(3),
+        settlementAuditNotifier = settlementAuditNotifier ?? ValueNotifier<List<Map<String, dynamic>>>(const []) {
+    liveSalesStream?.listen((sale) {
+      final notifier = this.liveSalesNotifier;
+      final current = List<Map<String, dynamic>>.from(notifier.value);
+      current.insert(0, sale);
+      notifier.value = current;
+    });
+  }
 
   static final List<StaffPayrollEntry> _samplePayroll = [
     const StaffPayrollEntry(
@@ -104,6 +118,60 @@ class ExecutiveManagerDashboardPage extends StatelessWidget {
     },
   ];
 
+  /// Utility to generate inventory and FEFO expiry alerts from actual catalog products and batches.
+  static List<Map<String, dynamic>> generateAlertsFromInventory({
+    required List<Product> products,
+    List<Map<String, dynamic>>? fefoBatches,
+  }) {
+    final alerts = <Map<String, dynamic>>[];
+    if (fefoBatches != null) {
+      for (final batch in fefoBatches) {
+        final daysUntilExpiry = batch['daysUntilExpiry'] as int? ?? 30;
+        final name = batch['productName'] ?? batch['name'] ?? 'Pharmaceutical Batch';
+        final batchNumber = batch['batchNumber'] ?? batch['batchId'] ?? '#UNK';
+        final qty = batch['quantity'] ?? batch['stock'] ?? 0;
+        if (daysUntilExpiry <= 0) {
+          alerts.add({
+            'name': '$name (Batch $batchNumber)',
+            'dept': 'Pharmacy FEFO',
+            'type': 'EXPIRED',
+            'info': 'Expired ${daysUntilExpiry.abs()} days ago (Qty: $qty)',
+            'severity': 'CRITICAL',
+          });
+        } else if (daysUntilExpiry <= 30) {
+          alerts.add({
+            'name': '$name (Batch $batchNumber)',
+            'dept': 'Pharmacy FEFO',
+            'type': 'EXPIRING_SOON',
+            'info': 'Expires in $daysUntilExpiry days (Qty: $qty)',
+            'severity': 'HIGH',
+          });
+        }
+      }
+    }
+    for (final p in products) {
+      if (!p.trackQty) continue;
+      if (p.isOutOfStock) {
+        alerts.add({
+          'name': p.displayName,
+          'dept': 'General Catalog',
+          'type': 'OUT_OF_STOCK',
+          'info': '0 units on shelf',
+          'severity': 'CRITICAL',
+        });
+      } else if (p.isLowStock) {
+        alerts.add({
+          'name': p.displayName,
+          'dept': 'Consumables & Retail',
+          'type': 'LOW_STOCK',
+          'info': 'Only ${p.stock} units remaining (Threshold: 5)',
+          'severity': 'MEDIUM',
+        });
+      }
+    }
+    return alerts;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -115,9 +183,12 @@ class ExecutiveManagerDashboardPage extends StatelessWidget {
           children: [
             Icon(LucideIcons.barChart3, size: 20, color: AppColors.primaryLight),
             SizedBox(width: 10),
-            Text(
-              'Executive Operations & Real-Time Sync Dashboard',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            Flexible(
+              child: Text(
+                'Executive Operations & Real-Time Sync Dashboard',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
@@ -161,13 +232,52 @@ class ExecutiveManagerDashboardPage extends StatelessWidget {
             // ── TOP KPI ROW ──────────────────────────────────────────
             Row(
               children: [
-                Expanded(child: _kpiCard('Gross Revenue Today', '14,850.00 EGP', '+18.4% vs avg', LucideIcons.dollarSign, AppColors.success, isDark)),
+                Expanded(
+                  child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+                    valueListenable: liveSalesNotifier,
+                    builder: (context, sales, _) {
+                      final gross = sales.fold<double>(
+                        0.0,
+                        (acc, s) => acc + ((s['amount'] ?? s['grossTotal'] ?? 0.0) as num).toDouble(),
+                      );
+                      return _kpiCard('Gross Revenue Today', '${gross.toStringAsFixed(2)} EGP', '+18.4% vs avg', LucideIcons.dollarSign, AppColors.success, isDark);
+                    },
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: _kpiCard('Net Operating Profit', '8,920.00 EGP', 'Pool Mode: Net', LucideIcons.trendingUp, AppColors.primaryLight, isDark)),
+                Expanded(
+                  child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+                    valueListenable: liveSalesNotifier,
+                    builder: (context, sales, _) {
+                      final gross = sales.fold<double>(
+                        0.0,
+                        (acc, s) => acc + ((s['amount'] ?? s['grossTotal'] ?? 0.0) as num).toDouble(),
+                      );
+                      final net = gross * 0.60;
+                      return _kpiCard('Net Operating Profit', '${net.toStringAsFixed(2)} EGP', 'Pool Mode: Net (60%)', LucideIcons.trendingUp, AppColors.primaryLight, isDark);
+                    },
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: _kpiCard('Unsettled Advances', '2,300.00 EGP', '3 Employees', LucideIcons.receipt, AppColors.warning, isDark)),
+                Expanded(
+                  child: ValueListenableBuilder<List<StaffPayrollEntry>>(
+                    valueListenable: payrollNotifier,
+                    builder: (context, payroll, _) {
+                      final advances = payroll.fold<double>(0.0, (acc, p) => acc + p.unsettledAdvances);
+                      final count = payroll.where((p) => p.unsettledAdvances > 0).length;
+                      return _kpiCard('Unsettled Advances', '${advances.toStringAsFixed(2)} EGP', '$count Employees', LucideIcons.receipt, AppColors.warning, isDark);
+                    },
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: _kpiCard('Critical Inventory Alerts', '3 Items', 'Action Required', LucideIcons.alertTriangle, AppColors.danger, isDark)),
+                Expanded(
+                  child: ValueListenableBuilder<List<Map<String, dynamic>>>(
+                    valueListenable: inventoryAlertsNotifier,
+                    builder: (context, alerts, _) {
+                      return _kpiCard('Critical Inventory Alerts', '${alerts.length} Items', 'Action Required', LucideIcons.alertTriangle, AppColors.danger, isDark);
+                    },
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -348,29 +458,54 @@ class ExecutiveManagerDashboardPage extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Row(
-                              children: [
-                                Icon(LucideIcons.users, size: 16, color: AppColors.primaryLight),
-                                SizedBox(width: 8),
-                                Text('Staff Payroll & Advance Deductions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                              ],
+                            const Expanded(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(LucideIcons.users, size: 16, color: AppColors.primaryLight),
+                                  SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      'Staff Payroll & Advance Deductions',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                            const SizedBox(width: 8),
                             ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.success,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               ),
                               icon: const Icon(LucideIcons.checkCheck, size: 14),
                               label: const Text('Settle Period', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                               onPressed: () {
                                 final current = List<StaffPayrollEntry>.from(payrollNotifier.value);
+                                final totalAdvancesCleared = current.fold<double>(0.0, (acc, p) => acc + p.unsettledAdvances);
+                                final totalNetPaid = current.fold<double>(0.0, (acc, p) => acc + p.netPayable);
+                                final settlementRecord = {
+                                  'settlementId': 'SETTLE-${DateTime.now().millisecondsSinceEpoch}',
+                                  'timestamp': DateTime.now().toIso8601String(),
+                                  'settledStaffCount': current.length,
+                                  'totalNetPaid': totalNetPaid,
+                                  'totalAdvancesCleared': totalAdvancesCleared,
+                                  'status': 'SETTLED',
+                                };
+                                settlementAuditNotifier.value = [
+                                  settlementRecord,
+                                  ...settlementAuditNotifier.value,
+                                ];
                                 payrollNotifier.value = current.map((p) => p.copyWithSettled()).toList();
                                 onSettlePayroll?.call();
+                                onRecordSettlement?.call(settlementRecord);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
+                                  SnackBar(
                                     backgroundColor: AppColors.success,
-                                    content: Text('Payroll period settled and all employee advances cleared!'),
+                                    content: Text('Payroll period settled and ${totalAdvancesCleared.toStringAsFixed(2)} EGP advances cleared!'),
                                   ),
                                 );
                               },
