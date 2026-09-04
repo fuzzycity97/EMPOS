@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/tooth_chart_entry.dart';
-import '../../domain/entities/anatomical_engine_models.dart';
 import 'tooth_glb_mesh.dart';
 
 export '../../domain/entities/anatomical_engine_models.dart';
@@ -59,11 +58,7 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
         child: FutureBuilder<void>(
           future: _meshLoadFuture,
           builder: (context, snapshot) {
-            final meshesReady = snapshot.connectionState == ConnectionState.done &&
-                !snapshot.hasError &&
-                ToothGlbMeshLibrary.isReady;
-
-            return Stack(
+                return Stack(
               children: [
                 Positioned.fill(
                   child: GestureDetector(
