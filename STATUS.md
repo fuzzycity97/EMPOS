@@ -41,6 +41,17 @@ Last updated: 2026-08-29T16:30:00Z by Antigravity / Pair Programming Agent
 
 ---
 
+## 0.5 Quota-Efficiency & Testing Rules
+
+- **Do NOT run the full test suite unnecessarily**: Never run the entire test suite on every change or iteration. Avoid running the full suite unless specifically requested by the user or coordinating a final milestone release. Only run tests relevant to what changed to save time and quota.
+- **Fast, visible test execution**: Always use `run_tests.ps1` (or `flutter test --reporter expanded --concurrency=N`) instead of a bare `flutter test` call, for both speed and visible real-time progress.
+  - Full suite (only when explicitly requested): `./run_tests.ps1`
+  - Scoped / targeted test file: `./run_tests.ps1 test/customer_debt_ledger_test.dart`
+  - Direct Flutter command equivalent: `flutter test --reporter expanded --concurrency=4 <target>` (or `$env:NUMBER_OF_PROCESSORS`)
+- **Live progress feedback**: `--reporter expanded` gives real-time pass/fail status per test as it runs rather than a wall of output only at the end. `--concurrency=N` runs test files in parallel across CPU cores.
+
+---
+
 ## 1. Project Summary
 EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose old code lives in the folder literally named `New folder` â€” not to be confused with EMPOS itself). Migration goal: full transition from the original C#/.NET + vanilla JS/HTML + Java stack to Flutter/Dart end-to-end â€” pure Dart server, Flutter clients, BLoC state management, 100% `StatelessWidget` UI components, with zero exceptions.
 
@@ -99,6 +110,7 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | Feature / Module | Status | Owner (if active) | Notes |
 |---|---|---|---|
+| Fast Parallel Test Runner Tooling | Fully implemented | Antigravity | **Tooling & Convenience Script**: Created `run_tests.ps1` supporting full-suite (`./run_tests.ps1`) and targeted test execution (`./run_tests.ps1 <path>`). Automatically injects `--reporter expanded` for real-time per-test progress and `--concurrency=N` using host processor count (`$env:NUMBER_OF_PROCESSORS`, 16 cores) for parallel test execution. Embedded quota-efficiency rules in Section 0.5. |
 | Master Sync Server & Mesh Hub | Fully implemented | Antigravity | **Independently Audited & Verified**: Investigated and fixed peer connection handshake and registry reactivity. Replaced optimistic client connection flag with real `channel.ready` verification and two-way application handshake (`system.node_joined`, `system.node_joined_ack`, `system.peer_list_update`). Host now registers client instance IDs (e.g. `doctor`, `receptionist`) and roles, reactive `connectedNodesStream` broadcasts peer updates across the mesh, and `LanSyncDialog` renders distinct, unambiguous host/client cards. Verified via two-node simulation (`flutter test test/lan_sync_engine_test.dart` & `test/lan_sync_dialog_and_bloc_test.dart`): Host peer count updated to 2 stations on client join, dropped back to 1 on clean client disconnect, and unreachable connection attempts cleanly throw without false-positive connected UI. |
 | LAN Sync Full Payload Synchronization | Fully implemented | Antigravity | **Independently Audited & Verified**: Ran real two-instance simulation (`flutter test test/lan_sync_full_payload_test.dart`). Reception dispatched `CheckInPatientEvent('pat_live_101', 'David Hasselhoff')` over WebSocket envelope. Doctor instance received envelope and automatically executed Hive DB insertion without manual UI refresh; `clinicDataSource.getPatientById('pat_live_101')` returned `David Hasselhoff` within 144ms unprompted. |
 | Connection Recovery Auto-Sync (State Reconciliation) | Fully implemented | Antigravity | **Independently Audited & Verified**: Ran network drop torture test (`flutter test test/independent_section_4_audit_test.dart` and `test/lan_sync_full_payload_test.dart #7`). Client disconnected via `clientRepo.disconnect()`; host checked in offline patient `Grace Hopper` (`pat_offline_202`). Client reconnected to port 9096 -> client auto-sent `sync.request_active_state`, host dispatched `sync.full_state_response`, client batch-upserted payload into local DB within ~800ms. |
@@ -222,6 +234,8 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 ---
 
 ## 8. Change Log
+
+  - **2026-09-04 (Antigravity)**: Added Fast Parallel Test Runner Tooling & Quota-Efficiency Rules: Created `run_tests.ps1` at project root with automatic Flutter binary discovery and processor concurrency detection (`$env:NUMBER_OF_PROCESSORS`). Configured `--reporter expanded` for real-time test progress tracking and `--concurrency=N` for parallel test execution across CPU cores. Added Section 0.5 to `STATUS.md` reinforcing the rule against unnecessary full-suite test runs and prescribing `run_tests.ps1` or flagged calls for all test executions. Verified on targeted test suites (all passing with real-time pass/fail output).
 
   - **2026-09-04 (Antigravity)**: Completed Task 8/11 (Smart Doctor Roster & Conflict Guard): Implemented DoctorWorkingShift, DoctorLeaveOverride, and half-open [startTime, endTime) interval conflict detection engine (SmartSchedulingEngine.validateRequestedSlot) in lib/features/appointments/. Implemented forward-scanning slot finder (findNextAvailableSlots) suggesting alternative slots without recursive overhead. Built ReceptionQuickBookingModal with reactive conflict reason banner, alternative slot chips, and instant booking confirmation. Verified with unit and widget test suite 	est/task_8_smart_scheduling_test.dart (5/5 passing, 0 analyzer issues).
   - **2026-09-04 (Antigravity)**: Completed Task 7/11 (Procedural 3D Vector Fallback & Fix Tooth Canvas Loading Hang): Fixed model caching architecture in ToothGlbMeshLibrary by separating real GLB asset cache from procedural fallback cache. Enforced instant synchronous procedural mesh generation on frame 0 and camera preset switches, preventing blank screen hangs while smoothly swapping in real high-fidelity category GLB meshes once asset I/O completes. Verified with test/dental_3d_and_editor_test.dart and fallback integration suite (7/7 passing, 0 analyzer issues).
