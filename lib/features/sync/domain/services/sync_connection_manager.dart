@@ -66,11 +66,14 @@ class SyncConnectionManager extends ChangeNotifier {
   int _latencyMs = 0;
   int _retryAttempt = 0;
   Timer? _retryTimer;
+  bool _isDeliberateServerShutdown = false;
 
   AppNodeRole get activeRole => _activeRole;
   SyncConnectionState get state => _state;
   bool get isConnected => _state == SyncConnectionState.connected || _state == SyncConnectionState.hosting;
   bool get isHost => _activeRole == AppNodeRole.host;
+  bool get isDeliberateServerShutdown => _isDeliberateServerShutdown;
+  bool get isRetrying => _retryTimer?.isActive == true || _state == SyncConnectionState.reconnecting;
   int get latencyMs => _latencyMs;
   NodeProfileConfig? get cachedProfile => _cachedProfile;
   List<Map<String, dynamic>> get connectionChangelog => List.unmodifiable(_connectionChangelog);
@@ -114,6 +117,7 @@ class SyncConnectionManager extends ChangeNotifier {
 
     _retryTimer?.cancel();
     _retryAttempt = 0;
+    _isDeliberateServerShutdown = false;
 
     _clientSocket?.dispose();
     _clientSocket = null;
@@ -154,6 +158,7 @@ class SyncConnectionManager extends ChangeNotifier {
   }) async {
     _activeRole = AppNodeRole.client;
     _state = SyncConnectionState.connecting;
+    _isDeliberateServerShutdown = false;
     notifyListeners();
 
     _clientSocket?.dispose();
@@ -179,6 +184,7 @@ class SyncConnectionManager extends ChangeNotifier {
       _state = SyncConnectionState.connected;
       _retryAttempt = 0;
       _retryTimer?.cancel();
+      _isDeliberateServerShutdown = false;
 
       final profile = NodeProfileConfig(
         role: AppNodeRole.client,
@@ -195,23 +201,39 @@ class SyncConnectionManager extends ChangeNotifier {
       notifyListeners();
     });
 
+    // 1. Deliberate Host Shutdown: suspend auto-reconnect and cleanly disconnect
+    _clientSocket!.on('server_shutdown', (data) {
+      _isDeliberateServerShutdown = true;
+      _retryTimer?.cancel();
+      _retryAttempt = 0;
+      _state = SyncConnectionState.disconnected;
+      _logEvent('SERVER_SHUTDOWN', 'Host server shut down gracefully. Auto-reconnect suspended.', isSuccess: false);
+      _clientSocket?.disconnect();
+      _clientSocket?.dispose();
+      _clientSocket = null;
+      notifyListeners();
+    });
+
+    // 2. Disconnect handler: differentiate deliberate shutdown from accidental drop
     _clientSocket!.onDisconnect((reason) {
       _state = SyncConnectionState.disconnected;
-      _logEvent('DISCONNECTED', 'Connection closed: $reason', isSuccess: false);
-      _scheduleExponentialRetry(serverUrl, mode, authToken: authToken);
+      if (_isDeliberateServerShutdown) {
+        _logEvent('DISCONNECTED', 'Host connection closed gracefully ($reason). Auto-reconnect suspended.', isSuccess: false);
+        _retryTimer?.cancel();
+        _retryAttempt = 0;
+      } else {
+        // Accidental connection drop: trigger exponential retry backoff
+        _logEvent('DISCONNECTED', 'Connection dropped ($reason). Retrying with backoff...', isSuccess: false);
+        _scheduleExponentialRetry(serverUrl, mode, authToken: authToken);
+      }
       notifyListeners();
     });
 
+    // 3. Connect error handler: trigger exponential retry backoff on accidental drops
     _clientSocket!.onConnectError((err) {
+      if (_isDeliberateServerShutdown) return;
       _state = SyncConnectionState.reconnecting;
       _logEvent('CONNECT_ERROR', 'Failed to reach host: $err. Retrying...', isSuccess: false);
-      _scheduleExponentialRetry(serverUrl, mode, authToken: authToken);
-      notifyListeners();
-    });
-
-    _clientSocket!.on('server_shutdown', (_) {
-      _state = SyncConnectionState.disconnected;
-      _logEvent('SERVER_SHUTDOWN', 'Host server terminated. Switched to offline.', isSuccess: false);
       _scheduleExponentialRetry(serverUrl, mode, authToken: authToken);
       notifyListeners();
     });
@@ -232,11 +254,14 @@ class SyncConnectionManager extends ChangeNotifier {
   }
 
   void _scheduleExponentialRetry(String serverUrl, String mode, {String? authToken}) {
+    if (_isDeliberateServerShutdown) return;
+
     _retryTimer?.cancel();
     // Exponential backoff: 2^n seconds capped at 32s (1s, 2s, 4s, 8s, 16s, 32s)
     final delaySeconds = math.min(32, math.pow(2, _retryAttempt).toInt());
     _logEvent('RETRY_SCHEDULED', 'Reconnection attempt ${_retryAttempt + 1} scheduled in ${delaySeconds}s (exponential backoff)');
     _retryTimer = Timer(Duration(seconds: delaySeconds), () async {
+      if (_isDeliberateServerShutdown) return;
       _retryAttempt++;
       if (_state != SyncConnectionState.connected && _state != SyncConnectionState.hosting && _activeRole == AppNodeRole.client) {
         _logEvent('RETRY_ATTEMPT', 'Attempting reconnection #$_retryAttempt to $serverUrl');
@@ -249,6 +274,7 @@ class SyncConnectionManager extends ChangeNotifier {
   Future<void> switchRole(AppNodeRole newRole, {String? serverUrl, int port = 3000}) async {
     _retryTimer?.cancel();
     _retryAttempt = 0;
+    _isDeliberateServerShutdown = false;
 
     if (newRole == AppNodeRole.host) {
       await startHostMode(port: port, persist: true);
@@ -282,6 +308,7 @@ class SyncConnectionManager extends ChangeNotifier {
   }
 
   void disconnectManual() {
+    _isDeliberateServerShutdown = true;
     _retryTimer?.cancel();
     _retryAttempt = 0;
     _clientSocket?.disconnect();

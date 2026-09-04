@@ -130,6 +130,7 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 | Smart Doctor Roster & Timetable Scheduler | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented `DoctorWorkingShift`, `DoctorLeaveOverride`, `SmartSlotValidationResult`, `SmartSchedulingEngine`, and `ReceptionQuickBookingModal` with interval intersection math $[T_{\text{start}}, T_{\text{end}})$ and forward-scanning alternative slot recommendations. |
 
 | App-Wide Auto-Connect Bootstrap Lifecycle | Fully implemented | Antigravity | **Independently Audited & Verified**: Implemented SyncConnectionManager.bootstrapAutoConnect() restoring cached NodeProfileConfig on app startup (lib/main.dart & lib/features/sync/domain/services/sync_connection_manager.dart). Automatically binds embedded server daemon on port 9090/3000 if host profile cached, or initiates socket.io client connection with exponential backoff retry (1s, 2s, 4s, 8s, 16s, 32s) if client profile cached. Injected into Clean Architecture GetIt container. Verified on real startup and lifecycle test suite (3/3 passing, 0 analyzer issues). |
+| Server Heartbeat Lifecycle & Graceful Teardown | Fully implemented | Antigravity | **Independently Audited & Verified**: Added SIGINT/SIGTERM process listeners in sync_server/index.js broadcasting server_shutdown packet, gracefully closing all active socket connections (io.disconnectSockets(true)), and terminating the HTTP server. Updated client-side SyncConnectionManager to differentiate deliberate server shutdowns (transitions immediately to Disconnected, auto-reconnect suspended) from accidental connection drops (triggers exponential backoff retry: 1s, 2s, 4s, 8s, 16s, 32s). Verified in live lifecycle test suite (2/2 passing, 0 analyzer issues). |
 
 *Status Legend: Not started | Scaffolded only | Partially implemented | Fully implemented | Implemented + extended beyond original spec.*
 
@@ -139,7 +140,7 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 
 | Feature / Task | Agent / Tool | Description | Started |
 |---|---|---|---|
-| None currently claimed | None | All tasks complete, verified across test suites. Ready for next operational directive. | 2026-09-04T06:16:00Z |
+| None currently claimed | None | All tasks complete, verified across test suites. Ready for next operational directive. | 2026-09-04T06:19:00Z |
 
 ---
 
@@ -217,6 +218,8 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
 ---
 
 ## 8. Change Log
+
+  - **2026-09-04 (Antigravity)**: Completed Task 2/11 (Server Heartbeat Lifecycle & Graceful Teardown): Added SIGINT/SIGTERM handlers in sync_server/index.js broadcasting server_shutdown event, disconnecting sockets with io.disconnectSockets(true), and closing server cleanly. Updated SyncConnectionManager in lib/features/sync/domain/services/sync_connection_manager.dart to handle server_shutdown by transitioning immediately to Disconnected and suspending auto-reconnect, while preserving exponential backoff retries for accidental connection drops. Verified in live test suite (2/2 passing, 0 analyzer issues).
 
   - **2026-09-04 (Antigravity)**: Completed Task 1/11 (App-Wide Auto-Connect Bootstrap Lifecycle): Implemented `SyncConnectionManager.bootstrapAutoConnect()` with cached `NodeProfileConfig` restoration from `SharedPreferences` on app boot before `runApp()`. Binds embedded server daemon (`LanSyncRepository.startHostServer`) for cached host profiles and initiates connection with exponential backoff retry (capped at 32s) for cached client profiles. Integrated with Clean Architecture `GetIt` in `lib/main.dart` with zero provider regression. Verified on real startup lifecycle tests and regression suite (14/14 passing, 0 analyzer issues).
 
