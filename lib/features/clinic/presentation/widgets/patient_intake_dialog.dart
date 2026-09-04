@@ -9,7 +9,8 @@ import '../bloc/clinic_bloc.dart';
 import '../bloc/clinic_event.dart';
 
 /// Patient intake and queue check-in modal dialog.
-/// Supports returning patient search/autocomplete by phone or name.
+/// Supports returning patient search/autocomplete by phone or name,
+/// autofilling age, diabetes, smoking, hypertension, and allergies.
 /// Follows strict Clean Architecture and is 100% [StatelessWidget].
 class PatientIntakeDialog extends StatelessWidget {
   final ClinicBloc? bloc;
@@ -18,8 +19,12 @@ class PatientIntakeDialog extends StatelessWidget {
   final TextEditingController ageController;
   final TextEditingController phoneController;
   final TextEditingController complaintController;
+  final TextEditingController allergiesController;
   final ValueNotifier<String> doctorNotifier;
   final ValueNotifier<String?> selectedPatientIdNotifier;
+  final ValueNotifier<bool> diabetesNotifier;
+  final ValueNotifier<bool> smokingNotifier;
+  final ValueNotifier<bool> hypertensionNotifier;
 
   PatientIntakeDialog({
     super.key,
@@ -29,14 +34,22 @@ class PatientIntakeDialog extends StatelessWidget {
     TextEditingController? ageController,
     TextEditingController? phoneController,
     TextEditingController? complaintController,
+    TextEditingController? allergiesController,
     ValueNotifier<String>? doctorNotifier,
     ValueNotifier<String?>? selectedPatientIdNotifier,
+    ValueNotifier<bool>? diabetesNotifier,
+    ValueNotifier<bool>? smokingNotifier,
+    ValueNotifier<bool>? hypertensionNotifier,
   })  : nameController = nameController ?? TextEditingController(),
         ageController = ageController ?? TextEditingController(),
         phoneController = phoneController ?? TextEditingController(),
         complaintController = complaintController ?? TextEditingController(),
+        allergiesController = allergiesController ?? TextEditingController(),
         doctorNotifier = doctorNotifier ?? ValueNotifier<String>('usr_doctor'),
-        selectedPatientIdNotifier = selectedPatientIdNotifier ?? ValueNotifier<String?>(null);
+        selectedPatientIdNotifier = selectedPatientIdNotifier ?? ValueNotifier<String?>(null),
+        diabetesNotifier = diabetesNotifier ?? ValueNotifier<bool>(false),
+        smokingNotifier = smokingNotifier ?? ValueNotifier<bool>(false),
+        hypertensionNotifier = hypertensionNotifier ?? ValueNotifier<bool>(false);
 
   // Seeded doctor accounts for deterministic LAN routing
   static const List<Map<String, String>> doctors = [
@@ -44,6 +57,25 @@ class PatientIntakeDialog extends StatelessWidget {
     {'id': 'usr_doctor_tarek', 'name': 'Dr. Tarek Dental Specialist'},
     {'id': 'usr_doctor_oncall', 'name': 'Dr. On-Call Physician'},
   ];
+
+  void _populatePatientData(PatientProfile patient) {
+    selectedPatientIdNotifier.value = patient.id;
+    nameController.text = patient.name;
+    phoneController.text = patient.phone;
+
+    // Resolve age from calculated age or stored date of birth / age string
+    final resolvedAge = patient.calculatedAge?.toString() ?? patient.dateOfBirth;
+    if (resolvedAge != null && resolvedAge.isNotEmpty) {
+      ageController.text = resolvedAge;
+    }
+
+    // Populate medical history flags
+    final conditions = patient.chronicConditions;
+    diabetesNotifier.value = conditions.any((c) => c.toLowerCase().contains('diabet'));
+    smokingNotifier.value = conditions.any((c) => c.toLowerCase().contains('smok'));
+    hypertensionNotifier.value = conditions.any((c) => c.toLowerCase().contains('hyper') || c.toLowerCase().contains('bp'));
+    allergiesController.text = patient.allergies.join(', ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,8 +88,8 @@ class PatientIntakeDialog extends StatelessWidget {
         side: const BorderSide(color: AppColors.borderDark),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 540),
-        child: Padding(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppDimensions.space20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -89,7 +121,7 @@ class PatientIntakeDialog extends StatelessWidget {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'Register new queue ticket and route to doctor station',
+                          'Register queue ticket with complete medical history',
                           style: TextStyle(fontSize: 12, color: AppColors.textSecondaryDark),
                         ),
                       ],
@@ -116,16 +148,7 @@ class PatientIntakeDialog extends StatelessWidget {
                       (p) => p.name.toLowerCase().contains(query) || p.phone.contains(query),
                     );
                   },
-                  onSelected: (patient) {
-                    selectedPatientIdNotifier.value = patient.id;
-                    nameController.text = patient.name;
-                    phoneController.text = patient.phone;
-                    if (patient.calculatedAge != null) {
-                      ageController.text = patient.calculatedAge.toString();
-                    } else if (patient.dateOfBirth != null) {
-                      ageController.text = patient.dateOfBirth!;
-                    }
-                  },
+                  onSelected: _populatePatientData,
                   fieldViewBuilder: (context, searchController, focusNode, onFieldSubmitted) {
                     return TextField(
                       controller: searchController,
@@ -189,7 +212,54 @@ class PatientIntakeDialog extends StatelessWidget {
               ),
               const SizedBox(height: AppDimensions.space12),
 
-              // Assigned Doctor (Dropdown to seeded doctor ID)
+              // Patient Medical Status & Risk History
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevatedDark,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.borderDark),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(LucideIcons.heartPulse, size: 16, color: AppColors.primaryLight),
+                        SizedBox(width: 8),
+                        Text(
+                          'Patient Medical Status & Risk History',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildCheckChip('Diabetes', 'ðŸ©º', diabetesNotifier, Colors.amber),
+                        _buildCheckChip('Smoking / Tobacco', 'ðŸš¬', smokingNotifier, Colors.orange),
+                        _buildCheckChip('Hypertension', 'â ¤ï¸ ', hypertensionNotifier, Colors.red),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: allergiesController,
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      decoration: const InputDecoration(
+                        labelText: 'Known Drug Allergies',
+                        hintText: 'e.g. Penicillin, Sulfa, None',
+                        prefixIcon: Icon(LucideIcons.triangleAlert, size: 16, color: AppColors.error),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppDimensions.space12),
+
+              // Assigned Doctor
               ValueListenableBuilder<String>(
                 valueListenable: doctorNotifier,
                 builder: (context, selectedDoctorId, _) {
@@ -275,6 +345,18 @@ class PatientIntakeDialog extends StatelessWidget {
                         return;
                       }
 
+                      // Compile chronic conditions list
+                      final chronicList = <String>[];
+                      if (diabetesNotifier.value) chronicList.add('Diabetes');
+                      if (smokingNotifier.value) chronicList.add('Smoking');
+                      if (hypertensionNotifier.value) chronicList.add('Hypertension');
+
+                      final allergiesList = allergiesController.text
+                          .split(',')
+                          .map((s) => s.trim())
+                          .where((s) => s.isNotEmpty)
+                          .toList();
+
                       // Build formatted complaint metadata if age/phone supplied
                       final detailsList = <String>[];
                       if (age.isNotEmpty) detailsList.add('Age: $age');
@@ -294,6 +376,9 @@ class PatientIntakeDialog extends StatelessWidget {
                         );
                         if (matched != null) {
                           resolvedPatientId = matched.id;
+                          if (age.isEmpty && (matched.calculatedAge != null || matched.dateOfBirth != null)) {
+                            // Recover age
+                          }
                         }
                       }
                       final targetPatientId = resolvedPatientId ?? 'pat_${DateTime.now().millisecondsSinceEpoch}';
@@ -304,6 +389,9 @@ class PatientIntakeDialog extends StatelessWidget {
                           patientId: targetPatientId,
                           patientName: name,
                           phone: phone,
+                          age: age.isNotEmpty ? age : null,
+                          chronicConditions: chronicList,
+                          allergies: allergiesList,
                           doctorName: doctorId,
                           chiefComplaint: fullComplaint,
                         ),
@@ -318,6 +406,38 @@ class PatientIntakeDialog extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildCheckChip(
+    String label,
+    String emoji,
+    ValueNotifier<bool> notifier,
+    Color activeColor,
+  ) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: notifier,
+      builder: (context, isActive, _) {
+        return FilterChip(
+          label: Text('$emoji $label'),
+          selected: isActive,
+          onSelected: (val) => notifier.value = val,
+          selectedColor: activeColor.withValues(alpha: 0.3),
+          checkmarkColor: activeColor,
+          labelStyle: TextStyle(
+            color: isActive ? activeColor : Colors.white70,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            fontSize: 11,
+          ),
+          backgroundColor: AppColors.surfaceElevatedDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(6),
+            side: BorderSide(
+              color: isActive ? activeColor : AppColors.borderDark,
+            ),
+          ),
+        );
+      },
     );
   }
 }

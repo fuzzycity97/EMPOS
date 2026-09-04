@@ -1,5 +1,6 @@
-import 'package:equatable/equatable.dart';
+﻿import 'package:equatable/equatable.dart';
 import '../../domain/entities/clinic_visit.dart';
+import '../../domain/entities/patient_profile.dart';
 import '../../domain/entities/tooth_chart_entry.dart';
 
 abstract class ClinicEvent extends Equatable {
@@ -22,6 +23,9 @@ class CheckInPatientEvent extends ClinicEvent {
   final String patientId;
   final String patientName;
   final String phone;
+  final String? age;
+  final List<String> chronicConditions;
+  final List<String> allergies;
   final String doctorName;
   final String chiefComplaint;
   final String roomNumber;
@@ -30,13 +34,35 @@ class CheckInPatientEvent extends ClinicEvent {
     required this.patientId,
     required this.patientName,
     this.phone = '',
+    this.age,
+    this.chronicConditions = const [],
+    this.allergies = const [],
     required this.doctorName,
     required this.chiefComplaint,
     this.roomNumber = 'Room 1',
   });
 
   @override
-  List<Object?> get props => [patientId, patientName, phone, doctorName, chiefComplaint, roomNumber];
+  List<Object?> get props => [
+        patientId,
+        patientName,
+        phone,
+        age,
+        chronicConditions,
+        allergies,
+        doctorName,
+        chiefComplaint,
+        roomNumber,
+      ];
+}
+
+class UpdatePatientProfileEvent extends ClinicEvent {
+  final PatientProfile patient;
+
+  const UpdatePatientProfileEvent(this.patient);
+
+  @override
+  List<Object?> get props => [patient];
 }
 
 class UpdateVisitStatusEvent extends ClinicEvent {
@@ -145,4 +171,3 @@ class UpdateVisitVitalsEvent extends ClinicEvent {
 
 /// Alias for CompleteVisitEvent in examination workflows
 typedef CompleteExaminationEvent = CompleteVisitEvent;
-

@@ -1,7 +1,8 @@
-class MessageRoutes {
+﻿class MessageRoutes {
   // Clinical & Medical Routes
   static const String patientCheckedIn = 'patient.checked_in';
   static const String patientVitalsUpdated = 'patient.vitals_updated';
+  static const String patientUpdated = 'patient.updated';
   static const String visitStarted = 'visit.started';
   static const String visitCompleted = 'visit.completed';
   static const String toothChartUpdated = 'tooth_chart.updated';
@@ -35,6 +36,7 @@ class MessageRoutes {
   static const List<String> allRoutes = [
     patientCheckedIn,
     patientVitalsUpdated,
+    patientUpdated,
     visitStarted,
     visitCompleted,
     toothChartUpdated,

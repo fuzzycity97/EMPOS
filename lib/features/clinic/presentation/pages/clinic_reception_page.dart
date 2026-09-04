@@ -1,3 +1,4 @@
+﻿import '../widgets/patient_medical_history_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -34,15 +35,15 @@ class ClinicReceptionPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── TOP KPI BANNER (Granular BlocBuilder) ─────────────────────────
+            // â”€â”€ TOP KPI BANNER (Granular BlocBuilder) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _buildKpiBanner(context, isDark),
             const SizedBox(height: 20),
 
-            // ── TAB HEADER & CHECK-IN BUTTON ─────────────────────────────────
+            // â”€â”€ TAB HEADER & CHECK-IN BUTTON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _buildTabHeaderAndActions(context, isDark, selectedTabNotifier),
             const SizedBox(height: 16),
 
-            // ── TAB CONTENT LIST VIEW (Granular BlocBuilder) ─────────────────
+            // â”€â”€ TAB CONTENT LIST VIEW (Granular BlocBuilder) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             Expanded(
               child: ValueListenableBuilder<int>(
                 valueListenable: selectedTabNotifier,
@@ -329,7 +330,7 @@ class ClinicReceptionPage extends StatelessWidget {
               ),
             ),
             title: Text(visit.patientName, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('Doctor: ${formatDoctorName(visit.doctorName)} • Complaint: ${visit.chiefComplaint}'),
+            subtitle: Text('Doctor: ${formatDoctorName(visit.doctorName)} â€¢ Complaint: ${visit.chiefComplaint}'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -413,11 +414,11 @@ class ClinicReceptionPage extends StatelessWidget {
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
-                      Text('Doctor: ${formatDoctorName(visit.doctorName)} • Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}'),
+                      Text('Doctor: ${formatDoctorName(visit.doctorName)} â€¢ Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}'),
                       const SizedBox(height: 6),
                       if (patient?.insuranceProvider != null)
                         Text(
-                          'Insurance: ${patient!.insuranceProvider} • Copay Split: ${(copayRatio * 100).toInt()}% Patient / ${((1 - copayRatio) * 100).toInt()}% Carrier',
+                          'Insurance: ${patient!.insuranceProvider} â€¢ Copay Split: ${(copayRatio * 100).toInt()}% Patient / ${((1 - copayRatio) * 100).toInt()}% Carrier',
                           style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
                         ),
                     ],
@@ -512,6 +513,9 @@ class ClinicReceptionPage extends StatelessWidget {
     }
 
     final formattedTime = DateFormat('hh:mm a').format(visit.checkInTime);
+    final ageVal = patient?.calculatedAge?.toString() ??
+        RegExp(r'Age:\s*(\d+)').firstMatch(visit.chiefComplaint)?.group(1) ??
+        patient?.dateOfBirth;
 
     showDialog(
       context: context,
@@ -524,13 +528,16 @@ class ClinicReceptionPage extends StatelessWidget {
           ],
         ),
         content: SizedBox(
-          width: 420,
+          width: 440,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildFileRow('Patient ID:', visit.patientId),
               _buildFileRow('Phone:', patient?.phone.isNotEmpty == true ? patient!.phone : 'Not recorded'),
+              _buildFileRow('Age:', ageVal != null ? '$ageVal years' : 'Not recorded'),
+              _buildFileRow('Medical Status / Risk:', (patient?.chronicConditions.isNotEmpty == true) ? patient!.chronicConditions.join(', ') : 'None reported'),
+              _buildFileRow('Known Allergies:', (patient?.allergies.isNotEmpty == true) ? patient!.allergies.join(', ') : 'None reported'),
               _buildFileRow('Assigned Doctor:', formatDoctorName(visit.doctorName)),
               _buildFileRow('Room / Station:', visit.roomNumber),
               _buildFileRow('Chief Complaint:', visit.chiefComplaint.isNotEmpty ? visit.chiefComplaint : 'Standard checkup'),
@@ -542,6 +549,27 @@ class ClinicReceptionPage extends StatelessWidget {
           ),
         ),
         actions: [
+          OutlinedButton.icon(
+            icon: const Icon(Icons.edit_note, size: 16),
+            label: const Text('Edit Medical History'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              showDialog(
+                context: context,
+                builder: (_) => PatientMedicalHistoryDialog(
+                  patient: patient ??
+                      PatientProfile(
+                        id: visit.patientId,
+                        name: visit.patientName,
+                        phone: '',
+                        createdAt: DateTime.now(),
+                      ),
+                  bloc: bloc,
+                  isDark: Theme.of(context).brightness == Brightness.dark,
+                ),
+              );
+            },
+          ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Close'),

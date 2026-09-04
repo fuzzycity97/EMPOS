@@ -1,3 +1,4 @@
+﻿import '../widgets/patient_medical_history_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -223,22 +224,46 @@ class DoctorStationPage extends StatelessWidget {
                                                     ),
                                                 ],
                                               ),
-                                              trailing: Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: visit.status == ClinicVisitStatus.inExamination
-                                                      ? Colors.amber.withValues(alpha: 0.2)
-                                                      : Colors.blue.withValues(alpha: 0.2),
-                                                  borderRadius: BorderRadius.circular(6),
-                                                ),
-                                                child: Text(
-                                                  visit.status == ClinicVisitStatus.inExamination ? 'In Room' : 'Waiting',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: visit.status == ClinicVisitStatus.inExamination ? Colors.amber[800] : Colors.blue,
+                                              trailing: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  if (visit.status == ClinicVisitStatus.waiting) ...[
+                                                    ElevatedButton(
+                                                      style: ElevatedButton.styleFrom(
+                                                        backgroundColor: Colors.amber[800],
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                                        minimumSize: const Size(44, 24),
+                                                      ),
+                                                      onPressed: () {
+                                                        bloc.add(
+                                                          UpdateVisitStatusEvent(
+                                                            visitId: visit.id,
+                                                            status: ClinicVisitStatus.inExamination,
+                                                          ),
+                                                        );
+                                                      },
+                                                      child: const Text('Call', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                  ],
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    decoration: BoxDecoration(
+                                                      color: visit.status == ClinicVisitStatus.inExamination
+                                                          ? Colors.amber.withValues(alpha: 0.2)
+                                                          : Colors.blue.withValues(alpha: 0.2),
+                                                      borderRadius: BorderRadius.circular(6),
+                                                    ),
+                                                    child: Text(
+                                                      visit.status == ClinicVisitStatus.inExamination ? 'In Room' : 'Waiting',
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: visit.status == ClinicVisitStatus.inExamination ? Colors.amber[800] : Colors.blue,
+                                                      ),
+                                                    ),
                                                   ),
-                                                ),
+                                                ],
                                               ),
                                             ),
                                           );
@@ -400,7 +425,7 @@ class DoctorStationPage extends StatelessWidget {
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    '⚠️ DISCONNECTED FROM LAN SERVER — Offline Mode (Local changes saved, will sync upon reconnect)',
+                    'âš ï¸ DISCONNECTED FROM LAN SERVER â€” Offline Mode (Local changes saved, will sync upon reconnect)',
                     style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
@@ -465,8 +490,8 @@ class DoctorStationPage extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     isHost
-                        ? '● LAN Sync Hub Online (Host Station)'
-                        : '● Connected to LAN Server (${lanState.address}:${lanState.port})',
+                        ? 'â— LAN Sync Hub Online (Host Station)'
+                        : 'â— Connected to LAN Server (${lanState.address}:${lanState.port})',
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
                   ),
                 ],
@@ -539,6 +564,47 @@ class DoctorStationPage extends StatelessWidget {
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (patient?.chronicConditions.isNotEmpty == true || patient?.allergies.isNotEmpty == true) ...[
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        for (final cond in patient?.chronicConditions ?? <String>[])
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: cond.toLowerCase().contains('diabet') || cond.toLowerCase().contains('smok')
+                                  ? Colors.amber.withValues(alpha: 0.2)
+                                  : Colors.purple.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              cond.toLowerCase().contains('smok') ? '🚬 $cond' : (cond.toLowerCase().contains('diabet') ? '🩺 $cond' : cond),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: cond.toLowerCase().contains('diabet') || cond.toLowerCase().contains('smok')
+                                    ? Colors.amber[800]
+                                    : Colors.purple[300],
+                              ),
+                            ),
+                          ),
+                        for (final allergy in patient?.allergies ?? <String>[])
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '⚠️ Allergy: $allergy',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
               Wrap(
@@ -546,6 +612,24 @@ class DoctorStationPage extends StatelessWidget {
                 runSpacing: 8,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
+                  if (visit.status == ClinicVisitStatus.waiting)
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.amber[800],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      ),
+                      icon: const Icon(Icons.volume_up, size: 16),
+                      label: const Text('Call Patient', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      onPressed: () {
+                        bloc.add(
+                          UpdateVisitStatusEvent(
+                            visitId: visit.id,
+                            status: ClinicVisitStatus.inExamination,
+                          ),
+                        );
+                      },
+                    ),
                   if (patient?.insuranceProvider != null) ...[
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -560,6 +644,27 @@ class DoctorStationPage extends StatelessWidget {
                       ),
                     ),
                   ],
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    ),
+                    icon: const Icon(Icons.favorite_border, size: 16),
+                    label: const Text('Medical History', style: TextStyle(fontSize: 12)),
+                    onPressed: () => showDialog(
+                      context: context,
+                      builder: (_) => PatientMedicalHistoryDialog(
+                        patient: patient ??
+                            PatientProfile(
+                              id: visit.patientId,
+                              name: visit.patientName,
+                              phone: '',
+                              createdAt: DateTime.now(),
+                            ),
+                        bloc: bloc,
+                        isDark: isDark,
+                      ),
+                    ),
+                  ),
                   OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -681,7 +786,7 @@ class DoctorStationPage extends StatelessWidget {
                       children: [
                         const Text('TOTAL SETTLED', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 2),
-                        Text('E£ ${totalPaid.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green)),
+                        Text('EÂ£ ${totalPaid.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green)),
                       ],
                     ),
                     Container(height: 24, width: 1, color: Colors.white24),
@@ -689,7 +794,7 @@ class DoctorStationPage extends StatelessWidget {
                       children: [
                         const Text('UNPAID / DUE', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 2),
-                        Text('E£ ${totalPending.toStringAsFixed(2)}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: totalPending > 0 ? Colors.amber : Colors.grey)),
+                        Text('EÂ£ ${totalPending.toStringAsFixed(2)}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: totalPending > 0 ? Colors.amber : Colors.grey)),
                       ],
                     ),
                   ],
@@ -716,7 +821,7 @@ class DoctorStationPage extends StatelessWidget {
                         separatorBuilder: (context, index) => const SizedBox(height: 10),
                         itemBuilder: (context, idx) {
                           final hVisit = historicalVisits[idx];
-                          final dateStr = DateFormat('yyyy-MM-dd • hh:mm a').format(hVisit.checkInTime);
+                          final dateStr = DateFormat('yyyy-MM-dd â€¢ hh:mm a').format(hVisit.checkInTime);
                           final treatedTeeth = hVisit.toothChart.where((t) => t.state != ToothState.healthy).toList();
 
                           return InkWell(
@@ -815,7 +920,7 @@ class DoctorStationPage extends StatelessWidget {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
-                                        'Fee: E£ ${hVisit.totalFee.toStringAsFixed(2)} • Copay Paid: E£ ${hVisit.patientCopay.toStringAsFixed(2)}',
+                                        'Fee: EÂ£ ${hVisit.totalFee.toStringAsFixed(2)} â€¢ Copay Paid: EÂ£ ${hVisit.patientCopay.toStringAsFixed(2)}',
                                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
                                       ),
                                       const Text(

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/network/lan_sync/data/message_routes.dart';
@@ -64,6 +64,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
   }) : super(ClinicInitial()) {
     on<LoadClinicQueueEvent>(_onLoadClinicQueue);
     on<CheckInPatientEvent>(_onCheckInPatient);
+    on<UpdatePatientProfileEvent>(_onUpdatePatientProfile);
     on<UpdateVisitStatusEvent>(_onUpdateVisitStatus);
     on<CompleteVisitEvent>(_onCompleteVisit);
     on<ProcessVisitPaymentEvent>(_onProcessVisitPayment);
@@ -326,13 +327,13 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           type == MessageRoutes.visitCompleted ||
           type == MessageRoutes.patientCheckedIn ||
           type == MessageRoutes.patientVitalsUpdated ||
-          type == MessageRoutes.visitStarted) {
+          type == MessageRoutes.visitStarted || type == MessageRoutes.patientUpdated) {
         final payload = envelope.payload;
 
         if (payload != null) {
           // 1. Extract and explicitly insert patient entity into local DB
           PatientProfile? extractedPatient;
-          if (payload['patient'] != null) {
+          if (payload['id'] != null && payload['name'] != null) { try { final pm = PatientProfileModel.fromJson(payload); extractedPatient = pm; await _savePatientLocally(pm); } catch (_) {} } else if (payload['patient'] != null) {
             try {
               Map<String, dynamic>? patientMap;
               if (payload['patient'] is Map) {
@@ -527,6 +528,32 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
     );
   }
 
+  Future<void> _onUpdatePatientProfile(
+    UpdatePatientProfileEvent event,
+    Emitter<ClinicState> emit,
+  ) async {
+    await _savePatientLocally(event.patient);
+
+    final envelope = SyncEnvelope.create(
+      type: MessageRoutes.patientUpdated,
+      scope: 'clinic',
+      senderId: lanSyncRepository?.isHost == true ? 'hub_host' : 'clinic_station',
+      senderRole: 'clinic',
+      payload: PatientProfileModel.fromEntity(event.patient).toJson(),
+    );
+    await lanSyncRepository?.broadcast(envelope);
+
+    if (state is ClinicLoaded) {
+      final current = state as ClinicLoaded;
+      final updatedList = current.patients.map((p) => p.id == event.patient.id ? event.patient : p).toList();
+      if (!updatedList.any((p) => p.id == event.patient.id)) {
+        updatedList.add(event.patient);
+      }
+      emit(current.copyWith(patients: updatedList));
+    } else {
+      add(const LoadClinicQueueEvent());
+    }
+  }
   Future<void> _onUpdateVisitStatus(
     UpdateVisitStatusEvent event,
     Emitter<ClinicState> emit,
