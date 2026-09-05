@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../domain/entities/tooth_chart_entry.dart';
 
 class ToothEditorSheet extends StatelessWidget {
@@ -195,7 +196,7 @@ class _ToothEditorSheetModal extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(LucideIcons.x, size: 18),
                     onPressed: onCancel,
                     tooltip: 'Close',
                   ),
@@ -549,7 +550,7 @@ class _ToothEditorSheetModal extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   FilledButton.icon(
-                    icon: const Icon(Icons.save_outlined, size: 18),
+                    icon: const Icon(LucideIcons.save, size: 18),
                     label: const Text('Save Tooth Record'),
                     onPressed: () {
                       final newHistory = List<ToothHistoryEntry>.from(entry.history);
@@ -621,29 +622,29 @@ class _ToothEditorSheetModal extends StatelessWidget {
   static IconData _getStateIcon(ToothState state) {
     switch (state) {
       case ToothState.healthy:
-        return Icons.check_circle_outline;
+        return LucideIcons.circleCheck;
       case ToothState.decayed:
-        return Icons.warning_amber_rounded;
+        return LucideIcons.triangleAlert;
       case ToothState.filled:
-        return Icons.build_circle_outlined;
+        return LucideIcons.wrench;
       case ToothState.crown:
-        return Icons.star_border_rounded;
+        return LucideIcons.crown;
       case ToothState.rootCanal:
-        return Icons.electric_bolt_outlined;
+        return LucideIcons.zap;
       case ToothState.missing:
-        return Icons.remove_circle_outline;
+        return LucideIcons.circleMinus;
       case ToothState.extracted:
-        return Icons.delete_outline;
+        return LucideIcons.trash2;
       case ToothState.impacted:
-        return Icons.anchor_outlined;
+        return LucideIcons.anchor;
       case ToothState.bridge:
-        return Icons.cable_outlined;
+        return LucideIcons.link;
       case ToothState.implant:
-        return Icons.hardware_outlined;
+        return LucideIcons.hammer;
       case ToothState.fractured:
-        return Icons.flash_on_outlined;
+        return LucideIcons.activity;
       case ToothState.specialCase:
-        return Icons.auto_awesome_outlined;
+        return LucideIcons.sparkles;
     }
   }
 

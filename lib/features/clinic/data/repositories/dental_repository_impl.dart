@@ -1,4 +1,4 @@
-﻿import 'package:dartz/dartz.dart';
+import 'package:dartz/dartz.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/dental_treatment_plan.dart';
@@ -35,10 +35,16 @@ class DentalRepositoryImpl implements DentalRepository {
         isPediatric = ageInDays < (12 * 365.25);
       }
 
+      try {
+        final savedEntries = await localDataSource.getToothChart(patientId);
+        if (savedEntries.isNotEmpty) {
+          return Right(savedEntries);
+        }
+      } catch (_) {}
+
       // 1. Generate baseline chart (Pediatric vs Adult)
-      List<ToothChartEntry> baseTeeth;
       if (isPediatric) {
-        baseTeeth = ToothChartEntry.primaryToothCodes.asMap().entries.map((entry) {
+        final primaryTeeth = ToothChartEntry.primaryToothCodes.asMap().entries.map((entry) {
           return ToothChartEntry(
             toothNumber: entry.key + 1,
             toothCode: entry.value,
@@ -46,58 +52,19 @@ class DentalRepositoryImpl implements DentalRepository {
             state: ToothState.healthy,
           );
         }).toList();
-      } else {
-        baseTeeth = List.generate(
-          32,
-          (index) => ToothChartEntry(
-            toothNumber: index + 1,
-            toothCode: (index + 1).toString(),
-            isDeciduous: false,
-            state: ToothState.healthy,
-          ),
-        );
+        return Right(primaryTeeth);
       }
 
-      final Map<String, ToothChartEntry> cumulativeMap = {
-        for (final t in baseTeeth) t.effectiveToothCode.toUpperCase(): t,
-      };
-
-      // 2. Cumulative merge: Replay all historical visits for this patient chronologically
-      try {
-        final allVisits = await localDataSource.getVisits();
-        final patientVisits = allVisits.where((v) => v.patientId == patientId).toList();
-        patientVisits.sort((a, b) => a.checkInTime.compareTo(b.checkInTime));
-
-        for (final visit in patientVisits) {
-          for (final entry in visit.toothChart) {
-            final code = entry.effectiveToothCode.toUpperCase();
-            final existing = cumulativeMap[code];
-            if (existing != null) {
-              cumulativeMap[code] = _mergeToothEntries(existing, entry);
-            } else {
-              cumulativeMap[code] = entry;
-            }
-          }
-        }
-      } catch (_) {}
-
-      // 3. Cumulative merge: Layer in explicitly saved tooth chart entries
-      try {
-        final savedEntries = await localDataSource.getToothChart(patientId);
-        for (final entry in savedEntries) {
-          final code = entry.effectiveToothCode.toUpperCase();
-          final existing = cumulativeMap[code];
-          if (existing != null) {
-            cumulativeMap[code] = _mergeToothEntries(existing, entry);
-          } else {
-            cumulativeMap[code] = entry;
-          }
-        }
-      } catch (_) {}
-
-      final result = cumulativeMap.values.toList();
-      result.sort((a, b) => a.toothNumber.compareTo(b.toothNumber));
-      return Right(result);
+      final adultTeeth = List.generate(
+        32,
+        (index) => ToothChartEntry(
+          toothNumber: index + 1,
+          toothCode: (index + 1).toString(),
+          isDeciduous: false,
+          state: ToothState.healthy,
+        ),
+      );
+      return Right(adultTeeth);
     } on CacheException catch (e) {
       return Left(CacheFailure(message: e.message));
     } catch (e) {

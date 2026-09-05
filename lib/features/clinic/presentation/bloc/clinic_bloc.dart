@@ -1,9 +1,10 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/network/lan_sync/data/message_routes.dart';
 import '../../../../core/network/lan_sync/domain/entities/sync_envelope.dart';
 import '../../../../core/network/lan_sync/domain/repositories/lan_sync_repository.dart';
+import '../../../customers/data/models/customer_ledger_entry_model.dart';
 import '../../../customers/data/models/customer_model.dart';
 import '../../../customers/domain/entities/customer.dart';
 import '../../../customers/domain/repositories/customer_repository.dart';
@@ -70,6 +71,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
     on<ProcessVisitPaymentEvent>(_onProcessVisitPayment);
     on<UpdateVisitVitalsEvent>(_onUpdateVisitVitals);
     on<LoadPatientToothChartEvent>(_onLoadPatientToothChart);
+    on<ResetToothChartEvent>(_onResetToothChart);
     on<UpdateToothChartEntryEvent>(_onUpdateToothChartEntry);
     on<SaveToothChartEvent>(_onSaveToothChart);
     on<SearchClinicPatientsEvent>(_onSearchClinicPatients);
@@ -86,14 +88,31 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
 
     if (customerRepository != null) {
       try {
+        final custRes = await customerRepository!.getCustomerById(patient.id);
+        Customer? existingCust;
+        custRes.fold((_) {}, (c) => existingCust = c);
+        if (existingCust == null && patient.phone.isNotEmpty) {
+          final allCustsRes = await customerRepository!.getCustomers();
+          final allCusts = allCustsRes.getOrElse(() => []);
+          existingCust = allCusts.cast<Customer?>().firstWhere(
+            (c) => c?.phone.trim() == patient.phone.trim(),
+            orElse: () => null,
+          );
+        }
+
         final customer = Customer(
-          id: patient.id,
+          id: existingCust?.id ?? patient.id,
           name: patient.name,
           phone: patient.phone,
-          address: null,
-          createdAt: patient.createdAt,
+          address: existingCust?.address,
+          totalDebt: existingCust?.totalDebt ?? 0.0,
+          loyaltyPoints: existingCust?.loyaltyPoints ?? 0,
+          notes: existingCust?.notes,
+          createdAt: existingCust?.createdAt ?? patient.createdAt,
         );
         await customerRepository!.saveCustomer(customer);
+        final ledgerRes = await customerRepository!.getCustomerLedger(customer.id);
+        final ledgerEntries = ledgerRes.getOrElse(() => []);
         final envelope = SyncEnvelope.create(
           type: MessageRoutes.customerUpdated,
           scope: 'crm',
@@ -101,6 +120,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           senderRole: 'clinic',
           payload: {
             'customer': CustomerModel.fromEntity(customer).toJson(),
+            'ledgerEntries': ledgerEntries.map((e) => CustomerLedgerEntryModel.fromEntity(e).toJson()).toList(),
           },
         );
         await lanSyncRepository?.broadcast(envelope);
@@ -162,14 +182,20 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         } catch (_) {}
       }
 
-      // Collect all CRM customers to guarantee complete CRM reconciliation
+      // Collect all CRM customers and their ledger entries to guarantee complete CRM reconciliation
       final List<Map<String, dynamic>> customersJson = [];
+      final List<Map<String, dynamic>> ledgerEntriesJson = [];
       if (customerRepository != null) {
         try {
           final custRes = await customerRepository!.getCustomers();
           final allCusts = custRes.getOrElse(() => []);
           for (final c in allCusts) {
             customersJson.add(CustomerModel.fromEntity(c).toJson());
+            final ledgerRes = await customerRepository!.getCustomerLedger(c.id);
+            final entries = ledgerRes.getOrElse(() => []);
+            for (final e in entries) {
+              ledgerEntriesJson.add(CustomerLedgerEntryModel.fromEntity(e).toJson());
+            }
           }
         } catch (_) {}
       }
@@ -183,6 +209,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           'visits': visitsJson,
           'patients': patientsJson,
           'customers': customersJson,
+          'customerLedgerEntries': ledgerEntriesJson,
         },
       );
 
@@ -273,7 +300,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         }
       }
 
-      // 3. Batch upsert full CRM customers directory
+      // 3. Batch upsert full CRM customers directory and ledger entries
       if (payload['customers'] != null && payload['customers'] is List && customerRepository != null) {
         final customersList = payload['customers'] as List;
         for (final item in customersList) {
@@ -289,6 +316,27 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
               await customerRepository!.saveCustomer(customerModel);
             }
           } catch (_) {}
+        }
+      }
+
+      if (payload['customerLedgerEntries'] != null && payload['customerLedgerEntries'] is List && customerRepository != null) {
+        final ledgerList = payload['customerLedgerEntries'] as List;
+        final List<CustomerLedgerEntryModel> ledgerModels = [];
+        for (final item in ledgerList) {
+          try {
+            Map<String, dynamic>? entryMap;
+            if (item is Map) {
+              entryMap = Map<String, dynamic>.from(item);
+            } else if (item is String) {
+              entryMap = Map<String, dynamic>.from(jsonDecode(item) as Map);
+            }
+            if (entryMap != null) {
+              ledgerModels.add(CustomerLedgerEntryModel.fromJson(entryMap));
+            }
+          } catch (_) {}
+        }
+        if (ledgerModels.isNotEmpty) {
+          await customerRepository!.saveLedgerEntries(ledgerModels);
         }
       }
 
@@ -309,17 +357,40 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         await _handleSyncFullStateResponse(envelope);
       } else if (type == MessageRoutes.customerUpdated) {
         final payload = envelope.payload;
-        if (payload != null && payload['customer'] != null && customerRepository != null) {
+        if (payload != null && customerRepository != null) {
           try {
-            Map<String, dynamic>? customerMap;
-            if (payload['customer'] is Map) {
-              customerMap = Map<String, dynamic>.from(payload['customer'] as Map);
-            } else if (payload['customer'] is String) {
-              customerMap = Map<String, dynamic>.from(jsonDecode(payload['customer'] as String) as Map);
+            if (payload['ledgerEntries'] is List) {
+              final ledgerList = payload['ledgerEntries'] as List;
+              final List<CustomerLedgerEntryModel> ledgerModels = [];
+              for (final item in ledgerList) {
+                try {
+                  Map<String, dynamic>? entryMap;
+                  if (item is Map) {
+                    entryMap = Map<String, dynamic>.from(item);
+                  } else if (item is String) {
+                    entryMap = Map<String, dynamic>.from(jsonDecode(item) as Map);
+                  }
+                  if (entryMap != null) {
+                    ledgerModels.add(CustomerLedgerEntryModel.fromJson(entryMap));
+                  }
+                } catch (_) {}
+              }
+              if (ledgerModels.isNotEmpty) {
+                await customerRepository!.saveLedgerEntries(ledgerModels);
+              }
             }
-            if (customerMap != null) {
-              final customerModel = CustomerModel.fromJson(customerMap);
-              await customerRepository!.saveCustomer(customerModel);
+
+            if (payload['customer'] != null) {
+              Map<String, dynamic>? customerMap;
+              if (payload['customer'] is Map) {
+                customerMap = Map<String, dynamic>.from(payload['customer'] as Map);
+              } else if (payload['customer'] is String) {
+                customerMap = Map<String, dynamic>.from(jsonDecode(payload['customer'] as String) as Map);
+              }
+              if (customerMap != null) {
+                final customerModel = CustomerModel.fromJson(customerMap);
+                await customerRepository!.saveCustomer(customerModel);
+              }
             }
           } catch (_) {}
         }
@@ -474,16 +545,28 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           (p) => p?.id == event.patientId,
           orElse: () => null,
         );
+        final rawAge = event.age?.trim();
+        final effectiveAge = (rawAge != null && rawAge.isNotEmpty) ? rawAge : null;
+
         if (patient == null) {
           patient = PatientProfile(
             id: event.patientId,
             name: event.patientName,
             phone: event.phone,
+            dateOfBirth: effectiveAge,
+            chronicConditions: event.chronicConditions,
+            allergies: event.allergies,
             createdAt: DateTime.now(),
           );
           await _savePatientLocally(patient);
-        } else if (event.phone.isNotEmpty && patient.phone != event.phone) {
-          patient = patient.copyWith(phone: event.phone, name: event.patientName);
+        } else {
+          patient = patient.copyWith(
+            name: event.patientName,
+            phone: event.phone.isNotEmpty ? event.phone : patient.phone,
+            dateOfBirth: effectiveAge ?? patient.dateOfBirth,
+            chronicConditions: event.chronicConditions.isNotEmpty ? event.chronicConditions : patient.chronicConditions,
+            allergies: event.allergies.isNotEmpty ? event.allergies : patient.allergies,
+          );
           await _savePatientLocally(patient);
         }
 
@@ -762,6 +845,8 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           }
 
           final updatedCustRes = await customerRepository!.getCustomerById(targetCustId);
+          final ledgerRes = await customerRepository!.getCustomerLedger(targetCustId);
+          final ledgerEntries = ledgerRes.getOrElse(() => []);
           updatedCustRes.fold((_) {}, (savedCust) {
             final crmEnvelope = SyncEnvelope.create(
               type: MessageRoutes.customerUpdated,
@@ -770,6 +855,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
               senderRole: 'receptionist',
               payload: {
                 'customer': CustomerModel.fromEntity(savedCust).toJson(),
+                'ledgerEntries': ledgerEntries.map((e) => CustomerLedgerEntryModel.fromEntity(e).toJson()).toList(),
               },
             );
             lanSyncRepository?.broadcast(crmEnvelope);
@@ -903,6 +989,39 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         }
       },
     );
+  }
+
+  void _onResetToothChart(
+    ResetToothChartEvent event,
+    Emitter<ClinicState> emit,
+  ) {
+    if (state is ClinicLoaded) {
+      final current = state as ClinicLoaded;
+      List<ToothChartEntry> baseTeeth;
+      if (event.initialEntries != null && event.initialEntries!.isNotEmpty) {
+        baseTeeth = List<ToothChartEntry>.from(event.initialEntries!);
+      } else if (event.isPediatric) {
+        baseTeeth = ToothChartEntry.primaryToothCodes.asMap().entries.map((entry) {
+          return ToothChartEntry(
+            toothNumber: entry.key + 1,
+            toothCode: entry.value,
+            isDeciduous: true,
+            state: ToothState.healthy,
+          );
+        }).toList();
+      } else {
+        baseTeeth = List.generate(
+          32,
+          (index) => ToothChartEntry(
+            toothNumber: index + 1,
+            toothCode: (index + 1).toString(),
+            isDeciduous: false,
+            state: ToothState.healthy,
+          ),
+        );
+      }
+      emit(current.copyWith(activeToothChart: baseTeeth));
+    }
   }
 
   void _onUpdateToothChartEntry(

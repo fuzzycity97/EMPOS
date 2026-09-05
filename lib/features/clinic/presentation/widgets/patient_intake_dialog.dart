@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -238,9 +238,9 @@ class PatientIntakeDialog extends StatelessWidget {
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _buildCheckChip('Diabetes', 'ðŸ©º', diabetesNotifier, Colors.amber),
-                        _buildCheckChip('Smoking / Tobacco', 'ðŸš¬', smokingNotifier, Colors.orange),
-                        _buildCheckChip('Hypertension', 'â ¤ï¸ ', hypertensionNotifier, Colors.red),
+                        _buildCheckChip('Diabetes', LucideIcons.activity, diabetesNotifier, Colors.amber),
+                        _buildCheckChip('Smoking / Tobacco', LucideIcons.cigarette, smokingNotifier, Colors.orange),
+                        _buildCheckChip('Hypertension', LucideIcons.heartPulse, hypertensionNotifier, Colors.red),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -411,7 +411,7 @@ class PatientIntakeDialog extends StatelessWidget {
 
   Widget _buildCheckChip(
     String label,
-    String emoji,
+    IconData icon,
     ValueNotifier<bool> notifier,
     Color activeColor,
   ) {
@@ -419,7 +419,8 @@ class PatientIntakeDialog extends StatelessWidget {
       valueListenable: notifier,
       builder: (context, isActive, _) {
         return FilterChip(
-          label: Text('$emoji $label'),
+          avatar: Icon(icon, size: 14, color: isActive ? activeColor : Colors.white70),
+          label: Text(label),
           selected: isActive,
           onSelected: (val) => notifier.value = val,
           selectedColor: activeColor.withValues(alpha: 0.3),

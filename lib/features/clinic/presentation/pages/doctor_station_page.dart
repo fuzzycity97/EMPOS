@@ -1,4 +1,4 @@
-﻿import '../widgets/patient_medical_history_dialog.dart';
+import '../widgets/patient_medical_history_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -87,7 +87,17 @@ class DoctorStationPage extends StatelessWidget {
               prescriptionController.clear();
               totalFeeController.clear();
               if (blueprint.isDental) {
-                bloc.add(LoadPatientToothChartEvent(activeVisit.patientId));
+                final patientForAge = loadedState.patients.cast<PatientProfile?>().firstWhere(
+                  (p) => p?.id == activeVisit.patientId,
+                  orElse: () => null,
+                );
+                final age = patientForAge?.calculatedAge;
+                final isPed = age != null && age < 12;
+                if (activeVisit.toothChart.isNotEmpty) {
+                  bloc.add(ResetToothChartEvent(initialEntries: activeVisit.toothChart));
+                } else {
+                  bloc.add(ResetToothChartEvent(isPediatric: isPed));
+                }
               }
             } else if (activeVisit == null && loadedVisitIdNotifier.value != null) {
               loadedVisitIdNotifier.value = null;
@@ -191,7 +201,12 @@ class DoctorStationPage extends StatelessWidget {
                                                 prescriptionController.clear();
                                                 totalFeeController.clear();
                                                 if (blueprint.isDental) {
-                                                  bloc.add(LoadPatientToothChartEvent(visit.patientId));
+                                                  final isPed = (patient?.calculatedAge != null && patient!.calculatedAge! < 12);
+                                                  if (visit.toothChart.isNotEmpty) {
+                                                    bloc.add(ResetToothChartEvent(initialEntries: visit.toothChart));
+                                                  } else {
+                                                    bloc.add(ResetToothChartEvent(isPediatric: isPed));
+                                                  }
                                                 }
                                               },
                                               title: Text(
@@ -368,7 +383,7 @@ class DoctorStationPage extends StatelessWidget {
                                               bloc.add(
                                                 SaveToothChartEvent(
                                                   patientId: activeVisit.patientId,
-                                                  entries: currentToothSnapshot,
+                                          entries: currentToothSnapshot,
                                                 ),
                                               );
                                             }
@@ -378,6 +393,9 @@ class DoctorStationPage extends StatelessWidget {
                                             clinicalNotesController.clear();
                                             prescriptionController.clear();
                                             totalFeeController.clear();
+                                            if (blueprint.isDental) {
+                                              bloc.add(const ResetToothChartEvent());
+                                            }
 
                                             ScaffoldMessenger.of(context).showSnackBar(
                                               const SnackBar(content: Text('Consultation completed and sent to reception billing')),

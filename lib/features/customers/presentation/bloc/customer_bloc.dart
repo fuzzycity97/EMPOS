@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/network/lan_sync/data/message_routes.dart';
 import '../../../../core/network/lan_sync/domain/entities/sync_envelope.dart';
 import '../../../../core/network/lan_sync/domain/repositories/lan_sync_repository.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../data/models/customer_ledger_entry_model.dart';
 import '../../data/models/customer_model.dart';
 import '../../domain/entities/customer.dart';
+import '../../domain/repositories/customer_repository.dart';
 import '../../domain/usecases/charge_customer_debt_usecase.dart';
 import '../../domain/usecases/get_customer_by_id_usecase.dart';
 import '../../domain/usecases/get_customer_ledger_usecase.dart';
@@ -23,6 +26,7 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
   final ProcessDebtPaymentUseCase processDebtPaymentUseCase;
   final GetCustomerLedgerUseCase getCustomerLedgerUseCase;
   final LanSyncRepository? lanSyncRepository;
+  final CustomerRepository? customerRepository;
 
   StreamSubscription<SyncEnvelope>? _lanSyncSubscription;
 
@@ -34,6 +38,7 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
     required this.processDebtPaymentUseCase,
     required this.getCustomerLedgerUseCase,
     this.lanSyncRepository,
+    this.customerRepository,
   }) : super(const CustomerInitial()) {
     on<LoadCustomersEvent>(_onLoadCustomers);
     on<SearchCustomersEvent>(_onSearchCustomers);
@@ -46,13 +51,54 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
   }
 
   void _initLanSyncListener() {
-    _lanSyncSubscription = lanSyncRepository?.incomingEvents.listen((envelope) {
+    _lanSyncSubscription = lanSyncRepository?.incomingEvents.listen((envelope) async {
       final type = envelope.type;
       if (type == MessageRoutes.customerUpdated ||
           type == MessageRoutes.syncFullStateResponse ||
           type == MessageRoutes.patientCheckedIn ||
           type == MessageRoutes.syncVisitUpdated ||
           type == MessageRoutes.visitCompleted) {
+        final payload = envelope.payload;
+        if (payload != null && customerRepository != null) {
+          try {
+            // 1. Ingest single customer
+            if (payload['customer'] != null) {
+              final cMap = payload['customer'] is Map
+                  ? Map<String, dynamic>.from(payload['customer'] as Map)
+                  : Map<String, dynamic>.from(jsonDecode(payload['customer'] as String) as Map);
+              final cust = CustomerModel.fromJson(cMap);
+              await customerRepository!.saveCustomer(cust);
+            }
+            // 2. Ingest batch customers
+            if (payload['customers'] is List) {
+              for (final cJson in payload['customers'] as List) {
+                try {
+                  final cMap = cJson is Map
+                      ? Map<String, dynamic>.from(cJson)
+                      : Map<String, dynamic>.from(jsonDecode(cJson as String) as Map);
+                  final cust = CustomerModel.fromJson(cMap);
+                  await customerRepository!.saveCustomer(cust);
+                } catch (_) {}
+              }
+            }
+            // 3. Ingest ledger entries
+            final List<CustomerLedgerEntryModel> ledgerModels = [];
+            final rawLedger = payload['ledgerEntries'] ?? payload['customerLedgerEntries'];
+            if (rawLedger is List) {
+              for (final eJson in rawLedger) {
+                try {
+                  final eMap = eJson is Map
+                      ? Map<String, dynamic>.from(eJson)
+                      : Map<String, dynamic>.from(jsonDecode(eJson as String) as Map);
+                  ledgerModels.add(CustomerLedgerEntryModel.fromJson(eMap));
+                } catch (_) {}
+              }
+            }
+            if (ledgerModels.isNotEmpty) {
+              await customerRepository!.saveLedgerEntries(ledgerModels);
+            }
+          } catch (_) {}
+        }
         add(const LoadCustomersEvent());
       }
     });
@@ -63,6 +109,7 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
     _lanSyncSubscription?.cancel();
     return super.close();
   }
+
 
   Future<void> _onLoadCustomers(
     LoadCustomersEvent event,
@@ -234,6 +281,7 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
         allRes.fold((_) {}, (list) => allCustomers = list);
         customerRes.fold((_) {}, (c) => updatedCust = c);
 
+        final currentLedger = ledgerRes.getOrElse(() => []);
         if (updatedCust != null) {
           final envelope = SyncEnvelope.create(
             type: MessageRoutes.customerUpdated,
@@ -242,6 +290,7 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
             senderRole: 'staff',
             payload: {
               'customer': CustomerModel.fromEntity(updatedCust!).toJson(),
+              'ledgerEntries': currentLedger.map((e) => CustomerLedgerEntryModel.fromEntity(e).toJson()).toList(),
             },
           );
           lanSyncRepository?.broadcast(envelope);
@@ -324,6 +373,7 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
         allRes.fold((_) {}, (list) => allCustomers = list);
         customerRes.fold((_) {}, (c) => updatedCust = c);
 
+        final currentLedger = ledgerRes.getOrElse(() => []);
         if (updatedCust != null) {
           final envelope = SyncEnvelope.create(
             type: MessageRoutes.customerUpdated,
@@ -332,6 +382,7 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
             senderRole: 'staff',
             payload: {
               'customer': CustomerModel.fromEntity(updatedCust!).toJson(),
+              'ledgerEntries': currentLedger.map((e) => CustomerLedgerEntryModel.fromEntity(e).toJson()).toList(),
             },
           );
           lanSyncRepository?.broadcast(envelope);

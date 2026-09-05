@@ -30,4 +30,9 @@ abstract class CustomerRepository {
     required TenderType paymentTender,
     String? notes,
   });
+
+  Future<Either<Failure, void>> saveLedgerEntry(CustomerLedgerEntry entry);
+
+  Future<Either<Failure, void>> saveLedgerEntries(List<CustomerLedgerEntry> entries);
 }
+

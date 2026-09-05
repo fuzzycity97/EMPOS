@@ -339,7 +339,7 @@ class FacilityBlueprintBuilderScreen extends StatelessWidget {
               value: isEnabled,
               title: Text(_capabilityLabel(cap), style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
               subtitle: Text(_capabilityDesc(cap), style: const TextStyle(fontSize: 11, color: AppColors.textSecondaryDark)),
-              activeColor: color,
+              activeThumbColor: color,
               onChanged: (val) => _toggleCapability(deptIndex, cap, val),
             );
           }),

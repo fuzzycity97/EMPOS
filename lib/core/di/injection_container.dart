@@ -382,6 +382,7 @@ Future<void> initServiceLocator() async {
       processDebtPaymentUseCase: sl(),
       getCustomerLedgerUseCase: sl(),
       lanSyncRepository: sl.isRegistered<LanSyncRepository>() ? sl<LanSyncRepository>() : null,
+      customerRepository: sl.isRegistered<CustomerRepository>() ? sl<CustomerRepository>() : null,
     ),
   );
 

@@ -105,7 +105,7 @@ class CatalogExcelPipeline {
         final row = sheet.rows[i];
         if (row.isEmpty) continue;
 
-        final category = row.length > 0 ? row[0]?.value?.toString().trim() ?? '' : '';
+        final category = row.isNotEmpty ? row[0]?.value?.toString().trim() ?? '' : '';
         final nameEn = row.length > 1 ? row[1]?.value?.toString().trim() ?? '' : '';
         final nameAr = row.length > 2 ? row[2]?.value?.toString().trim() ?? '' : '';
         final priceStr = row.length > 3 ? row[3]?.value?.toString().trim() ?? '0' : '0';

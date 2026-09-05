@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../domain/entities/tooth_chart_entry.dart';
 import 'tooth_glb_mesh.dart';
@@ -199,21 +200,21 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.remove, size: 16, color: Colors.white70),
+              icon: const Icon(LucideIcons.minus, size: 16, color: Colors.white70),
               onPressed: () => scale.value = (scale.value - 0.2).clamp(0.6, 2.5),
               tooltip: 'Zoom Out',
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               padding: EdgeInsets.zero,
             ),
             IconButton(
-              icon: const Icon(Icons.add, size: 16, color: Colors.white70),
+              icon: const Icon(LucideIcons.plus, size: 16, color: Colors.white70),
               onPressed: () => scale.value = (scale.value + 0.2).clamp(0.6, 2.5),
               tooltip: 'Zoom In',
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               padding: EdgeInsets.zero,
             ),
             IconButton(
-              icon: const Icon(Icons.restart_alt, size: 16, color: Colors.white70),
+              icon: const Icon(LucideIcons.rotateCcw, size: 16, color: Colors.white70),
               onPressed: () {
                 rotX.value = 0.35;
                 rotY.value = 0.0;
@@ -247,7 +248,7 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.touch_app_outlined, size: 12, color: Colors.white60),
+                  Icon(LucideIcons.mousePointer, size: 12, color: Colors.white60),
                   SizedBox(width: 6),
                   Expanded(
                     child: Text(

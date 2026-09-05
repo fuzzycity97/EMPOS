@@ -276,7 +276,7 @@ class GodModeSwitchboardDialog extends StatelessWidget {
               dense: true,
               value: isEnabled,
               title: Text(cap.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-              activeColor: color,
+              activeThumbColor: color,
               onChanged: (val) {
                 controller.toggleDepartmentCapability(
                   departmentId: activeDept.departmentId,

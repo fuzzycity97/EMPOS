@@ -1,4 +1,4 @@
-﻿import 'package:equatable/equatable.dart';
+import 'package:equatable/equatable.dart';
 import '../../domain/entities/clinic_visit.dart';
 import '../../domain/entities/patient_profile.dart';
 import '../../domain/entities/tooth_chart_entry.dart';
@@ -95,6 +95,20 @@ class LoadPatientToothChartEvent extends ClinicEvent {
   @override
   List<Object?> get props => [patientId];
 }
+
+class ResetToothChartEvent extends ClinicEvent {
+  final bool isPediatric;
+  final List<ToothChartEntry>? initialEntries;
+
+  const ResetToothChartEvent({
+    this.isPediatric = false,
+    this.initialEntries,
+  });
+
+  @override
+  List<Object?> get props => [isPediatric, initialEntries];
+}
+
 
 class UpdateToothChartEntryEvent extends ClinicEvent {
   final String patientId;

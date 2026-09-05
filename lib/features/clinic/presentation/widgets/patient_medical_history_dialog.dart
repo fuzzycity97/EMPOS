@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
@@ -118,7 +118,7 @@ class PatientMedicalHistoryDialog extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${patient.name} â€¢ Tel: ${patient.phone.isNotEmpty ? patient.phone : "N/A"}',
+                          '${patient.name} • Tel: ${patient.phone.isNotEmpty ? patient.phone : "N/A"}',
                           style: TextStyle(
                             fontSize: 12,
                             color: isDark ? AppColors.textSecondaryDark : Colors.black54,
@@ -169,13 +169,13 @@ class PatientMedicalHistoryDialog extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _buildToggleChip('Diabetes', 'ðŸ©º', diabetesNotifier, Colors.amber),
-                  _buildToggleChip('Smoking / Tobacco', 'ðŸš¬', smokingNotifier, Colors.orange),
-                  _buildToggleChip('Hypertension (High BP)', 'â¤ï¸', hypertensionNotifier, Colors.red),
-                  _buildToggleChip('Heart Disease', 'ðŸ«€', heartDiseaseNotifier, Colors.deepOrange),
-                  _buildToggleChip('Bleeding Risk / Anticoagulants', 'ðŸ©¸', bleedingRiskNotifier, Colors.purple),
-                  _buildToggleChip('Asthma / Respiratory', 'ðŸ«', asthmaNotifier, Colors.teal),
-                  _buildToggleChip('Pregnancy / Nursing', 'ðŸ¤°', pregnantNotifier, Colors.pink),
+                  _buildToggleChip('Diabetes', LucideIcons.activity, diabetesNotifier, Colors.amber),
+                  _buildToggleChip('Smoking / Tobacco', LucideIcons.cigarette, smokingNotifier, Colors.orange),
+                  _buildToggleChip('Hypertension (High BP)', LucideIcons.heartPulse, hypertensionNotifier, Colors.red),
+                  _buildToggleChip('Heart Disease', LucideIcons.heart, heartDiseaseNotifier, Colors.deepOrange),
+                  _buildToggleChip('Bleeding Risk / Anticoagulants', LucideIcons.droplet, bleedingRiskNotifier, Colors.purple),
+                  _buildToggleChip('Asthma / Respiratory', LucideIcons.wind, asthmaNotifier, Colors.teal),
+                  _buildToggleChip('Pregnancy / Nursing', LucideIcons.baby, pregnantNotifier, Colors.pink),
                 ],
               ),
               const SizedBox(height: AppDimensions.space16),
@@ -279,7 +279,7 @@ class PatientMedicalHistoryDialog extends StatelessWidget {
 
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('âœ… Medical history updated for ${patient.name}'),
+                          content: Text('Medical history updated for ${patient.name}'),
                           backgroundColor: AppColors.success,
                         ),
                       );
@@ -296,7 +296,7 @@ class PatientMedicalHistoryDialog extends StatelessWidget {
 
   Widget _buildToggleChip(
     String label,
-    String emoji,
+    IconData icon,
     ValueNotifier<bool> notifier,
     Color activeColor,
   ) {
@@ -304,7 +304,8 @@ class PatientMedicalHistoryDialog extends StatelessWidget {
       valueListenable: notifier,
       builder: (context, isActive, _) {
         return FilterChip(
-          label: Text('$emoji $label'),
+          avatar: Icon(icon, size: 14, color: isActive ? activeColor : (isDark ? Colors.white70 : Colors.black87)),
+          label: Text(label),
           selected: isActive,
           onSelected: (val) => notifier.value = val,
           selectedColor: activeColor.withValues(alpha: 0.25),

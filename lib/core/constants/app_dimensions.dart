@@ -22,6 +22,7 @@ class AppDimensions {
   static const double radiusLarge = 14.0;
   static const double radiusXLarge = 20.0;
   static const double radiusRound = 999.0;
+  static const double radiusFull = 999.0;
 
   // Elevation
   static const double elevationLow = 2.0;

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,18 +10,9 @@ import 'package:empos/features/customers/data/models/customer_model.dart';
 import 'package:empos/features/customers/data/repositories/customer_repository_impl.dart';
 import 'package:empos/features/customers/domain/entities/customer.dart';
 import 'package:empos/features/customers/domain/entities/customer_ledger_entry.dart';
-import 'package:empos/features/customers/domain/repositories/customer_repository.dart';
-import 'package:empos/features/customers/domain/usecases/charge_customer_debt_usecase.dart';
-import 'package:empos/features/customers/domain/usecases/get_customer_by_id_usecase.dart';
-import 'package:empos/features/customers/domain/usecases/get_customer_ledger_usecase.dart';
-import 'package:empos/features/customers/domain/usecases/get_customers_usecase.dart';
-import 'package:empos/features/customers/domain/usecases/process_debt_payment_usecase.dart';
-import 'package:empos/features/customers/domain/usecases/save_customer_usecase.dart';
 import 'package:empos/features/customers/presentation/bloc/customer_bloc.dart';
-import 'package:empos/features/customers/presentation/bloc/customer_event.dart';
 import 'package:empos/features/customers/presentation/bloc/customer_state.dart';
 import 'package:empos/features/customers/presentation/widgets/customer_ledger_dialog.dart';
-import 'package:empos/features/customers/presentation/widgets/debt_payment_dialog.dart';
 import 'package:empos/features/pos/domain/entities/payment_detail.dart';
 import 'package:empos/features/shift/data/datasources/shift_local_data_source.dart';
 

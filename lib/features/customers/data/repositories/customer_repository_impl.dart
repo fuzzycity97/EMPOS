@@ -251,4 +251,69 @@ class CustomerRepositoryImpl implements CustomerRepository {
       return Left(CacheFailure(message: 'Failed to process debt payment: $e'));
     }
   }
+
+  @override
+  Future<Either<Failure, void>> saveLedgerEntry(CustomerLedgerEntry entry) async {
+    try {
+      await localDataSource.saveLedgerEntry(CustomerLedgerEntryModel.fromEntity(entry));
+      final cust = await localDataSource.getCustomerById(entry.customerId);
+      if (cust != null) {
+        final ledger = await localDataSource.getLedgerEntries(cust.id);
+        double totalCharges = 0.0;
+        double totalPayments = 0.0;
+        for (final e in ledger) {
+          if (e.type == CustomerLedgerType.debtCharge) {
+            totalCharges += e.amount;
+          } else if (e.type == CustomerLedgerType.debtPayment) {
+            totalPayments += e.amount;
+          }
+        }
+        final net = totalCharges - totalPayments;
+        final accurateDebt = net > 0.001 ? net : 0.0;
+        if ((cust.totalDebt - accurateDebt).abs() > 0.001) {
+          final updated = cust.copyWith(totalDebt: accurateDebt);
+          await localDataSource.saveCustomer(CustomerModel.fromEntity(updated));
+        }
+      }
+      return const Right(null);
+    } catch (e) {
+      return Left(CacheFailure(message: 'Failed to save ledger entry: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> saveLedgerEntries(List<CustomerLedgerEntry> entries) async {
+    try {
+      final customerIds = <String>{};
+      for (final entry in entries) {
+        await localDataSource.saveLedgerEntry(CustomerLedgerEntryModel.fromEntity(entry));
+        customerIds.add(entry.customerId);
+      }
+      for (final custId in customerIds) {
+        final cust = await localDataSource.getCustomerById(custId);
+        if (cust != null) {
+          final ledger = await localDataSource.getLedgerEntries(cust.id);
+          double totalCharges = 0.0;
+          double totalPayments = 0.0;
+          for (final e in ledger) {
+            if (e.type == CustomerLedgerType.debtCharge) {
+              totalCharges += e.amount;
+            } else if (e.type == CustomerLedgerType.debtPayment) {
+              totalPayments += e.amount;
+            }
+          }
+          final net = totalCharges - totalPayments;
+          final accurateDebt = net > 0.001 ? net : 0.0;
+          if ((cust.totalDebt - accurateDebt).abs() > 0.001) {
+            final updated = cust.copyWith(totalDebt: accurateDebt);
+            await localDataSource.saveCustomer(CustomerModel.fromEntity(updated));
+          }
+        }
+      }
+      return const Right(null);
+    } catch (e) {
+      return Left(CacheFailure(message: 'Failed to save ledger entries: $e'));
+    }
+  }
 }
+

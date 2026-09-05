@@ -3,7 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
-import '../../domain/entities/pos_order_model.dart';
+import '../../data/models/order_model.dart';
 import '../../../../core/utils/currency_formatter.dart';
 
 /// Printable Receipt Generator for 80mm Thermal Rolls & Standard A4 Invoices.
@@ -96,9 +96,9 @@ class ThermalReceiptGenerator {
                         child: pw.Column(
                           crossAxisAlignment: pw.CrossAxisAlignment.start,
                           children: [
-                            pw.Text(item.name, style: const pw.TextStyle(fontSize: 8)),
-                            if (item.department != null && item.department!.isNotEmpty)
-                              pw.Text('[${item.department}]', style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey700)),
+                            pw.Text(item.product.displayName, style: const pw.TextStyle(fontSize: 8)),
+                            if (item.product.categoryId.isNotEmpty)
+                              pw.Text('[${item.product.categoryId}]', style: const pw.TextStyle(fontSize: 6, color: PdfColors.grey700)),
                           ],
                         ),
                       ),
@@ -108,7 +108,7 @@ class ThermalReceiptGenerator {
                       ),
                       pw.Expanded(
                         flex: 3,
-                        child: pw.Text(CurrencyFormatter.format(item.total), textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
+                        child: pw.Text(CurrencyFormatter.format(item.lineTotal), textAlign: pw.TextAlign.right, style: const pw.TextStyle(fontSize: 8)),
                       ),
                     ],
                   ),
@@ -119,10 +119,10 @@ class ThermalReceiptGenerator {
 
               // Financial Summary
               _buildSummaryRow('Subtotal', CurrencyFormatter.format(order.cart.subtotal)),
-              if (order.cart.discountTotal > 0)
-                _buildSummaryRow('Discount', '-${CurrencyFormatter.format(order.cart.discountTotal)}'),
-              if (order.cart.taxTotal > 0)
-                _buildSummaryRow('VAT / Tax', CurrencyFormatter.format(order.cart.taxTotal)),
+              if (order.cart.discountAmount > 0)
+                _buildSummaryRow('Discount', '-${CurrencyFormatter.format(order.cart.discountAmount)}'),
+              if (order.cart.taxAmount > 0)
+                _buildSummaryRow('VAT / Tax', CurrencyFormatter.format(order.cart.taxAmount)),
               pw.SizedBox(height: 2),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
