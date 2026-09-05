@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/atomic_business_components.dart';
 import '../../../../core/config/subscription_tier_controller.dart';
@@ -176,7 +176,7 @@ class SubscriptionGatePanel extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      'Subscription Tier & Capability Gating â€¢ Vendor Security Clearance',
+                      'Subscription Tier & Capability Gating • Vendor Security Clearance',
                       style: TextStyle(fontSize: 11, color: isDark ? Colors.grey[400] : Colors.grey[600]),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -258,7 +258,7 @@ class SubscriptionGatePanel extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  'ID: ${p.accountId} â€¢ ${p.tier.name.toUpperCase()}',
+                                  'ID: ${p.accountId} • ${p.tier.name.toUpperCase()}',
                                   style: const TextStyle(fontSize: 10, color: Colors.grey),
                                 ),
                               ],
@@ -298,7 +298,7 @@ class SubscriptionGatePanel extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                'Tenant ID: ${profile.accountId} â€¢ Unlocked: ${profile.unlockedCapabilities.length} of ${AtomicCapability.values.length} capabilities',
+                'Tenant ID: ${profile.accountId} • Unlocked: ${profile.unlockedCapabilities.length} of ${AtomicCapability.values.length} capabilities',
                 style: const TextStyle(fontSize: 11, color: Colors.grey),
               ),
             ],

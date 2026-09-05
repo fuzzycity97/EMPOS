@@ -3,6 +3,8 @@ import '../../../../core/error/failures.dart';
 import '../entities/clinic_visit.dart';
 import '../entities/patient_profile.dart';
 
+import '../entities/medical_risk_factor.dart';
+
 abstract class ClinicRepository {
   Future<Either<Failure, List<PatientProfile>>> getPatients();
   Future<Either<Failure, PatientProfile>> savePatient(PatientProfile patient);
@@ -16,4 +18,8 @@ abstract class ClinicRepository {
 
   /// Rolling mean consultation wait time (in minutes) based on last 5 completed visits
   Future<Either<Failure, int>> getRollingMeanWaitMinutes(String doctorName);
+
+  // Medical Risk Factors
+  Future<Either<Failure, List<MedicalRiskFactor>>> getMedicalRiskFactors();
+  Future<Either<Failure, void>> saveMedicalRiskFactors(List<MedicalRiskFactor> factors);
 }

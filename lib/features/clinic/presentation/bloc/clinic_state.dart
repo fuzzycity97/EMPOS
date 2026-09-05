@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/clinic_visit.dart';
+import '../../domain/entities/medical_risk_factor.dart';
 import '../../domain/entities/patient_profile.dart';
 import '../../domain/entities/tooth_chart_entry.dart';
 
@@ -22,6 +23,7 @@ class ClinicLoaded extends ClinicState {
   final String? activePatientId;
   final String? activeVisitId;
   final List<ClinicVisit>? billingVisits;
+  final List<MedicalRiskFactor> riskFactors;
 
   const ClinicLoaded({
     required this.queue,
@@ -31,6 +33,7 @@ class ClinicLoaded extends ClinicState {
     this.activePatientId,
     this.activeVisitId,
     this.billingVisits,
+    this.riskFactors = MedicalRiskFactor.defaultFactors,
   });
 
   List<ClinicVisit> get waitingQueue =>
@@ -94,6 +97,7 @@ class ClinicLoaded extends ClinicState {
     String? activePatientId,
     String? activeVisitId,
     List<ClinicVisit>? billingVisits,
+    List<MedicalRiskFactor>? riskFactors,
   }) {
     return ClinicLoaded(
       queue: queue ?? this.queue,
@@ -103,6 +107,7 @@ class ClinicLoaded extends ClinicState {
       activePatientId: activePatientId ?? this.activePatientId,
       activeVisitId: activeVisitId ?? this.activeVisitId,
       billingVisits: billingVisits ?? this.billingVisits,
+      riskFactors: riskFactors ?? this.riskFactors,
     );
   }
 
@@ -115,6 +120,7 @@ class ClinicLoaded extends ClinicState {
         activePatientId,
         activeVisitId,
         billingVisits,
+        riskFactors,
       ];
 }
 

@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:hive/hive.dart';
 import '../../../../core/error/exceptions.dart';
+import '../../domain/entities/medical_risk_factor.dart';
 import '../models/clinic_visit_model.dart';
 import '../models/dental_treatment_plan_model.dart';
+import '../models/medical_risk_factor_model.dart';
 import '../models/patient_profile_model.dart';
 import '../models/tooth_chart_entry_model.dart';
 
@@ -22,6 +24,10 @@ abstract class ClinicLocalDataSource {
   Future<void> saveToothChart(String patientId, List<ToothChartEntryModel> entries);
   Future<List<DentalTreatmentPlanModel>> getDentalPlans(String patientId);
   Future<void> saveDentalPlan(DentalTreatmentPlanModel plan);
+
+  // Medical Risk Factors
+  Future<List<MedicalRiskFactorModel>> getMedicalRiskFactors();
+  Future<void> saveMedicalRiskFactors(List<MedicalRiskFactorModel> factors);
 }
 
 class ClinicLocalDataSourceImpl implements ClinicLocalDataSource {
@@ -29,6 +35,7 @@ class ClinicLocalDataSourceImpl implements ClinicLocalDataSource {
   static const String visitsBoxName = 'empos_clinic_visits_box';
   static const String toothChartsBoxName = 'empos_dental_tooth_charts_box';
   static const String dentalPlansBoxName = 'empos_dental_plans_box';
+  static const String riskFactorsBoxName = 'empos_clinic_risk_factors_box';
 
   Future<Box<dynamic>> _openBox(String boxName) async {
     if (Hive.isBoxOpen(boxName)) {
@@ -41,6 +48,7 @@ class ClinicLocalDataSourceImpl implements ClinicLocalDataSource {
   Future<Box<dynamic>> get _visitsBox async => _openBox(visitsBoxName);
   Future<Box<dynamic>> get _toothChartsBox async => _openBox(toothChartsBoxName);
   Future<Box<dynamic>> get _dentalPlansBox async => _openBox(dentalPlansBoxName);
+  Future<Box<dynamic>> get _riskFactorsBox async => _openBox(riskFactorsBoxName);
 
   // Patients
   @override
@@ -192,6 +200,48 @@ class ClinicLocalDataSourceImpl implements ClinicLocalDataSource {
       await box.put(plan.id, jsonEncode(plan.toJson()));
     } catch (e) {
       throw CacheException(message: 'Failed to save dental plan: $e');
+    }
+  }
+
+  // Medical Risk Factors
+  @override
+  Future<List<MedicalRiskFactorModel>> getMedicalRiskFactors() async {
+    try {
+      final box = await _riskFactorsBox;
+      if (box.isEmpty) {
+        final defaultList = MedicalRiskFactor.defaultFactors
+            .map((e) => MedicalRiskFactorModel.fromEntity(e))
+            .toList();
+        await saveMedicalRiskFactors(defaultList);
+        return defaultList;
+      }
+      final List<MedicalRiskFactorModel> list = [];
+      for (final raw in box.values) {
+        if (raw != null) {
+          final Map<String, dynamic> json = raw is String
+              ? Map<String, dynamic>.from(jsonDecode(raw) as Map)
+              : Map<String, dynamic>.from(raw as Map);
+          list.add(MedicalRiskFactorModel.fromJson(json));
+        }
+      }
+      return list;
+    } catch (e) {
+      return MedicalRiskFactor.defaultFactors
+          .map((e) => MedicalRiskFactorModel.fromEntity(e))
+          .toList();
+    }
+  }
+
+  @override
+  Future<void> saveMedicalRiskFactors(List<MedicalRiskFactorModel> factors) async {
+    try {
+      final box = await _riskFactorsBox;
+      await box.clear();
+      for (final factor in factors) {
+        await box.put(factor.id, jsonEncode(factor.toJson()));
+      }
+    } catch (e) {
+      throw CacheException(message: 'Failed to save medical risk factors: $e');
     }
   }
 }

@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/clinic_visit.dart';
+import '../../domain/entities/medical_risk_factor.dart';
 import '../../domain/entities/patient_profile.dart';
 import '../../domain/entities/tooth_chart_entry.dart';
 
@@ -181,6 +182,19 @@ class UpdateVisitVitalsEvent extends ClinicEvent {
         temperature,
         respiratoryRate,
       ];
+}
+
+class LoadMedicalRiskFactorsEvent extends ClinicEvent {
+  const LoadMedicalRiskFactorsEvent();
+}
+
+class UpdateMedicalRiskFactorsEvent extends ClinicEvent {
+  final List<MedicalRiskFactor> factors;
+
+  const UpdateMedicalRiskFactorsEvent(this.factors);
+
+  @override
+  List<Object?> get props => [factors];
 }
 
 /// Alias for CompleteVisitEvent in examination workflows

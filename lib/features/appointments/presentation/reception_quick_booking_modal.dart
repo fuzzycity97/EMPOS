@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -148,7 +148,7 @@ class ReceptionQuickBookingModal extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Quick Booking â€¢ $doctorName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text('Quick Booking • $doctorName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       const Text('Phone Reception Fast-Booking & Conflict Guard', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondaryDark)),
                     ],
                   ),
@@ -159,7 +159,7 @@ class ReceptionQuickBookingModal extends StatelessWidget {
           ),
           const Divider(height: 20),
 
-          // â”€â”€ Slot Status Pill (Green / Red) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          // ── Slot Status Pill (Green / Red) ──────────────────
           ValueListenableBuilder<SmartSlotValidationResult>(
             valueListenable: validationNotifier,
             builder: (context, val, _) {
@@ -196,7 +196,7 @@ class ReceptionQuickBookingModal extends StatelessWidget {
           ),
           const SizedBox(height: 14),
 
-          // â”€â”€ Alternative Slot Quick-Chips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+          // ── Alternative Slot Quick-Chips ────────────────────
           ValueListenableBuilder<SmartSlotValidationResult>(
             valueListenable: validationNotifier,
             builder: (context, val, _) {
@@ -212,7 +212,7 @@ class ReceptionQuickBookingModal extends StatelessWidget {
                   Wrap(
                     spacing: 8,
                     children: val.nearestAlternativeSlots.map((alt) {
-                      final str = DateFormat('E, MMM d â€¢ HH:mm').format(alt);
+                      final str = DateFormat('E, MMM d • HH:mm').format(alt);
                       return ActionChip(
                         avatar: const Icon(LucideIcons.clock, size: 14, color: AppColors.primaryLight),
                         label: Text(str, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),

@@ -40,7 +40,7 @@ class CustomerLocalDataSourceImpl implements CustomerLocalDataSource {
         }
       }
 
-      customers.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      customers.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return customers;
     } catch (e) {
       throw CacheException(message: 'Failed to retrieve customers: $e');

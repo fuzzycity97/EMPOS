@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
+import '../../domain/entities/medical_risk_factor.dart';
 import '../../domain/entities/patient_profile.dart';
 import '../bloc/clinic_bloc.dart';
 import '../bloc/clinic_event.dart';
+import '../bloc/clinic_state.dart';
+import 'medical_risk_factor_manager_dialog.dart';
 
 /// Modal dialog allowing both Receptionist and Doctor to view and edit
-/// a patient''s foundational medical status & chronic conditions history
-/// (e.g. Diabetes, Smoking, Hypertension, Heart Disease, Allergies).
+/// a patient's foundational medical status & chronic conditions history
+/// with dynamically configurable clinical indicators.
 /// 100% StatelessWidget compliant.
 class PatientMedicalHistoryDialog extends StatelessWidget {
   final PatientProfile patient;
   final ClinicBloc bloc;
   final bool isDark;
+  final List<MedicalRiskFactor>? riskFactors;
 
+  final ValueNotifier<Set<String>> selectedFactorsNotifier;
   final ValueNotifier<bool> diabetesNotifier;
   final ValueNotifier<bool> smokingNotifier;
   final ValueNotifier<bool> hypertensionNotifier;
@@ -32,7 +39,9 @@ class PatientMedicalHistoryDialog extends StatelessWidget {
     required this.patient,
     required this.bloc,
     this.isDark = true,
-  })  : diabetesNotifier = ValueNotifier<bool>(
+    this.riskFactors,
+  })  : selectedFactorsNotifier = ValueNotifier<Set<String>>(Set.from(patient.chronicConditions)),
+        diabetesNotifier = ValueNotifier<bool>(
           patient.chronicConditions.any((c) => c.toLowerCase().contains('diabet')),
         ),
         smokingNotifier = ValueNotifier<bool>(
@@ -78,6 +87,9 @@ class PatientMedicalHistoryDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final activeRiskFactors = riskFactors ??
+        (bloc.state is ClinicLoaded ? (bloc.state as ClinicLoaded).riskFactors : MedicalRiskFactor.defaultFactors);
+
     return Dialog(
       backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
       shape: RoundedRectangleBorder(
@@ -116,9 +128,8 @@ class PatientMedicalHistoryDialog extends StatelessWidget {
                             color: isDark ? Colors.white : Colors.black87,
                           ),
                         ),
-                        const SizedBox(height: 2),
                         Text(
-                          '${patient.name} • Tel: ${patient.phone.isNotEmpty ? patient.phone : "N/A"}',
+                          '${patient.name} • Tel: ${patient.phone.isNotEmpty ? patient.phone : "Not recorded"}',
                           style: TextStyle(
                             fontSize: 12,
                             color: isDark ? AppColors.textSecondaryDark : Colors.black54,
@@ -128,24 +139,25 @@ class PatientMedicalHistoryDialog extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(LucideIcons.x, size: 18, color: isDark ? AppColors.textSecondaryDark : Colors.black54),
+                    icon: const Icon(LucideIcons.x, size: 20, color: AppColors.textMutedDark),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
               const SizedBox(height: AppDimensions.space16),
 
-              // Age Row
+              // Patient Age Row
               Row(
                 children: [
                   Expanded(
                     child: TextField(
                       controller: ageController,
                       keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 13),
                       decoration: InputDecoration(
                         labelText: 'Patient Age (Years)',
-                        hintText: 'e.g. 42',
+                        hintText: 'e.g. 35',
                         prefixIcon: const Icon(LucideIcons.calendar, size: 18),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       ),
@@ -156,27 +168,95 @@ class PatientMedicalHistoryDialog extends StatelessWidget {
               const SizedBox(height: AppDimensions.space16),
 
               // Core Clinical Risk Toggles
-              Text(
-                'Clinical Risk Indicators & Lifestyle Factors',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white70 : Colors.black87,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Clinical Risk Indicators & Lifestyle Factors',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => BlocProvider.value(
+                          value: bloc,
+                          child: MedicalRiskFactorManagerDialog(currentFactors: activeRiskFactors),
+                        ),
+                      );
+                    },
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.settings2, size: 14, color: AppColors.primaryLight),
+                        SizedBox(width: 4),
+                        Text(
+                          'Manage Factors',
+                          style: TextStyle(fontSize: 11, color: AppColors.primaryLight, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: AppDimensions.space8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _buildToggleChip('Diabetes', LucideIcons.activity, diabetesNotifier, Colors.amber),
-                  _buildToggleChip('Smoking / Tobacco', LucideIcons.cigarette, smokingNotifier, Colors.orange),
-                  _buildToggleChip('Hypertension (High BP)', LucideIcons.heartPulse, hypertensionNotifier, Colors.red),
-                  _buildToggleChip('Heart Disease', LucideIcons.heart, heartDiseaseNotifier, Colors.deepOrange),
-                  _buildToggleChip('Bleeding Risk / Anticoagulants', LucideIcons.droplet, bleedingRiskNotifier, Colors.purple),
-                  _buildToggleChip('Asthma / Respiratory', LucideIcons.wind, asthmaNotifier, Colors.teal),
-                  _buildToggleChip('Pregnancy / Nursing', LucideIcons.baby, pregnantNotifier, Colors.pink),
-                ],
+              ValueListenableBuilder<Set<String>>(
+                valueListenable: selectedFactorsNotifier,
+                builder: (context, selectedConditions, _) {
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: activeRiskFactors.where((f) => f.isEnabled).map((factor) {
+                      final isSelected = selectedConditions.any((c) =>
+                          c.toLowerCase() == factor.label.toLowerCase() ||
+                          factor.label.toLowerCase().contains(c.toLowerCase()) ||
+                          c.toLowerCase().contains(factor.label.toLowerCase()));
+                      return FilterChip(
+                        avatar: Icon(factor.iconData, size: 14, color: isSelected ? factor.color : (isDark ? Colors.white70 : Colors.black54)),
+                        label: Text(factor.label),
+                        selected: isSelected,
+                        onSelected: (val) {
+                          final updated = Set<String>.from(selectedConditions);
+                          if (val) {
+                            updated.add(factor.label);
+                          } else {
+                            updated.removeWhere((c) =>
+                                c.toLowerCase() == factor.label.toLowerCase() ||
+                                factor.label.toLowerCase().contains(c.toLowerCase()) ||
+                                c.toLowerCase().contains(factor.label.toLowerCase()));
+                          }
+                          selectedFactorsNotifier.value = updated;
+                          if (factor.label.toLowerCase().contains('diabet')) diabetesNotifier.value = val;
+                          if (factor.label.toLowerCase().contains('smok')) smokingNotifier.value = val;
+                          if (factor.label.toLowerCase().contains('hyper')) hypertensionNotifier.value = val;
+                          if (factor.label.toLowerCase().contains('heart')) heartDiseaseNotifier.value = val;
+                          if (factor.label.toLowerCase().contains('bleed')) bleedingRiskNotifier.value = val;
+                          if (factor.label.toLowerCase().contains('asthma')) asthmaNotifier.value = val;
+                          if (factor.label.toLowerCase().contains('pregnan')) pregnantNotifier.value = val;
+                        },
+                        selectedColor: factor.color.withValues(alpha: 0.3),
+                        checkmarkColor: factor.color,
+                        labelStyle: TextStyle(
+                          color: isSelected ? factor.color : (isDark ? Colors.white70 : Colors.black87),
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 11,
+                        ),
+                        backgroundColor: isDark ? AppColors.surfaceElevatedDark : Colors.grey.shade100,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                          side: BorderSide(
+                            color: isSelected ? factor.color : (isDark ? AppColors.borderDark : Colors.black12),
+                            width: isSelected ? 1.5 : 1.0,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
               ),
               const SizedBox(height: AppDimensions.space16),
 
@@ -238,31 +318,47 @@ class PatientMedicalHistoryDialog extends StatelessWidget {
                     icon: const Icon(LucideIcons.check, size: 16),
                     label: const Text('Save Medical History', style: TextStyle(fontWeight: FontWeight.bold)),
                     onPressed: () {
-                      final updatedConditions = <String>[];
-                      if (diabetesNotifier.value) updatedConditions.add('Diabetes');
-                      if (smokingNotifier.value) updatedConditions.add('Smoking');
-                      if (hypertensionNotifier.value) updatedConditions.add('Hypertension');
-                      if (heartDiseaseNotifier.value) updatedConditions.add('Heart Disease');
-                      if (bleedingRiskNotifier.value) updatedConditions.add('Bleeding Risk');
-                      if (asthmaNotifier.value) updatedConditions.add('Asthma');
-                      if (pregnantNotifier.value) updatedConditions.add('Pregnancy/Nursing');
+                      final updatedConditions = <String>[...selectedFactorsNotifier.value];
+                      if (diabetesNotifier.value && !updatedConditions.any((c) => c.toLowerCase().contains('diabet'))) {
+                        updatedConditions.add('Diabetes');
+                      }
+                      if (smokingNotifier.value && !updatedConditions.any((c) => c.toLowerCase().contains('smok'))) {
+                        updatedConditions.add('Smoking / Tobacco');
+                      }
+                      if (hypertensionNotifier.value && !updatedConditions.any((c) => c.toLowerCase().contains('hyper'))) {
+                        updatedConditions.add('Hypertension (High BP)');
+                      }
+                      if (heartDiseaseNotifier.value && !updatedConditions.any((c) => c.toLowerCase().contains('heart'))) {
+                        updatedConditions.add('Heart Disease');
+                      }
+                      if (bleedingRiskNotifier.value && !updatedConditions.any((c) => c.toLowerCase().contains('bleed'))) {
+                        updatedConditions.add('Bleeding Risk / Anticoagulants');
+                      }
+                      if (asthmaNotifier.value && !updatedConditions.any((c) => c.toLowerCase().contains('asthma'))) {
+                        updatedConditions.add('Asthma / Respiratory');
+                      }
+                      if (pregnantNotifier.value && !updatedConditions.any((c) => c.toLowerCase().contains('pregnan'))) {
+                        updatedConditions.add('Pregnancy / Nursing');
+                      }
 
                       final extra = otherNotesController.text
                           .split(',')
                           .map((s) => s.trim())
-                          .filter((s) => s.isNotEmpty);
-                      updatedConditions.addAll(extra);
+                          .where((s) => s.isNotEmpty);
+                      for (final ex in extra) {
+                        if (!updatedConditions.contains(ex)) updatedConditions.add(ex);
+                      }
 
                       final allergies = allergiesController.text
                           .split(',')
                           .map((s) => s.trim())
-                          .filter((s) => s.isNotEmpty)
+                          .where((s) => s.isNotEmpty)
                           .toList();
 
                       final medications = medicationsController.text
                           .split(',')
                           .map((s) => s.trim())
-                          .filter((s) => s.isNotEmpty)
+                          .where((s) => s.isNotEmpty)
                           .toList();
 
                       final ageText = ageController.text.trim();
@@ -293,41 +389,4 @@ class PatientMedicalHistoryDialog extends StatelessWidget {
       ),
     );
   }
-
-  Widget _buildToggleChip(
-    String label,
-    IconData icon,
-    ValueNotifier<bool> notifier,
-    Color activeColor,
-  ) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: notifier,
-      builder: (context, isActive, _) {
-        return FilterChip(
-          avatar: Icon(icon, size: 14, color: isActive ? activeColor : (isDark ? Colors.white70 : Colors.black87)),
-          label: Text(label),
-          selected: isActive,
-          onSelected: (val) => notifier.value = val,
-          selectedColor: activeColor.withValues(alpha: 0.25),
-          checkmarkColor: activeColor,
-          labelStyle: TextStyle(
-            color: isActive ? activeColor : (isDark ? Colors.white70 : Colors.black87),
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            fontSize: 12,
-          ),
-          backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-            side: BorderSide(
-              color: isActive ? activeColor : (isDark ? Colors.white10 : Colors.black12),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-extension _FilterExt on Iterable<String> {
-  Iterable<String> filter(bool Function(String) test) => where(test);
 }

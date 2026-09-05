@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../domain/entities/anatomical_annotation_models.dart';
@@ -214,7 +214,7 @@ class CardiologyVascularActionWidget extends StatelessWidget {
                             top: 6,
                             left: 8,
                             child: Text(
-                              'Vessel Axis: ${vesselNotifier.value} â€¢ Spline Nodes: ${points.length}',
+                              'Vessel Axis: ${vesselNotifier.value} • Spline Nodes: ${points.length}',
                               style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
                             ),
                           ),

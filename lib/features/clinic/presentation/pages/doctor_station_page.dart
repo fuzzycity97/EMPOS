@@ -1,3 +1,4 @@
+import 'clinic_reception_page.dart';
 import '../widgets/patient_medical_history_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -753,11 +754,10 @@ class DoctorStationPage extends StatelessWidget {
       ..sort((a, b) => (b.completionTime ?? b.checkInTime).compareTo(a.completionTime ?? a.checkInTime));
 
     final totalPaid = historicalVisits
-        .where((v) => v.isPaid)
         .fold<double>(0.0, (sum, v) => sum + v.patientCopay);
-    final totalPending = historicalVisits
-        .where((v) => !v.isPaid && v.status == ClinicVisitStatus.completed)
-        .fold<double>(0.0, (sum, v) => sum + (v.patientCopay > 0 ? v.patientCopay : v.totalFee));
+    final totalFees = historicalVisits
+        .fold<double>(0.0, (sum, v) => sum + v.totalFee);
+    final totalPending = (totalFees - totalPaid).clamp(0.0, double.infinity);
 
     showDialog(
       context: context,
@@ -804,7 +804,7 @@ class DoctorStationPage extends StatelessWidget {
                       children: [
                         const Text('TOTAL SETTLED', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 2),
-                        Text('EÂ£ ${totalPaid.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green)),
+                        Text('EGP ${totalPaid.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green)),
                       ],
                     ),
                     Container(height: 24, width: 1, color: Colors.white24),
@@ -812,7 +812,14 @@ class DoctorStationPage extends StatelessWidget {
                       children: [
                         const Text('UNPAID / DUE', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 2),
-                        Text('EÂ£ ${totalPending.toStringAsFixed(2)}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: totalPending > 0 ? Colors.amber : Colors.grey)),
+                        Text(
+                          'EGP ${totalPending.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: totalPending > 0 ? Colors.amber : Colors.grey,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -839,8 +846,11 @@ class DoctorStationPage extends StatelessWidget {
                         separatorBuilder: (context, index) => const SizedBox(height: 10),
                         itemBuilder: (context, idx) {
                           final hVisit = historicalVisits[idx];
-                          final dateStr = DateFormat('yyyy-MM-dd â€¢ hh:mm a').format(hVisit.checkInTime);
+                          final dateStr = DateFormat('yyyy-MM-dd • hh:mm a').format(hVisit.checkInTime);
                           final treatedTeeth = hVisit.toothChart.where((t) => t.state != ToothState.healthy).toList();
+                          final visitDue = (hVisit.totalFee - hVisit.patientCopay).clamp(0.0, double.infinity);
+                          final isFullySettled = visitDue <= 0.001 && hVisit.isPaid;
+                          final isPartiallyPaid = hVisit.patientCopay > 0 && visitDue > 0.001;
 
                           return InkWell(
                             borderRadius: BorderRadius.circular(8),
@@ -879,17 +889,25 @@ class DoctorStationPage extends StatelessWidget {
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: hVisit.isPaid
+                                              color: isFullySettled
                                                   ? Colors.green.withValues(alpha: 0.2)
-                                                  : Colors.amber.withValues(alpha: 0.2),
+                                                  : (isPartiallyPaid
+                                                      ? Colors.amber.withValues(alpha: 0.2)
+                                                      : Colors.red.withValues(alpha: 0.2)),
                                               borderRadius: BorderRadius.circular(4),
                                             ),
                                             child: Text(
-                                              hVisit.isPaid ? 'PAID & SETTLED' : 'UNPAID',
+                                              isFullySettled
+                                                  ? 'PAID & SETTLED'
+                                                  : (isPartiallyPaid
+                                                      ? 'PARTIAL DEBT'
+                                                      : 'UNPAID'),
                                               style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.bold,
-                                                color: hVisit.isPaid ? Colors.green : Colors.amber,
+                                                color: isFullySettled
+                                                    ? Colors.green
+                                                    : (isPartiallyPaid ? Colors.amber : Colors.redAccent),
                                               ),
                                             ),
                                           ),
@@ -912,7 +930,10 @@ class DoctorStationPage extends StatelessWidget {
                                     ],
                                   ),
                                   const SizedBox(height: 6),
-                                  Text('Doctor: ${hVisit.doctorName}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                  Text(
+                                    'Doctor: ${ClinicReceptionPage.formatDoctorName(hVisit.doctorName)}',
+                                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                  ),
                                   if (hVisit.diagnosis != null && hVisit.diagnosis!.isNotEmpty)
                                     Padding(
                                       padding: const EdgeInsets.only(top: 2),
@@ -938,8 +959,12 @@ class DoctorStationPage extends StatelessWidget {
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
-                                        'Fee: EÂ£ ${hVisit.totalFee.toStringAsFixed(2)} â€¢ Copay Paid: EÂ£ ${hVisit.patientCopay.toStringAsFixed(2)}',
-                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
+                                        'Fee: EGP ${hVisit.totalFee.toStringAsFixed(2)} • Copay Paid: EGP ${hVisit.patientCopay.toStringAsFixed(2)}${visitDue > 0.001 ? " • Due: EGP ${visitDue.toStringAsFixed(2)}" : ""}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: visitDue > 0.001 ? Colors.amber : Colors.white70,
+                                        ),
                                       ),
                                       const Text(
                                         'View record & 3D chart >',

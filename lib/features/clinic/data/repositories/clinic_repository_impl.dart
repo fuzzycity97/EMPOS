@@ -2,10 +2,12 @@ import 'package:dartz/dartz.dart';
 import '../../../../core/error/exceptions.dart';
 import '../../../../core/error/failures.dart';
 import '../../domain/entities/clinic_visit.dart';
+import '../../domain/entities/medical_risk_factor.dart';
 import '../../domain/entities/patient_profile.dart';
 import '../../domain/repositories/clinic_repository.dart';
 import '../datasources/clinic_local_data_source.dart';
 import '../models/clinic_visit_model.dart';
+import '../models/medical_risk_factor_model.dart';
 import '../models/patient_profile_model.dart';
 
 class ClinicRepositoryImpl implements ClinicRepository {
@@ -228,6 +230,33 @@ class ClinicRepositoryImpl implements ClinicRepository {
       return Left(CacheFailure(message: e.message));
     } catch (e) {
       return Left(CacheFailure(message: 'Unexpected error calculating wait time: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<MedicalRiskFactor>>> getMedicalRiskFactors() async {
+    try {
+      final factors = await localDataSource.getMedicalRiskFactors();
+      return Right(factors);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(message: e.message));
+    } catch (e) {
+      return Left(CacheFailure(message: 'Unexpected error getting medical risk factors: $e'));
+    }
+  }
+
+  @override
+  Future<Either<Failure, void>> saveMedicalRiskFactors(List<MedicalRiskFactor> factors) async {
+    try {
+      final models = factors
+          .map((f) => f is MedicalRiskFactorModel ? f : MedicalRiskFactorModel.fromEntity(f))
+          .toList();
+      await localDataSource.saveMedicalRiskFactors(models);
+      return const Right(null);
+    } on CacheException catch (e) {
+      return Left(CacheFailure(message: e.message));
+    } catch (e) {
+      return Left(CacheFailure(message: 'Unexpected error saving medical risk factors: $e'));
     }
   }
 }

@@ -10,8 +10,10 @@ import '../../../customers/domain/entities/customer.dart';
 import '../../../customers/domain/repositories/customer_repository.dart';
 import '../../../pos/domain/entities/payment_detail.dart';
 import '../../data/models/clinic_visit_model.dart';
+import '../../data/models/medical_risk_factor_model.dart';
 import '../../data/models/patient_profile_model.dart';
 import '../../domain/entities/clinic_visit.dart';
+import '../../domain/entities/medical_risk_factor.dart';
 import '../../domain/entities/patient_profile.dart';
 import '../../domain/entities/tooth_chart_entry.dart';
 import '../../domain/repositories/clinic_repository.dart';
@@ -45,7 +47,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
   final CustomerRepository? customerRepository;
   final LanSyncRepository? lanSyncRepository;
 
-  StreamSubscription<SyncEnvelope>? _lanSyncSubscription;
+  StreamSubscription? _lanSyncSubscription;
 
   ClinicBloc({
     required this.getClinicQueueUseCase,
@@ -75,6 +77,8 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
     on<UpdateToothChartEntryEvent>(_onUpdateToothChartEntry);
     on<SaveToothChartEvent>(_onSaveToothChart);
     on<SearchClinicPatientsEvent>(_onSearchClinicPatients);
+    on<LoadMedicalRiskFactorsEvent>(_onLoadMedicalRiskFactors);
+    on<UpdateMedicalRiskFactorsEvent>(_onUpdateMedicalRiskFactors);
 
     _initLanSyncListener();
   }
@@ -200,6 +204,18 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         } catch (_) {}
       }
 
+      // Collect all configured medical risk factors
+      final List<Map<String, dynamic>> riskFactorsJson = [];
+      if (clinicRepository != null) {
+        try {
+          final rfRes = await clinicRepository!.getMedicalRiskFactors();
+          final rfList = rfRes.getOrElse(() => []);
+          for (final f in rfList) {
+            riskFactorsJson.add(MedicalRiskFactorModel.fromEntity(f).toJson());
+          }
+        } catch (_) {}
+      }
+
       final responseEnvelope = SyncEnvelope.create(
         type: MessageRoutes.syncFullStateResponse,
         scope: 'clinic',
@@ -210,6 +226,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           'patients': patientsJson,
           'customers': customersJson,
           'customerLedgerEntries': ledgerEntriesJson,
+          'riskFactors': riskFactorsJson,
         },
       );
 
@@ -340,7 +357,25 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         }
       }
 
-      // 4. ONLY AFTER the database writes are complete, dispatch LoadClinicQueueEvent()
+      // 4. Batch upsert medical risk factors
+      if (payload['riskFactors'] != null && payload['riskFactors'] is List && clinicRepository != null) {
+        final rfList = payload['riskFactors'] as List;
+        final List<MedicalRiskFactorModel> rfModels = [];
+        for (final item in rfList) {
+          try {
+            if (item is Map) {
+              rfModels.add(MedicalRiskFactorModel.fromJson(Map<String, dynamic>.from(item)));
+            } else if (item is String) {
+              rfModels.add(MedicalRiskFactorModel.fromJson(Map<String, dynamic>.from(jsonDecode(item) as Map)));
+            }
+          } catch (_) {}
+        }
+        if (rfModels.isNotEmpty) {
+          await clinicRepository!.saveMedicalRiskFactors(rfModels);
+        }
+      }
+
+      // 5. ONLY AFTER the database writes are complete, dispatch LoadClinicQueueEvent()
       add(const LoadClinicQueueEvent());
     } catch (_) {
       add(const LoadClinicQueueEvent());
@@ -355,6 +390,22 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         await _handleSyncRequestActiveState(envelope);
       } else if (type == MessageRoutes.syncFullStateResponse) {
         await _handleSyncFullStateResponse(envelope);
+      } else if (type == 'clinic.risk_factors_updated') {
+        final payload = envelope.payload;
+        if (payload != null && payload['riskFactors'] is List && clinicRepository != null) {
+          try {
+            final List<MedicalRiskFactorModel> rfModels = [];
+            for (final item in payload['riskFactors']) {
+              if (item is Map) {
+                rfModels.add(MedicalRiskFactorModel.fromJson(Map<String, dynamic>.from(item)));
+              }
+            }
+            if (rfModels.isNotEmpty) {
+              await clinicRepository!.saveMedicalRiskFactors(rfModels);
+              add(const LoadMedicalRiskFactorsEvent());
+            }
+          } catch (_) {}
+        }
       } else if (type == MessageRoutes.customerUpdated) {
         final payload = envelope.payload;
         if (payload != null && customerRepository != null) {
@@ -490,6 +541,11 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
     final patientsResult = await getPatientsUseCase();
     final waitResult = await getRollingMeanWaitUseCase(event.doctorName ?? 'General Practitioner');
 
+    final rfRes = clinicRepository != null
+        ? await clinicRepository!.getMedicalRiskFactors()
+        : null;
+    final riskFactors = rfRes?.getOrElse(() => MedicalRiskFactor.defaultFactors) ?? MedicalRiskFactor.defaultFactors;
+
     queueResult.fold(
       (failure) => emit(ClinicError(failure.message)),
       (queue) {
@@ -508,10 +564,55 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
             patients: patients,
             billingVisits: billingVisits,
             rollingMeanWaitMinutes: waitMin,
+            riskFactors: riskFactors,
           ),
         );
       },
     );
+  }
+
+  Future<void> _onLoadMedicalRiskFactors(
+    LoadMedicalRiskFactorsEvent event,
+    Emitter<ClinicState> emit,
+  ) async {
+    if (state is ClinicLoaded && clinicRepository != null) {
+      final currentState = state as ClinicLoaded;
+      final factorsRes = await clinicRepository!.getMedicalRiskFactors();
+      final factors = factorsRes.getOrElse(() => MedicalRiskFactor.defaultFactors);
+      emit(currentState.copyWith(riskFactors: factors));
+    }
+  }
+
+  Future<void> _onUpdateMedicalRiskFactors(
+    UpdateMedicalRiskFactorsEvent event,
+    Emitter<ClinicState> emit,
+  ) async {
+    if (clinicRepository != null) {
+      await clinicRepository!.saveMedicalRiskFactors(event.factors);
+    }
+    if (state is ClinicLoaded) {
+      final currentState = state as ClinicLoaded;
+      emit(currentState.copyWith(riskFactors: event.factors));
+    }
+
+    // Broadcast updated factors over LAN
+    if (lanSyncRepository != null) {
+      try {
+        final models = event.factors
+            .map((f) => MedicalRiskFactorModel.fromEntity(f).toJson())
+            .toList();
+        final envelope = SyncEnvelope.create(
+          type: 'clinic.risk_factors_updated',
+          scope: 'clinic',
+          senderId: lanSyncRepository?.isHost == true ? 'hub_host' : 'clinic_station',
+          senderRole: 'clinic',
+          payload: {
+            'riskFactors': models,
+          },
+        );
+        await lanSyncRepository!.broadcast(envelope);
+      } catch (_) {}
+    }
   }
 
   Future<void> _onCheckInPatient(

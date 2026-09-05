@@ -27,7 +27,8 @@ class CustomerRepositoryImpl implements CustomerRepository {
     try {
       final customers = await localDataSource.getCustomers();
 
-      final reconciledCustomers = await Future.wait(customers.map((c) async {
+      final customerActivityPairs = await Future.wait(customers.map((c) async {
+        DateTime lastActivity = c.createdAt;
         try {
           final ledger = await localDataSource.getLedgerEntries(c.id);
           if (ledger.isNotEmpty) {
@@ -39,18 +40,25 @@ class CustomerRepositoryImpl implements CustomerRepository {
               } else if (e.type == CustomerLedgerType.debtPayment) {
                 totalPayments += e.amount;
               }
+              if (e.timestamp.isAfter(lastActivity)) {
+                lastActivity = e.timestamp;
+              }
             }
             final net = totalCharges - totalPayments;
             final accurateDebt = net > 0.001 ? net : 0.0;
             if ((c.totalDebt - accurateDebt).abs() > 0.001) {
               final updated = c.copyWith(totalDebt: accurateDebt);
               await localDataSource.saveCustomer(CustomerModel.fromEntity(updated));
-              return updated;
+              return (customer: updated, lastActivity: lastActivity);
             }
           }
         } catch (_) {}
-        return c;
+        return (customer: c, lastActivity: lastActivity);
       }));
+
+      // Sort reverse-chronologically by newest activity/creation date (newest first)
+      customerActivityPairs.sort((a, b) => b.lastActivity.compareTo(a.lastActivity));
+      final reconciledCustomers = customerActivityPairs.map((pair) => pair.customer).toList();
 
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
         final query = searchQuery.trim().toLowerCase();

@@ -4,17 +4,21 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
+import '../../domain/entities/medical_risk_factor.dart';
 import '../../domain/entities/patient_profile.dart';
 import '../bloc/clinic_bloc.dart';
 import '../bloc/clinic_event.dart';
+import '../bloc/clinic_state.dart';
+import 'medical_risk_factor_manager_dialog.dart';
 
 /// Patient intake and queue check-in modal dialog.
 /// Supports returning patient search/autocomplete by phone or name,
-/// autofilling age, diabetes, smoking, hypertension, and allergies.
+/// dynamic configurable risk factors, and allergies.
 /// Follows strict Clean Architecture and is 100% [StatelessWidget].
 class PatientIntakeDialog extends StatelessWidget {
   final ClinicBloc? bloc;
   final List<PatientProfile> existingPatients;
+  final List<MedicalRiskFactor>? riskFactors;
   final TextEditingController nameController;
   final TextEditingController ageController;
   final TextEditingController phoneController;
@@ -22,6 +26,7 @@ class PatientIntakeDialog extends StatelessWidget {
   final TextEditingController allergiesController;
   final ValueNotifier<String> doctorNotifier;
   final ValueNotifier<String?> selectedPatientIdNotifier;
+  final ValueNotifier<Set<String>> selectedConditionsNotifier;
   final ValueNotifier<bool> diabetesNotifier;
   final ValueNotifier<bool> smokingNotifier;
   final ValueNotifier<bool> hypertensionNotifier;
@@ -30,6 +35,7 @@ class PatientIntakeDialog extends StatelessWidget {
     super.key,
     this.bloc,
     this.existingPatients = const [],
+    this.riskFactors,
     TextEditingController? nameController,
     TextEditingController? ageController,
     TextEditingController? phoneController,
@@ -37,6 +43,7 @@ class PatientIntakeDialog extends StatelessWidget {
     TextEditingController? allergiesController,
     ValueNotifier<String>? doctorNotifier,
     ValueNotifier<String?>? selectedPatientIdNotifier,
+    ValueNotifier<Set<String>>? selectedConditionsNotifier,
     ValueNotifier<bool>? diabetesNotifier,
     ValueNotifier<bool>? smokingNotifier,
     ValueNotifier<bool>? hypertensionNotifier,
@@ -47,6 +54,11 @@ class PatientIntakeDialog extends StatelessWidget {
         allergiesController = allergiesController ?? TextEditingController(),
         doctorNotifier = doctorNotifier ?? ValueNotifier<String>('usr_doctor'),
         selectedPatientIdNotifier = selectedPatientIdNotifier ?? ValueNotifier<String?>(null),
+        selectedConditionsNotifier = selectedConditionsNotifier ?? ValueNotifier<Set<String>>({
+          if (diabetesNotifier?.value == true) 'Diabetes',
+          if (smokingNotifier?.value == true) 'Smoking / Tobacco',
+          if (hypertensionNotifier?.value == true) 'Hypertension',
+        }),
         diabetesNotifier = diabetesNotifier ?? ValueNotifier<bool>(false),
         smokingNotifier = smokingNotifier ?? ValueNotifier<bool>(false),
         hypertensionNotifier = hypertensionNotifier ?? ValueNotifier<bool>(false);
@@ -71,6 +83,7 @@ class PatientIntakeDialog extends StatelessWidget {
 
     // Populate medical history flags
     final conditions = patient.chronicConditions;
+    selectedConditionsNotifier.value = Set.from(conditions);
     diabetesNotifier.value = conditions.any((c) => c.toLowerCase().contains('diabet'));
     smokingNotifier.value = conditions.any((c) => c.toLowerCase().contains('smok'));
     hypertensionNotifier.value = conditions.any((c) => c.toLowerCase().contains('hyper') || c.toLowerCase().contains('bp'));
@@ -80,6 +93,9 @@ class PatientIntakeDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final activeBloc = bloc ?? context.read<ClinicBloc>();
+    final state = activeBloc.state;
+    final activeRiskFactors = riskFactors ??
+        (state is ClinicLoaded ? state.riskFactors : MedicalRiskFactor.defaultFactors);
 
     return Dialog(
       backgroundColor: AppColors.surfaceDark,
@@ -223,25 +239,93 @@ class PatientIntakeDialog extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(LucideIcons.heartPulse, size: 16, color: AppColors.primaryLight),
-                        SizedBox(width: 8),
-                        Text(
-                          'Patient Medical Status & Risk History',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                        const Row(
+                          children: [
+                            Icon(LucideIcons.heartPulse, size: 16, color: AppColors.primaryLight),
+                            SizedBox(width: 8),
+                            Text(
+                              'Patient Medical Status & Risk History',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                          ],
+                        ),
+                        InkWell(
+                          onTap: () {
+                            showDialog(
+                              context: context,
+                              builder: (_) => BlocProvider.value(
+                                value: activeBloc,
+                                child: MedicalRiskFactorManagerDialog(currentFactors: activeRiskFactors),
+                              ),
+                            );
+                          },
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(LucideIcons.settings2, size: 14, color: AppColors.primaryLight),
+                              SizedBox(width: 4),
+                              Text(
+                                'Manage Factors',
+                                style: TextStyle(fontSize: 11, color: AppColors.primaryLight, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildCheckChip('Diabetes', LucideIcons.activity, diabetesNotifier, Colors.amber),
-                        _buildCheckChip('Smoking / Tobacco', LucideIcons.cigarette, smokingNotifier, Colors.orange),
-                        _buildCheckChip('Hypertension', LucideIcons.heartPulse, hypertensionNotifier, Colors.red),
-                      ],
+                    ValueListenableBuilder<Set<String>>(
+                      valueListenable: selectedConditionsNotifier,
+                      builder: (context, selectedConditions, _) {
+                        return Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: activeRiskFactors.where((f) => f.isEnabled).map((factor) {
+                            final isSelected = selectedConditions.any((c) =>
+                                c.toLowerCase() == factor.label.toLowerCase() ||
+                                factor.label.toLowerCase().contains(c.toLowerCase()) ||
+                                c.toLowerCase().contains(factor.label.toLowerCase()));
+                            return FilterChip(
+                              avatar: Icon(factor.iconData, size: 14, color: isSelected ? factor.color : Colors.white70),
+                              label: Text(factor.label),
+                              selected: isSelected,
+                              onSelected: (val) {
+                                final updated = Set<String>.from(selectedConditions);
+                                if (val) {
+                                  updated.add(factor.label);
+                                } else {
+                                  updated.removeWhere((c) =>
+                                      c.toLowerCase() == factor.label.toLowerCase() ||
+                                      factor.label.toLowerCase().contains(c.toLowerCase()) ||
+                                      c.toLowerCase().contains(factor.label.toLowerCase()));
+                                }
+                                selectedConditionsNotifier.value = updated;
+                                if (factor.label.toLowerCase().contains('diabet')) diabetesNotifier.value = val;
+                                if (factor.label.toLowerCase().contains('smok')) smokingNotifier.value = val;
+                                if (factor.label.toLowerCase().contains('hyper')) hypertensionNotifier.value = val;
+                              },
+                              selectedColor: factor.color.withValues(alpha: 0.3),
+                              checkmarkColor: factor.color,
+                              labelStyle: TextStyle(
+                                color: isSelected ? factor.color : Colors.white70,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 11,
+                              ),
+                              backgroundColor: AppColors.surfaceElevatedDark,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                side: BorderSide(
+                                  color: isSelected ? factor.color : AppColors.borderDark,
+                                  width: isSelected ? 1.5 : 1.0,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      },
                     ),
                     const SizedBox(height: 10),
                     TextField(
@@ -346,10 +430,16 @@ class PatientIntakeDialog extends StatelessWidget {
                       }
 
                       // Compile chronic conditions list
-                      final chronicList = <String>[];
-                      if (diabetesNotifier.value) chronicList.add('Diabetes');
-                      if (smokingNotifier.value) chronicList.add('Smoking');
-                      if (hypertensionNotifier.value) chronicList.add('Hypertension');
+                      final chronicList = <String>[...selectedConditionsNotifier.value];
+                      if (diabetesNotifier.value && !chronicList.any((c) => c.toLowerCase().contains('diabet'))) {
+                        chronicList.add('Diabetes');
+                      }
+                      if (smokingNotifier.value && !chronicList.any((c) => c.toLowerCase().contains('smok'))) {
+                        chronicList.add('Smoking');
+                      }
+                      if (hypertensionNotifier.value && !chronicList.any((c) => c.toLowerCase().contains('hyper'))) {
+                        chronicList.add('Hypertension');
+                      }
 
                       final allergiesList = allergiesController.text
                           .split(',')
@@ -406,39 +496,6 @@ class PatientIntakeDialog extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildCheckChip(
-    String label,
-    IconData icon,
-    ValueNotifier<bool> notifier,
-    Color activeColor,
-  ) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: notifier,
-      builder: (context, isActive, _) {
-        return FilterChip(
-          avatar: Icon(icon, size: 14, color: isActive ? activeColor : Colors.white70),
-          label: Text(label),
-          selected: isActive,
-          onSelected: (val) => notifier.value = val,
-          selectedColor: activeColor.withValues(alpha: 0.3),
-          checkmarkColor: activeColor,
-          labelStyle: TextStyle(
-            color: isActive ? activeColor : Colors.white70,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            fontSize: 11,
-          ),
-          backgroundColor: AppColors.surfaceElevatedDark,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(6),
-            side: BorderSide(
-              color: isActive ? activeColor : AppColors.borderDark,
-            ),
-          ),
-        );
-      },
     );
   }
 }

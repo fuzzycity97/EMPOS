@@ -72,26 +72,6 @@ class DentalRepositoryImpl implements DentalRepository {
     }
   }
 
-  ToothChartEntry _mergeToothEntries(ToothChartEntry oldEntry, ToothChartEntry newEntry) {
-    final effectiveState = (newEntry.state != ToothState.healthy)
-        ? newEntry.state
-        : oldEntry.state;
-    final mergedHistory = <ToothHistoryEntry>[...oldEntry.history];
-    for (final h in newEntry.history) {
-      if (!mergedHistory.any((x) => x.timestamp == h.timestamp && x.state == h.state)) {
-        mergedHistory.add(h);
-      }
-    }
-    return oldEntry.copyWith(
-      state: effectiveState,
-      pocketDepthMm: newEntry.pocketDepthMm > 1 ? newEntry.pocketDepthMm : oldEntry.pocketDepthMm,
-      surfaceNotation: newEntry.surfaceNotation.isNotEmpty ? newEntry.surfaceNotation : oldEntry.surfaceNotation,
-      notes: (newEntry.notes != null && newEntry.notes!.isNotEmpty) ? newEntry.notes : oldEntry.notes,
-      specialCaseType: newEntry.specialCaseType ?? oldEntry.specialCaseType,
-      history: mergedHistory,
-    );
-  }
-
   @override
   Future<Either<Failure, void>> saveToothChart(
     String patientId,

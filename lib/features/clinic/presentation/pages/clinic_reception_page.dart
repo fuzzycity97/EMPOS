@@ -1,4 +1,4 @@
-﻿import '../widgets/patient_medical_history_dialog.dart';
+import '../widgets/patient_medical_history_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -330,7 +330,7 @@ class ClinicReceptionPage extends StatelessWidget {
               ),
             ),
             title: Text(visit.patientName, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('Doctor: ${formatDoctorName(visit.doctorName)} â€¢ Complaint: ${visit.chiefComplaint}'),
+            subtitle: Text('Doctor: ${formatDoctorName(visit.doctorName)} • Complaint: ${visit.chiefComplaint}'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -414,11 +414,11 @@ class ClinicReceptionPage extends StatelessWidget {
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
-                      Text('Doctor: ${formatDoctorName(visit.doctorName)} â€¢ Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}'),
+                      Text('Doctor: ${formatDoctorName(visit.doctorName)} • Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}'),
                       const SizedBox(height: 6),
                       if (patient?.insuranceProvider != null)
                         Text(
-                          'Insurance: ${patient!.insuranceProvider} â€¢ Copay Split: ${(copayRatio * 100).toInt()}% Patient / ${((1 - copayRatio) * 100).toInt()}% Carrier',
+                          'Insurance: ${patient!.insuranceProvider} • Copay Split: ${(copayRatio * 100).toInt()}% Patient / ${((1 - copayRatio) * 100).toInt()}% Carrier',
                           style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
                         ),
                     ],
