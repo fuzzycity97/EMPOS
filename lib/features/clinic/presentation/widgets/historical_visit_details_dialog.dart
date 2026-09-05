@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
@@ -158,7 +159,7 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                       const SizedBox(height: 16),
 
                       // 5. Diagnostic Attachments & Lightbox Preview
-                      _buildDiagnosticAttachmentsSection(isDark),
+                      _buildDiagnosticAttachmentsSection(context, isDark),
                       const SizedBox(height: 16),
 
                       // 6. Prescriptions & Procedures
@@ -412,6 +413,24 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
   }
 
   Widget _buildFinancialSummary(bool isDark) {
+    final visitDue = (visit.totalFee - visit.patientCopay - visit.insurancePaid).clamp(0.0, double.infinity);
+    final isFullySettled = visitDue <= 0.001 && (visit.patientCopay > 0 || visit.insurancePaid > 0 || visit.totalFee == 0);
+    final isPartiallyPaid = (visit.patientCopay > 0 || visit.insurancePaid > 0) && visitDue > 0.001;
+
+    final String statusText;
+    final Color statusColor;
+
+    if (isFullySettled) {
+      statusText = 'PAID & SETTLED';
+      statusColor = AppColors.success;
+    } else if (isPartiallyPaid) {
+      statusText = 'PARTIAL DEBT (Due: ${visitDue.toStringAsFixed(2)} EGP)';
+      statusColor = AppColors.warning;
+    } else {
+      statusText = 'UNPAID (Due: ${visit.totalFee.toStringAsFixed(2)} EGP)';
+      statusColor = AppColors.danger;
+    }
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -427,8 +446,8 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
           _financeStat('Insurance Covered', '${visit.insurancePaid.toStringAsFixed(2)} EGP', AppColors.primaryLight),
           _financeStat(
             'Payment Status',
-            visit.isPaid ? 'PAID & SETTLED' : 'UNPAID / PENDING',
-            visit.isPaid ? AppColors.success : AppColors.danger,
+            statusText,
+            statusColor,
           ),
         ],
       ),
@@ -453,6 +472,8 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
   }
 
   Widget _buildLaboratorySection(bool isDark) {
+    final hasLab = visit.labResults != null && visit.labResults!.trim().isNotEmpty;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -463,87 +484,38 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionHeader('Laboratory Panels & Bloodwork (CBC / BMP)', LucideIcons.flaskConical),
+          _buildSectionHeader('Laboratory Panels & Bloodwork', LucideIcons.flaskConical),
           const SizedBox(height: 10),
-          Table(
-            columnWidths: const {
-              0: FlexColumnWidth(2.2),
-              1: FlexColumnWidth(1.4),
-              2: FlexColumnWidth(1.8),
-              3: FlexColumnWidth(1.2),
-            },
-            children: [
-              const TableRow(
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: AppColors.borderDark, width: 1)),
-                ),
-                children: [
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: 4),
-                    child: Text('Test Parameter', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textMutedDark)),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: 4),
-                    child: Text('Result Value', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textMutedDark)),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: 4),
-                    child: Text('Reference Range', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textMutedDark)),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(vertical: 4),
-                    child: Text('Status', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textMutedDark)),
-                  ),
-                ],
+          if (hasLab)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.black26,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.borderDark),
               ),
-              _labRow('White Blood Cells (WBC)', '7.2 x10³/µL', '4.5 - 11.0', 'NORMAL', AppColors.success),
-              _labRow('Hemoglobin (Hgb)', '14.1 g/dL', '13.5 - 17.5', 'NORMAL', AppColors.success),
-              _labRow('Platelet Count', '245 x10³/µL', '150 - 450', 'NORMAL', AppColors.success),
-              _labRow('Fasting Blood Glucose', '104 mg/dL', '70 - 99', 'HIGH', AppColors.danger),
-              _labRow('Serum Creatinine', '0.92 mg/dL', '0.70 - 1.30', 'NORMAL', AppColors.success),
-            ],
-          ),
+              child: Text(
+                visit.labResults!,
+                style: const TextStyle(fontSize: 12, color: Colors.white, height: 1.4),
+              ),
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                'No laboratory panels or bloodwork recorded for this consultation.',
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondaryDark, fontStyle: FontStyle.italic),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  TableRow _labRow(String name, String value, String ref, String flag, Color flagColor) {
-    return TableRow(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          child: Text(name, style: const TextStyle(fontSize: 11, color: AppColors.textPrimaryDark)),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          child: Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'monospace', color: Colors.white)),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          child: Text(ref, style: const TextStyle(fontSize: 10.5, color: AppColors.textSecondaryDark)),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: flagColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: flagColor.withValues(alpha: 0.4)),
-            ),
-            child: Text(
-              flag,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: flagColor),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  Widget _buildDiagnosticAttachmentsSection(BuildContext context, bool isDark) {
+    final hasAttachments = visit.attachmentPaths.isNotEmpty;
 
-  Widget _buildDiagnosticAttachmentsSection(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -555,49 +527,114 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionHeader('Diagnostic Imaging & Attachment Records', LucideIcons.fileImage),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _attachmentBadge('Periapical Radiograph #19', 'X-RAY', AppColors.info),
-              const SizedBox(width: 8),
-              _attachmentBadge('Panoramic OPG Survey', 'DICOM', AppColors.primaryLight),
-              const SizedBox(width: 8),
-              _attachmentBadge('CBC Diagnostic Report', 'LAB', AppColors.warning),
-            ],
-          ),
+          const SizedBox(height: 10),
+          if (hasAttachments)
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: List.generate(visit.attachmentPaths.length, (idx) {
+                final path = visit.attachmentPaths[idx];
+                final title = idx < visit.attachmentTitles.length ? visit.attachmentTitles[idx] : 'Attachment #${idx + 1}';
+                final file = File(path);
+                final fileExists = file.existsSync();
+
+                return InkWell(
+                  borderRadius: BorderRadius.circular(6),
+                  onTap: () {
+                    if (fileExists) {
+                      _showImageDialog(context, path, title);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF030712),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.borderDark),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Icon(LucideIcons.image, size: 14, color: Colors.blue),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          title,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(
+                          fileExists ? LucideIcons.externalLink : LucideIcons.fileX,
+                          size: 13,
+                          color: fileExists ? Colors.white60 : Colors.redAccent,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'No radiographs, scans, or attachments recorded for this visit session.',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _attachmentBadge(String title, String tag, Color tagColor) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF030712),
-          borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-          border: Border.all(color: AppColors.borderDark),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-              decoration: BoxDecoration(
-                color: tagColor.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(3),
+  void _showImageDialog(BuildContext context, String filePath, String title) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: const Color(0xFF090D16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 800, maxHeight: 600),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.x, size: 18, color: Colors.white70),
+                    onPressed: () => Navigator.of(ctx).pop(),
+                  ),
+                ],
               ),
-              child: Text(tag, style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: tagColor)),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis,
+              const Divider(color: Colors.white24),
+              Expanded(
+                child: Center(
+                  child: Image.file(
+                    File(filePath),
+                    fit: BoxFit.contain,
+                    errorBuilder: (ctx, err, stack) => const Text(
+                      'Failed to load image file from disk.',
+                      style: TextStyle(color: Colors.redAccent),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -9,7 +9,6 @@ import '../../domain/entities/patient_profile.dart';
 import '../bloc/clinic_bloc.dart';
 import '../bloc/clinic_event.dart';
 import '../bloc/clinic_state.dart';
-import 'medical_risk_factor_manager_dialog.dart';
 
 /// Patient intake and queue check-in modal dialog.
 /// Supports returning patient search/autocomplete by phone or name,
@@ -195,6 +194,7 @@ class PatientIntakeDialog extends StatelessWidget {
 
               // Age & Phone Number Row
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     flex: 2,
@@ -213,15 +213,66 @@ class PatientIntakeDialog extends StatelessWidget {
                   const SizedBox(width: AppDimensions.space12),
                   Expanded(
                     flex: 3,
-                    child: TextField(
-                      controller: phoneController,
-                      keyboardType: TextInputType.phone,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: const InputDecoration(
-                        labelText: 'Phone Number',
-                        hintText: 'e.g. +20 100 123 4567',
-                        prefixIcon: Icon(LucideIcons.phone, size: 18),
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: phoneController,
+                          keyboardType: TextInputType.phone,
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: const InputDecoration(
+                            labelText: 'Phone Number',
+                            hintText: 'e.g. +20 100 123 4567',
+                            prefixIcon: Icon(LucideIcons.phone, size: 18),
+                          ),
+                        ),
+                        AnimatedBuilder(
+                          animation: Listenable.merge([phoneController, selectedPatientIdNotifier]),
+                          builder: (context, _) {
+                            final rawPhone = phoneController.text.trim();
+                            if (rawPhone.isEmpty) return const SizedBox.shrink();
+
+                            final allPatients = (state is ClinicLoaded) ? state.patients : <PatientProfile>[];
+                            final duplicate = allPatients.cast<PatientProfile?>().firstWhere(
+                              (p) => p != null && p.phone.trim() == rawPhone && p.id != selectedPatientIdNotifier.value,
+                              orElse: () => null,
+                            );
+
+                            if (duplicate == null) return const SizedBox.shrink();
+
+                            return Container(
+                              margin: const EdgeInsets.only(top: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(LucideIcons.alertCircle, size: 14, color: Colors.redAccent),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'Already registered to "${duplicate.name}"',
+                                      style: const TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    ),
+                                    onPressed: () => _populatePatientData(duplicate),
+                                    child: const Text('Select', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber)),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -239,40 +290,13 @@ class PatientIntakeDialog extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    const Row(
                       children: [
-                        const Row(
-                          children: [
-                            Icon(LucideIcons.heartPulse, size: 16, color: AppColors.primaryLight),
-                            SizedBox(width: 8),
-                            Text(
-                              'Patient Medical Status & Risk History',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                            ),
-                          ],
-                        ),
-                        InkWell(
-                          onTap: () {
-                            showDialog(
-                              context: context,
-                              builder: (_) => BlocProvider.value(
-                                value: activeBloc,
-                                child: MedicalRiskFactorManagerDialog(currentFactors: activeRiskFactors),
-                              ),
-                            );
-                          },
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(LucideIcons.settings2, size: 14, color: AppColors.primaryLight),
-                              SizedBox(width: 4),
-                              Text(
-                                'Manage Factors',
-                                style: TextStyle(fontSize: 11, color: AppColors.primaryLight, fontWeight: FontWeight.w600),
-                              ),
-                            ],
-                          ),
+                        Icon(LucideIcons.heartPulse, size: 16, color: AppColors.primaryLight),
+                        SizedBox(width: 8),
+                        Text(
+                          'Patient Medical Status & Risk History',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                       ],
                     ),
@@ -427,6 +451,23 @@ class PatientIntakeDialog extends StatelessWidget {
                           ),
                         );
                         return;
+                      }
+
+                      if (phone.isNotEmpty && existingId == null) {
+                        final duplicate = existingPatients.cast<PatientProfile?>().firstWhere(
+                          (p) => p != null && p.phone.trim() == phone,
+                          orElse: () => null,
+                        );
+                        if (duplicate != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Phone number is already registered to "${duplicate.name}". Please confirm using existing profile.'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                          _populatePatientData(duplicate);
+                          return;
+                        }
                       }
 
                       // Compile chronic conditions list

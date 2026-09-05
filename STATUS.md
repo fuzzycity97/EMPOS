@@ -1,6 +1,6 @@
 # EMPOS Migration â€” Shared Status
 
-Last updated: 2026-08-29T16:30:00Z by Antigravity / Pair Programming Agent
+Last updated: 2026-09-05T16:45:00Z by Antigravity / Pair Programming Agent
 
 ## 0. Coordination Protocol (read this section fully, every session, before doing anything)
 
@@ -458,3 +458,12 @@ EMPOS is the full Flutter/Dart rewrite of the original OmniTrack system (whose o
   3. **Patient History Accurate Debt & Visit Status Badging**: Refactored `DoctorStationPage._showPatientHistoryDialog` to dynamically compute uncollected balances ($\text{Fee} - \text{Copay Paid}$), displaying distinct `PAID & SETTLED` (green), `PARTIAL DEBT` (amber), and `UNPAID` (red) status badges, along with formatted doctor names and EGP currency.
   4. **Customer List Activity-First Sorting**: Updated `CustomerRepositoryImpl.getCustomers` and `CustomerLocalDataSourceImpl` to sort customers reverse-chronologically by latest transaction/ledger entry timestamp or creation date ($t_{\text{newest}} \rightarrow t_{\text{oldest}}$), ensuring the newest patient visits and recent accounts always appear at the top.
   5. **Global Mojibake Scrub**: Purged all occurrences of `â€¢` and `EÂ£` across `lib/`, restoring clean bullet separators and unified EGP currency formatting. Verified with `flutter analyze` (0 issues) and automated tests (21/21 passing).
+
+- **2026-09-05 (Antigravity)**: Completed Enterprise Clinic Branding, Real Laboratory & Bloodwork Tracking, Lightbox Image File Persistence, Duplicate Patient Guard, and Central Medical Archive:
+  1. **Dynamic Business Name Branding**: In `MainShell`, bound the header title directly to `blueprint.storeName` (with graceful fallback to 'EMPOS™ Enterprise'), ensuring customized business names configured during Store Builder and Blueprint setup are prominently displayed throughout the application.
+  2. **Real Laboratory Panels & Bloodwork Tracking**: Replaced dummy hardcoded bloodwork numbers with real clinical data capture. Doctors can enter real laboratory panels and bloodwork (CBC, BMP, pathology) during consultation in `DoctorStationPage`, persisted to `ClinicVisit.labResults` and faithfully rendered in `HistoricalVisitDetailsDialog`.
+  3. **Real Image Attachments & Radiograph Lightbox Persistence**: Captured actual file paths (`filePath`) and attachment titles from `DoctorAttachmentsLightbox` into `ClinicVisit.attachmentPaths` and `attachmentTitles`. Replaced placeholder silhouettes with real disk-backed images in thumbnails and full-screen inspection modals via `Image.file`.
+  4. **Central Patient Medical Archive & History Search**: Added `_showAllPatientsArchiveDialog` accessible directly from the doctor's queue sidebar header. Doctors can search any registered patient by name or phone at any time, review their complete medical history, past visits, and odontograms, or select their active queue session.
+  5. **Duplicate Patient Intake Prevention & RBAC Guard**: In `PatientIntakeDialog`, added real-time phone number duplication validation with an inline red warning (`Already registered to [Name]`) and a 1-tap `[Select]` action, blocking duplicate patient records. Removed the administrative "Manage Factors" button from the Receptionist intake modal, restricting risk factor configuration to Admins and Clinic Managers.
+  6. **Visit History Debt Calculation & Accurate Badging**: In `HistoricalVisitDetailsDialog`, dynamically computes remaining balance ($\text{Due} = \text{Fee} - \text{Copay} - \text{Insurance}$), accurately labeling visits as `PARTIAL DEBT (Due: X EGP)` (amber), `UNPAID` (red), or `PAID & SETTLED` (green).
+  7. **Reception LAN Server Disconnection Banner & Mojibake Scrub**: Added high-visibility red disconnect banner to `ClinicReceptionPage` with one-click reconnect and network hub dialog. Scrubbed all remaining mojibake symbols (`âš ï¸ `, `â€”`) across connection banners. Verified with `flutter analyze` (0 issues) and automated tests (21/21 passing).

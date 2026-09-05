@@ -29,6 +29,9 @@ class ClinicVisitModel extends ClinicVisit {
     super.respiratoryRate = '16 bpm',
     super.spo2 = '99%',
     super.temperature = '36.8 °C',
+    super.labResults,
+    super.attachmentPaths = const [],
+    super.attachmentTitles = const [],
   });
 
   factory ClinicVisitModel.fromJson(Map<String, dynamic> json) {
@@ -64,6 +67,9 @@ class ClinicVisitModel extends ClinicVisit {
       respiratoryRate: json['respiratoryRate']?.toString() ?? '16 bpm',
       spo2: json['spo2']?.toString() ?? '99%',
       temperature: json['temperature']?.toString() ?? '36.8 °C',
+      labResults: json['labResults']?.toString(),
+      attachmentPaths: (json['attachmentPaths'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
+      attachmentTitles: (json['attachmentTitles'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
     );
   }
 
@@ -98,6 +104,9 @@ class ClinicVisitModel extends ClinicVisit {
       'respiratoryRate': respiratoryRate,
       'spo2': spo2,
       'temperature': temperature,
+      'labResults': labResults,
+      'attachmentPaths': attachmentPaths,
+      'attachmentTitles': attachmentTitles,
     };
   }
 
@@ -128,6 +137,9 @@ class ClinicVisitModel extends ClinicVisit {
       respiratoryRate: entity.respiratoryRate,
       spo2: entity.spo2,
       temperature: entity.temperature,
+      labResults: entity.labResults,
+      attachmentPaths: entity.attachmentPaths,
+      attachmentTitles: entity.attachmentTitles,
     );
   }
 }

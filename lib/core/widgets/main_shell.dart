@@ -381,9 +381,11 @@ class MainShell extends StatelessWidget {
                       ),
                       if (showBrandText) ...[
                         const SizedBox(width: AppDimensions.space8),
-                        const Text(
-                          'EMPOS™ Enterprise',
-                          style: TextStyle(
+                        Text(
+                          (blueprint?.storeName != null && blueprint!.storeName.trim().isNotEmpty)
+                              ? blueprint.storeName
+                              : 'EMPOS™ Enterprise',
+                          style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 0.5,

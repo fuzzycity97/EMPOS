@@ -3,6 +3,7 @@ import '../widgets/patient_medical_history_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
 import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_bloc.dart';
 import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_event.dart';
@@ -40,6 +41,8 @@ class DoctorStationPage extends StatelessWidget {
     final clinicalNotesController = TextEditingController();
     final prescriptionController = TextEditingController();
     final totalFeeController = TextEditingController();
+    final labResultsController = TextEditingController();
+    final doctorAttachmentsNotifier = ValueNotifier<List<MedicalAttachment>>([]);
 
     return BlocBuilder<ClinicBloc, ClinicState>(
       bloc: bloc,
@@ -84,9 +87,27 @@ class DoctorStationPage extends StatelessWidget {
             // Reset inputs & auto-load tooth chart when active visit changes (taking in a patient)
             if (activeVisit != null && activeVisit.id != loadedVisitIdNotifier.value) {
               loadedVisitIdNotifier.value = activeVisit.id;
-              clinicalNotesController.clear();
-              prescriptionController.clear();
-              totalFeeController.clear();
+              clinicalNotesController.text = activeVisit.diagnosis ?? '';
+              prescriptionController.text = activeVisit.prescriptions.join(', ');
+              totalFeeController.text = activeVisit.totalFee > 0 ? activeVisit.totalFee.toStringAsFixed(2) : '';
+              labResultsController.text = activeVisit.labResults ?? '';
+
+              final existingAttachments = <MedicalAttachment>[];
+              for (int i = 0; i < activeVisit.attachmentPaths.length; i++) {
+                final path = activeVisit.attachmentPaths[i];
+                final title = i < activeVisit.attachmentTitles.length ? activeVisit.attachmentTitles[i] : 'Attachment #${i + 1}';
+                existingAttachments.add(MedicalAttachment(
+                  id: 'att_${activeVisit.id}_$i',
+                  title: title,
+                  type: MedicalAttachmentType.xrayRadiograph,
+                  uploadDate: activeVisit.checkInTime,
+                  fileSize: 'Saved File',
+                  doctorNotes: 'Consultation attachment',
+                  filePath: path,
+                ));
+              }
+              doctorAttachmentsNotifier.value = existingAttachments;
+
               if (blueprint.isDental) {
                 final patientForAge = loadedState.patients.cast<PatientProfile?>().firstWhere(
                   (p) => p?.id == activeVisit.patientId,
@@ -105,6 +126,8 @@ class DoctorStationPage extends StatelessWidget {
               clinicalNotesController.clear();
               prescriptionController.clear();
               totalFeeController.clear();
+              labResultsController.clear();
+              doctorAttachmentsNotifier.value = [];
             }
 
             final activePatient = activeVisit != null
@@ -148,17 +171,42 @@ class DoctorStationPage extends StatelessWidget {
                               Container(
                                 padding: const EdgeInsets.all(16),
                                 color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                                child: Row(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
-                                    Icon(Icons.people_alt_outlined, color: theme.colorScheme.primary),
-                                    const SizedBox(width: 8),
-                                    Flexible(
-                                      child: Text(
-                                        'Patient Queue (${activeQueue.length})',
-                                        style: theme.textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
+                                    Row(
+                                      children: [
+                                        Icon(Icons.people_alt_outlined, color: theme.colorScheme.primary),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Patient Queue (${activeQueue.length})',
+                                            style: theme.textTheme.titleMedium?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                        overflow: TextOverflow.ellipsis,
+                                      ],
+                                    ),
+                                    const SizedBox(height: 10),
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.15),
+                                        foregroundColor: theme.colorScheme.primary,
+                                        elevation: 0,
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                      ),
+                                      icon: const Icon(Icons.person_search, size: 16),
+                                      label: const Text(
+                                        'Search All Patients / Archive',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                      onPressed: () => _showAllPatientsArchiveDialog(
+                                        context,
+                                        loadedState,
+                                        selectedVisitNotifier,
+                                        isDark,
                                       ),
                                     ),
                                   ],
@@ -198,9 +246,25 @@ class DoctorStationPage extends StatelessWidget {
                                               onTap: () {
                                                 selectedVisitNotifier.value = visit.id;
                                                 loadedVisitIdNotifier.value = visit.id;
-                                                clinicalNotesController.clear();
-                                                prescriptionController.clear();
-                                                totalFeeController.clear();
+                                                clinicalNotesController.text = visit.diagnosis ?? '';
+                                                prescriptionController.text = visit.prescriptions.join(', ');
+                                                totalFeeController.text = visit.totalFee > 0 ? visit.totalFee.toStringAsFixed(2) : '';
+                                                labResultsController.text = visit.labResults ?? '';
+                                                final exAtts = <MedicalAttachment>[];
+                                                for (int i = 0; i < visit.attachmentPaths.length; i++) {
+                                                  final path = visit.attachmentPaths[i];
+                                                  final title = i < visit.attachmentTitles.length ? visit.attachmentTitles[i] : 'Attachment #${i + 1}';
+                                                  exAtts.add(MedicalAttachment(
+                                                    id: 'att_${visit.id}_$i',
+                                                    title: title,
+                                                    type: MedicalAttachmentType.xrayRadiograph,
+                                                    uploadDate: visit.checkInTime,
+                                                    fileSize: 'Saved File',
+                                                    doctorNotes: 'Consultation attachment',
+                                                    filePath: path,
+                                                  ));
+                                                }
+                                                doctorAttachmentsNotifier.value = exAtts;
                                                 if (blueprint.isDental) {
                                                   final isPed = (patient?.calculatedAge != null && patient!.calculatedAge! < 12);
                                                   if (visit.toothChart.isNotEmpty) {
@@ -336,10 +400,13 @@ class DoctorStationPage extends StatelessWidget {
                                         clinicalNotesController,
                                         prescriptionController,
                                         totalFeeController,
+                                        labResultsController,
                                         isDark,
                                       ),
                                       const SizedBox(height: 20),
-                                      DoctorAttachmentsLightbox(),
+                                      DoctorAttachmentsLightbox(
+                                        attachmentsNotifier: doctorAttachmentsNotifier,
+                                      ),
                                       const SizedBox(height: 24),
 
                                       // Action Footer
@@ -358,6 +425,10 @@ class DoctorStationPage extends StatelessWidget {
                                             final insurancePaid = totalFee - patientCopay;
 
                                             final currentToothSnapshot = loadedState.activeToothChart ?? [];
+                                            final attList = doctorAttachmentsNotifier.value;
+                                            final attPaths = attList.map((a) => a.filePath ?? '').where((p) => p.isNotEmpty).toList();
+                                            final attTitles = attList.where((a) => (a.filePath ?? '').isNotEmpty).map((a) => a.title).toList();
+                                            final labResults = labResultsController.text.trim();
 
                                             final completedVisit = activeVisit.copyWith(
                                               status: ClinicVisitStatus.completed,
@@ -376,6 +447,9 @@ class DoctorStationPage extends StatelessWidget {
                                               totalFee: totalFee,
                                               patientCopay: patientCopay,
                                               insurancePaid: insurancePaid,
+                                              labResults: labResults.isNotEmpty ? labResults : null,
+                                              attachmentPaths: attPaths,
+                                              attachmentTitles: attTitles,
                                             );
 
                                             bloc.add(CompleteVisitEvent(completedVisit));
@@ -384,7 +458,7 @@ class DoctorStationPage extends StatelessWidget {
                                               bloc.add(
                                                 SaveToothChartEvent(
                                                   patientId: activeVisit.patientId,
-                                          entries: currentToothSnapshot,
+                                                  entries: currentToothSnapshot,
                                                 ),
                                               );
                                             }
@@ -394,6 +468,8 @@ class DoctorStationPage extends StatelessWidget {
                                             clinicalNotesController.clear();
                                             prescriptionController.clear();
                                             totalFeeController.clear();
+                                            labResultsController.clear();
+                                            doctorAttachmentsNotifier.value = [];
                                             if (blueprint.isDental) {
                                               bloc.add(const ResetToothChartEvent());
                                             }
@@ -440,11 +516,11 @@ class DoctorStationPage extends StatelessWidget {
             color: const Color(0xFFB91C1C),
             child: Row(
               children: [
-                const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 18),
+                const Icon(LucideIcons.wifiOff, color: Colors.white, size: 18),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'âš ï¸ DISCONNECTED FROM LAN SERVER â€” Offline Mode (Local changes saved, will sync upon reconnect)',
+                    'DISCONNECTED FROM LAN SERVER • Offline Mode (Attempting to reconnect...)',
                     style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
@@ -455,7 +531,7 @@ class DoctorStationPage extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     visualDensity: VisualDensity.compact,
                   ),
-                  icon: const Icon(Icons.refresh, size: 14),
+                  icon: const Icon(LucideIcons.refreshCw, size: 14),
                   label: const Text('Reconnect', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                   onPressed: () {
                     context.read<LanSyncBloc>().add(const AutoRestoreLanSyncEvent());
@@ -509,8 +585,8 @@ class DoctorStationPage extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     isHost
-                        ? 'â— LAN Sync Hub Online (Host Station)'
-                        : 'â— Connected to LAN Server (${lanState.address}:${lanState.port})',
+                        ? '● LAN Sync Hub Online (Host Station)'
+                        : '● Connected to LAN Server (${lanState.address}:${lanState.port})',
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
                   ),
                 ],
@@ -1053,6 +1129,7 @@ class DoctorStationPage extends StatelessWidget {
     TextEditingController notesController,
     TextEditingController prescriptionController,
     TextEditingController feeController,
+    TextEditingController labResultsController,
     bool isDark,
   ) {
     return Container(
@@ -1072,6 +1149,17 @@ class DoctorStationPage extends StatelessWidget {
             maxLines: 3,
             decoration: const InputDecoration(
               hintText: 'Enter clinical observations, diagnosis, and treatment recommendations...',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text('Laboratory Panels & Bloodwork (CBC / BMP / Pathology)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: labResultsController,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              hintText: 'e.g. WBC: 7.2 x10^3/uL, Hgb: 14.1 g/dL, Platelets: 240 K/uL, Glucose: 95 mg/dL...',
               border: OutlineInputBorder(),
             ),
           ),
@@ -1098,6 +1186,167 @@ class DoctorStationPage extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showAllPatientsArchiveDialog(
+    BuildContext context,
+    ClinicLoaded loadedState,
+    ValueNotifier<String?> selectedVisitNotifier,
+    bool isDark,
+  ) {
+    final searchNotifier = ValueNotifier<String>('');
+    final allPatients = loadedState.patients;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 750, maxHeight: 620),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.folder_shared_outlined, color: Colors.blue, size: 24),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Central Patient Medical Archive & History',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: 'Search patient by full name or phone number...',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (val) => searchNotifier.value = val.trim().toLowerCase(),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ValueListenableBuilder<String>(
+                    valueListenable: searchNotifier,
+                    builder: (context, query, _) {
+                      final filtered = allPatients.where((p) {
+                        if (query.isEmpty) return true;
+                        return p.name.toLowerCase().contains(query) || p.phone.contains(query);
+                      }).toList();
+
+                      if (filtered.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            'No registered patients found matching search criteria.',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        );
+                      }
+
+                      return ListView.separated(
+                        itemCount: filtered.length,
+                        separatorBuilder: (ctx, i) => const Divider(height: 1),
+                        itemBuilder: (context, idx) {
+                          final patient = filtered[idx];
+                          final patientVisits = loadedState.queue
+                              .where((v) => v.patientId == patient.id)
+                              .toList();
+                          final activeVisit = patientVisits.cast<ClinicVisit?>().firstWhere(
+                                (v) => v?.status == ClinicVisitStatus.waiting || v?.status == ClinicVisitStatus.inExamination,
+                                orElse: () => null,
+                              );
+
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.blue.withValues(alpha: 0.2),
+                              child: Text(
+                                patient.name.isNotEmpty ? patient.name[0].toUpperCase() : 'P',
+                                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                              ),
+                            ),
+                            title: Row(
+                              children: [
+                                Text(patient.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                if (patient.gender != null) ...[
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '(${patient.gender}${patient.calculatedAge != null ? ', ${patient.calculatedAge}y' : ''})',
+                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            subtitle: Text(
+                              'Phone: ${patient.phone}${patient.insuranceProvider != null ? ' • Insured: ${patient.insuranceProvider}' : ''}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (activeVisit != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: OutlinedButton(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.green,
+                                        side: const BorderSide(color: Colors.green),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.of(ctx).pop();
+                                        selectedVisitNotifier.value = activeVisit.id;
+                                      },
+                                      child: const Text('Select in Queue', style: TextStyle(fontSize: 11)),
+                                    ),
+                                  ),
+                                OutlinedButton.icon(
+                                  icon: const Icon(Icons.history, size: 14),
+                                  label: const Text('View File & Visits', style: TextStyle(fontSize: 11)),
+                                  onPressed: () {
+                                    final dummyVisit = patientVisits.isNotEmpty
+                                        ? patientVisits.first
+                                        : ClinicVisit(
+                                            id: 'archive_${patient.id}',
+                                            patientId: patient.id,
+                                            patientName: patient.name,
+                                            doctorName: 'Doctor',
+                                            queueNumber: 0,
+                                            chiefComplaint: 'Medical File Review',
+                                            checkInTime: patient.createdAt,
+                                          );
+                                    _showPatientHistoryDialog(
+                                      context,
+                                      dummyVisit,
+                                      patient,
+                                      loadedState.queue,
+                                      loadedState.activeToothChart,
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

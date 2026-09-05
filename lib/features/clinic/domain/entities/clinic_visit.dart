@@ -45,6 +45,9 @@ class ClinicVisit extends Equatable {
   final String respiratoryRate;
   final String spo2;
   final String temperature;
+  final String? labResults;
+  final List<String> attachmentPaths;
+  final List<String> attachmentTitles;
 
   const ClinicVisit({
     required this.id,
@@ -72,6 +75,9 @@ class ClinicVisit extends Equatable {
     this.respiratoryRate = '16 bpm',
     this.spo2 = '99%',
     this.temperature = '36.8 °C',
+    this.labResults,
+    this.attachmentPaths = const [],
+    this.attachmentTitles = const [],
   });
 
   int get consultationDurationMinutes {
@@ -105,6 +111,9 @@ class ClinicVisit extends Equatable {
     String? respiratoryRate,
     String? spo2,
     String? temperature,
+    String? labResults,
+    List<String>? attachmentPaths,
+    List<String>? attachmentTitles,
   }) {
     return ClinicVisit(
       id: id ?? this.id,
@@ -132,6 +141,9 @@ class ClinicVisit extends Equatable {
       respiratoryRate: respiratoryRate ?? this.respiratoryRate,
       spo2: spo2 ?? this.spo2,
       temperature: temperature ?? this.temperature,
+      labResults: labResults ?? this.labResults,
+      attachmentPaths: attachmentPaths ?? this.attachmentPaths,
+      attachmentTitles: attachmentTitles ?? this.attachmentTitles,
     );
   }
 
@@ -162,5 +174,8 @@ class ClinicVisit extends Equatable {
         respiratoryRate,
         spo2,
         temperature,
+        labResults,
+        attachmentPaths,
+        attachmentTitles,
       ];
 }

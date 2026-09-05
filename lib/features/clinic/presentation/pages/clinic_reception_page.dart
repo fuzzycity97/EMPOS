@@ -2,7 +2,12 @@ import '../widgets/patient_medical_history_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
+import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_bloc.dart';
+import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_event.dart';
+import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_state.dart';
+import '../../../../core/network/lan_sync/presentation/widgets/lan_sync_dialog.dart';
 import '../../../customers/presentation/bloc/customer_bloc.dart';
 import '../../../customers/presentation/bloc/customer_event.dart';
 import '../../domain/entities/clinic_visit.dart';
@@ -30,14 +35,19 @@ class ClinicReceptionPage extends StatelessWidget {
     final selectedTabNotifier = ValueNotifier<int>(0); // 0 = Live Queue, 1 = Checkout & Billing
 
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // â”€â”€ TOP KPI BANNER (Granular BlocBuilder) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            _buildKpiBanner(context, isDark),
-            const SizedBox(height: 20),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildConnectionBanner(context, isDark),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ── TOP KPI BANNER (Granular BlocBuilder) ─────────────────────
+                  _buildKpiBanner(context, isDark),
+                  const SizedBox(height: 20),
 
             // â”€â”€ TAB HEADER & CHECK-IN BUTTON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _buildTabHeaderAndActions(context, isDark, selectedTabNotifier),
@@ -91,6 +101,124 @@ class ClinicReceptionPage extends StatelessWidget {
           ],
         ),
       ),
+    ),
+  ],
+),
+);
+  }
+
+  Widget _buildConnectionBanner(BuildContext context, bool isDark) {
+    return BlocBuilder<LanSyncBloc, LanSyncState>(
+      builder: (context, lanState) {
+        final isConnected = lanState is LanSyncConnected;
+        final isHost = isConnected && lanState.isHost;
+
+        if (!isConnected) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: const Color(0xFFB91C1C),
+            child: Row(
+              children: [
+                const Icon(LucideIcons.wifiOff, color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'DISCONNECTED FROM LAN SERVER • Offline Mode (Attempting to reconnect...)',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFFB91C1C),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(LucideIcons.refreshCw, size: 14),
+                  label: const Text('Reconnect', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                  onPressed: () {
+                    context.read<LanSyncBloc>().add(const AutoRestoreLanSyncEvent());
+                  },
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white70),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => BlocProvider.value(
+                        value: context.read<LanSyncBloc>(),
+                        child: LanSyncDialog(),
+                      ),
+                    );
+                  },
+                  child: const Text('Network Hub', style: TextStyle(fontSize: 11)),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            border: Border(
+              bottom: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFF10B981),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isHost
+                        ? '● LAN Sync Hub Online (Host Station)'
+                        : '● Connected to LAN Server (${lanState.address}:${lanState.port})',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => BlocProvider.value(
+                      value: context.read<LanSyncBloc>(),
+                      child: LanSyncDialog(),
+                    ),
+                  );
+                },
+                child: Row(
+                  children: [
+                    Icon(Icons.settings_ethernet, size: 14, color: isDark ? Colors.white60 : Colors.black54),
+                    const SizedBox(width: 4),
+                    Text(
+                      'LAN Settings',
+                      style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

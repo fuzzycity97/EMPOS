@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -19,6 +20,7 @@ class MedicalAttachment {
   final DateTime uploadDate;
   final String fileSize;
   final String doctorNotes;
+  final String? filePath;
 
   const MedicalAttachment({
     required this.id,
@@ -27,6 +29,7 @@ class MedicalAttachment {
     required this.uploadDate,
     required this.fileSize,
     required this.doctorNotes,
+    this.filePath,
   });
 }
 
@@ -204,9 +207,18 @@ class DoctorAttachmentsLightbox extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(color: color.withValues(alpha: 0.5)),
               ),
-              child: Center(
-                child: Icon(icon, color: color, size: 24),
-              ),
+              child: item.filePath != null && File(item.filePath!).existsSync()
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: Image.file(
+                        File(item.filePath!),
+                        fit: BoxFit.cover,
+                        errorBuilder: (ctx, err, stack) => Center(child: Icon(icon, color: color, size: 24)),
+                      ),
+                    )
+                  : Center(
+                      child: Icon(icon, color: color, size: 24),
+                    ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -425,6 +437,30 @@ class DoctorAttachmentsLightbox extends StatelessWidget {
   }
 
   Widget _buildSimulatedRadiograph(MedicalAttachment item) {
+    if (item.filePath != null && File(item.filePath!).existsSync()) {
+      return Container(
+        constraints: const BoxConstraints(maxWidth: 800, maxHeight: 520),
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white24, width: 1.5),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.file(
+            File(item.filePath!),
+            fit: BoxFit.contain,
+            errorBuilder: (ctx, err, stack) => const Center(
+              child: Text(
+                'Failed to load image file.',
+                style: TextStyle(color: Colors.redAccent, fontSize: 12),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: 480,
       height: 380,
@@ -687,6 +723,7 @@ class DoctorAttachmentsLightbox extends StatelessWidget {
                               uploadDate: DateTime.now(),
                               fileSize: sizeStr,
                               doctorNotes: notes,
+                              filePath: picked?.path,
                             ),
                           );
                           attachmentsNotifier.value = list;
