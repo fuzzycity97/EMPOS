@@ -1,11 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_dimensions.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../../core/widgets/industry_components/universal_calendar_grid_widget.dart';
+import '../../../auth/domain/entities/user_role.dart';
+import '../../../auth/presentation/bloc/auth_bloc.dart';
+import '../../../auth/presentation/bloc/auth_state.dart';
+import '../../../clinic/data/datasources/clinic_local_data_source.dart';
+import '../../../clinic/domain/entities/doctor_roster.dart';
+import '../../../clinic/presentation/widgets/doctor_roster_manager_dialog.dart';
 import '../../domain/entities/booking_item.dart';
 import '../bloc/booking_bloc.dart';
 import '../bloc/booking_event.dart';
 import '../bloc/booking_state.dart';
+import '../widgets/appointment_actions_dialog.dart';
+import '../widgets/clinical_booking_dialog.dart';
 
+/// Professional Clinical Schedule & Booking Page.
+/// Fully responsive across Mobile, Tablet, Desktop, and Web.
+/// Integrates Doctor Rosters, Appointment Booking, and Check-In to Clinic Lobby.
+/// 100% [StatelessWidget].
 class BookingsCalendarPage extends StatelessWidget {
   final BookingBloc? bloc;
 
@@ -15,13 +31,20 @@ class BookingsCalendarPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final bookingBloc = bloc ?? context.read<BookingBloc>();
     final selectedDateNotifier = ValueNotifier<DateTime>(DateTime.now());
+    final doctorFilterNotifier = ValueNotifier<String>('ALL');
 
-    final resources = const [
-      'Resource Bay 1',
-      'Resource Bay 2',
-      'Specialist Suite A',
-      'VIP Lounge 1',
-    ];
+    // Local rosters from ClinicLocalDataSource
+    final clinicDataSource = sl<ClinicLocalDataSource>();
+    final doctorRostersNotifier = ValueNotifier<List<DoctorRoster>>(
+      List<DoctorRoster>.from(DoctorRoster.defaultRosters),
+    );
+
+    // Asynchronously load saved rosters from local storage
+    clinicDataSource.getDoctorRosters().then((saved) {
+      if (saved.isNotEmpty) {
+        doctorRostersNotifier.value = List<DoctorRoster>.from(saved);
+      }
+    });
 
     return BlocBuilder<BookingBloc, BookingState>(
       bloc: bookingBloc,
@@ -38,11 +61,11 @@ class BookingsCalendarPage extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Error: ${state.message}', style: const TextStyle(color: Colors.red)),
+                  Text('Error: ${state.message}', style: const TextStyle(color: Colors.redAccent)),
                   const SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: () => bookingBloc.add(const LoadBookingsEvent()),
-                    child: const Text('Retry'),
+                    child: const Text('إعادة المحاولة / Retry'),
                   ),
                 ],
               ),
@@ -55,87 +78,70 @@ class BookingsCalendarPage extends StatelessWidget {
         return ValueListenableBuilder<DateTime>(
           valueListenable: selectedDateNotifier,
           builder: (context, selectedDate, _) {
-            return Scaffold(
-              body: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Top Action Header & Date Navigator
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).cardColor,
-                      border: Border(
-                        bottom: BorderSide(color: Theme.of(context).dividerColor),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(Icons.calendar_month, color: Theme.of(context).colorScheme.primary),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Universal Bookings & Calendar (${loaded.bookings.length} Scheduled)',
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.chevron_left),
-                              onPressed: () {
-                                final prev = selectedDate.subtract(const Duration(days: 1));
-                                selectedDateNotifier.value = prev;
-                                bookingBloc.add(LoadBookingsEvent(date: prev));
-                              },
-                            ),
-                            Text(
-                              '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.chevron_right),
-                              onPressed: () {
-                                final next = selectedDate.add(const Duration(days: 1));
-                                selectedDateNotifier.value = next;
-                                bookingBloc.add(LoadBookingsEvent(date: next));
-                              },
-                            ),
-                            const SizedBox(width: 12),
-                            ElevatedButton.icon(
-                              onPressed: () => _showCreateBookingDialog(
-                                context,
-                                bookingBloc,
-                                selectedDate,
-                                resources.first,
-                              ),
-                              icon: const Icon(Icons.add),
-                              label: const Text('Book Appointment'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+            return ValueListenableBuilder<List<DoctorRoster>>(
+              valueListenable: doctorRostersNotifier,
+              builder: (context, rosters, _) {
+                return ValueListenableBuilder<String>(
+                  valueListenable: doctorFilterNotifier,
+                  builder: (context, selectedDoctorFilter, _) {
+                    final filteredDoctors = selectedDoctorFilter == 'ALL'
+                        ? rosters
+                        : rosters.where((d) => d.id == selectedDoctorFilter).toList();
 
-                  // Calendar Grid
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: UniversalCalendarGridWidget(
-                        bookings: loaded.bookings,
-                        selectedDate: selectedDate,
-                        resources: resources,
-                        onSlotSelected: (resourceId, slotTime) {
-                          _showCreateBookingDialog(context, bookingBloc, slotTime, resourceId);
-                        },
+                    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+                    return Scaffold(
+                      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                      body: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Top Responsive Navigation Bar
+                          _buildTopBar(
+                            context: context,
+                            bookingBloc: bookingBloc,
+                            selectedDate: selectedDate,
+                            selectedDateNotifier: selectedDateNotifier,
+                            rosters: rosters,
+                            doctorRostersNotifier: doctorRostersNotifier,
+                            clinicDataSource: clinicDataSource,
+                            scheduledCount: loaded.bookings.length,
+                            isDark: isDark,
+                          ),
+
+                          // Calendar Grid View
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(AppDimensions.space16),
+                              child: UniversalCalendarGridWidget(
+                                bookings: loaded.bookings,
+                                selectedDate: selectedDate,
+                                doctors: filteredDoctors,
+                                onDoctorSlotSelected: (doc, slotTime) {
+                                  _openBookingModal(
+                                    context: context,
+                                    bookingBloc: bookingBloc,
+                                    selectedDate: selectedDate,
+                                    rosters: rosters,
+                                    preselectedDoctor: doc,
+                                    initialSlotTime: slotTime,
+                                  );
+                                },
+                                onBookingTapped: (booking) {
+                                  _openAppointmentDetails(
+                                    context: context,
+                                    booking: booking,
+                                    bookingBloc: bookingBloc,
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                ],
-              ),
+                    );
+                  },
+                );
+              },
             );
           },
         );
@@ -143,73 +149,314 @@ class BookingsCalendarPage extends StatelessWidget {
     );
   }
 
-  void _showCreateBookingDialog(
-    BuildContext context,
-    BookingBloc bloc,
-    DateTime startTime,
-    String initialResource,
-  ) {
-    final customerController = TextEditingController();
-    final serviceController = TextEditingController(text: 'General Service');
+  Widget _buildTopBar({
+    required BuildContext context,
+    required BookingBloc bookingBloc,
+    required DateTime selectedDate,
+    required ValueNotifier<DateTime> selectedDateNotifier,
+    required List<DoctorRoster> rosters,
+    required ValueNotifier<List<DoctorRoster>> doctorRostersNotifier,
+    required ClinicLocalDataSource clinicDataSource,
+    required int scheduledCount,
+    required bool isDark,
+  }) {
+    // Current user role check for RBAC
+    final authState = context.watch<AuthBloc>().state;
+    final userRole = authState is AuthAuthenticated ? authState.user.role : UserRole.admin;
+    final isManagerOrAdmin = userRole == UserRole.admin || userRole == UserRole.manager;
 
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Schedule New Booking Slot'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        border: Border(
+          bottom: BorderSide(color: isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 750;
+
+          if (isNarrow) {
+            // Mobile / Narrow split view
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(LucideIcons.calendar, color: AppColors.primary, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'المواعيد والجدول ($scheduledCount)',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ],
+                    ),
+                    if (isManagerOrAdmin)
+                      IconButton(
+                        tooltip: 'تعديل جداول الأطباء (Manager)',
+                        icon: const Icon(LucideIcons.userCog, color: Colors.blueAccent),
+                        onPressed: () => _openRosterManager(
+                          context: context,
+                          doctorRostersNotifier: doctorRostersNotifier,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    _buildDateSelector(context, bookingBloc, selectedDate, selectedDateNotifier, isDark),
+                    const Spacer(),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.emerald,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () => _openBookingModal(
+                        context: context,
+                        bookingBloc: bookingBloc,
+                        selectedDate: selectedDate,
+                        rosters: rosters,
+                      ),
+                      icon: const Icon(LucideIcons.plus, size: 16),
+                      label: const Text('حجز موعد', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          }
+
+          // Desktop / Tablet view - Zero RenderFlex Overflow
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              TextField(
-                controller: customerController,
-                decoration: const InputDecoration(labelText: 'Customer / Guest Name', border: OutlineInputBorder()),
+              // Title & Counter
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(LucideIcons.calendarDays, color: AppColors.primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'جدول مواعيد العيادة وحجوزات المرضى',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      Text(
+                        'Clinic Roster & Patient Bookings ($scheduledCount موعد مسجل)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDark ? Colors.white54 : AppColors.textSecondaryLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: serviceController,
-                decoration: const InputDecoration(labelText: 'Service Name', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Slot: ${startTime.hour}:00 - ${startTime.hour + 1}:00 on $initialResource',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final cust = customerController.text.trim();
-                final srv = serviceController.text.trim();
-                if (cust.isEmpty) return;
 
-                bloc.add(
-                  CreateBookingEvent(
-                    BookingItem(
-                      id: 'book_${DateTime.now().millisecondsSinceEpoch}',
-                      customerOrPatientId: 'c_${DateTime.now().millisecondsSinceEpoch}',
-                      customerName: cust,
-                      resourceId: initialResource,
-                      resourceName: initialResource,
-                      serviceName: srv.isNotEmpty ? srv : 'Standard Appointment',
-                      startTime: startTime,
-                      endTime: startTime.add(const Duration(hours: 1)),
-                      createdAt: DateTime.now(),
+              // Date Navigator + Actions
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildDateSelector(context, bookingBloc, selectedDate, selectedDateNotifier, isDark),
+                  const SizedBox(width: 12),
+
+                  // Manager/Admin Doctor Roster Switchboard Button
+                  if (isManagerOrAdmin) ...[
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: isDark ? Colors.white : AppColors.textPrimaryLight,
+                        side: BorderSide(color: isDark ? Colors.white24 : const Color(0xFFCBD5E1)),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () => _openRosterManager(
+                        context: context,
+                        doctorRostersNotifier: doctorRostersNotifier,
+                      ),
+                      icon: const Icon(LucideIcons.userCog, size: 16, color: Colors.blueAccent),
+                      label: const Text(
+                        'جداول وشفتات الأطباء',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+
+                  // Book Appointment Button
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.emerald,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: () => _openBookingModal(
+                      context: context,
+                      bookingBloc: bookingBloc,
+                      selectedDate: selectedDate,
+                      rosters: rosters,
+                    ),
+                    icon: const Icon(LucideIcons.plus, size: 16),
+                    label: const Text(
+                      'حجز موعد مريض',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ),
-                );
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
-                Navigator.of(ctx).pop();
-              },
-              child: const Text('Confirm Booking'),
+  Widget _buildDateSelector(
+    BuildContext context,
+    BookingBloc bookingBloc,
+    DateTime selectedDate,
+    ValueNotifier<DateTime> selectedDateNotifier,
+    bool isDark,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            onPressed: () {
+              final prev = selectedDate.subtract(const Duration(days: 1));
+              selectedDateNotifier.value = prev;
+              bookingBloc.add(LoadBookingsEvent(date: prev));
+            },
+          ),
+          InkWell(
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: selectedDate,
+                firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (picked != null) {
+                selectedDateNotifier.value = picked;
+                bookingBloc.add(LoadBookingsEvent(date: picked));
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Row(
+                children: [
+                  const Icon(LucideIcons.calendar, size: 14, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ],
+              ),
             ),
-          ],
-        );
-      },
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            onPressed: () {
+              final next = selectedDate.add(const Duration(days: 1));
+              selectedDateNotifier.value = next;
+              bookingBloc.add(LoadBookingsEvent(date: next));
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openBookingModal({
+    required BuildContext context,
+    required BookingBloc bookingBloc,
+    required DateTime selectedDate,
+    required List<DoctorRoster> rosters,
+    DoctorRoster? preselectedDoctor,
+    DateTime? initialSlotTime,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) => ClinicalBookingDialog(
+        bloc: bookingBloc,
+        selectedDate: selectedDate,
+        availableDoctors: rosters,
+        preselectedDoctor: preselectedDoctor,
+        initialSlotTime: initialSlotTime,
+      ),
+    );
+  }
+
+  void _openAppointmentDetails({
+    required BuildContext context,
+    required BookingItem booking,
+    required BookingBloc bookingBloc,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AppointmentActionsDialog(
+        booking: booking,
+        bookingBloc: bookingBloc,
+        onAppointmentUpdated: () {
+          bookingBloc.add(LoadBookingsEvent(date: booking.startTime));
+        },
+      ),
+    );
+  }
+
+  void _openRosterManager({
+    required BuildContext context,
+    required ValueNotifier<List<DoctorRoster>> doctorRostersNotifier,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) => DoctorRosterManagerDialog(
+        initialRosters: doctorRostersNotifier.value,
+        onRostersSaved: () {
+          // Re-load saved rosters from local storage
+          final clinicDataSource = sl<ClinicLocalDataSource>();
+          clinicDataSource.getDoctorRosters().then((saved) {
+            if (saved.isNotEmpty) {
+              doctorRostersNotifier.value = List<DoctorRoster>.from(saved);
+            }
+          });
+        },
+      ),
     );
   }
 }

@@ -215,7 +215,7 @@ class MainShell extends StatelessWidget {
                     icon: LucideIcons.calendarDays,
                     page: const BookingsCalendarPage(),
                     onSelect: () => context.read<BookingBloc>().add(const LoadBookingsEvent()),
-                    allowedRoles: const [UserRole.admin, UserRole.receptionist, UserRole.manager, UserRole.doctor],
+                    allowedRoles: const [UserRole.admin, UserRole.receptionist, UserRole.manager],
                   ),
                 );
               }

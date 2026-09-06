@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:hive/hive.dart';
 import '../../../../core/error/exceptions.dart';
+import '../../domain/entities/doctor_roster.dart';
 import '../../domain/entities/medical_risk_factor.dart';
 import '../models/clinic_visit_model.dart';
 import '../models/dental_treatment_plan_model.dart';
+import '../models/doctor_roster_model.dart';
 import '../models/medical_risk_factor_model.dart';
 import '../models/patient_profile_model.dart';
 import '../models/tooth_chart_entry_model.dart';
@@ -28,6 +30,10 @@ abstract class ClinicLocalDataSource {
   // Medical Risk Factors
   Future<List<MedicalRiskFactorModel>> getMedicalRiskFactors();
   Future<void> saveMedicalRiskFactors(List<MedicalRiskFactorModel> factors);
+
+  // Doctor Rosters & Shifts
+  Future<List<DoctorRosterModel>> getDoctorRosters();
+  Future<void> saveDoctorRosters(List<DoctorRosterModel> rosters);
 }
 
 class ClinicLocalDataSourceImpl implements ClinicLocalDataSource {
@@ -36,6 +42,7 @@ class ClinicLocalDataSourceImpl implements ClinicLocalDataSource {
   static const String toothChartsBoxName = 'empos_dental_tooth_charts_box';
   static const String dentalPlansBoxName = 'empos_dental_plans_box';
   static const String riskFactorsBoxName = 'empos_clinic_risk_factors_box';
+  static const String doctorRostersBoxName = 'empos_doctor_rosters_box';
 
   Future<Box<dynamic>> _openBox(String boxName) async {
     if (Hive.isBoxOpen(boxName)) {
@@ -49,6 +56,7 @@ class ClinicLocalDataSourceImpl implements ClinicLocalDataSource {
   Future<Box<dynamic>> get _toothChartsBox async => _openBox(toothChartsBoxName);
   Future<Box<dynamic>> get _dentalPlansBox async => _openBox(dentalPlansBoxName);
   Future<Box<dynamic>> get _riskFactorsBox async => _openBox(riskFactorsBoxName);
+  Future<Box<dynamic>> get _doctorRostersBox async => _openBox(doctorRostersBoxName);
 
   // Patients
   @override
@@ -242,6 +250,47 @@ class ClinicLocalDataSourceImpl implements ClinicLocalDataSource {
       }
     } catch (e) {
       throw CacheException(message: 'Failed to save medical risk factors: $e');
+    }
+  }
+
+  @override
+  Future<List<DoctorRosterModel>> getDoctorRosters() async {
+    try {
+      final box = await _doctorRostersBox;
+      if (box.isEmpty) {
+        final defaultList = DoctorRoster.defaultRosters
+            .map((e) => DoctorRosterModel.fromEntity(e))
+            .toList();
+        await saveDoctorRosters(defaultList);
+        return defaultList;
+      }
+      final List<DoctorRosterModel> list = [];
+      for (final raw in box.values) {
+        if (raw != null) {
+          final Map<String, dynamic> json = raw is String
+              ? Map<String, dynamic>.from(jsonDecode(raw) as Map)
+              : Map<String, dynamic>.from(raw as Map);
+          list.add(DoctorRosterModel.fromJson(json));
+        }
+      }
+      return list;
+    } catch (e) {
+      return DoctorRoster.defaultRosters
+          .map((e) => DoctorRosterModel.fromEntity(e))
+          .toList();
+    }
+  }
+
+  @override
+  Future<void> saveDoctorRosters(List<DoctorRosterModel> rosters) async {
+    try {
+      final box = await _doctorRostersBox;
+      await box.clear();
+      for (final r in rosters) {
+        await box.put(r.id, jsonEncode(r.toJson()));
+      }
+    } catch (e) {
+      throw CacheException(message: 'Failed to save doctor rosters: $e');
     }
   }
 }

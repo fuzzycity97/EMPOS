@@ -1,7 +1,13 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:empos/core/network/lan_sync/domain/entities/connected_node.dart';
+import 'package:empos/core/network/lan_sync/domain/repositories/lan_sync_repository.dart';
+import 'package:empos/core/network/lan_sync/presentation/bloc/lan_sync_bloc.dart';
 import 'package:empos/core/config/data/models/store_blueprint_model.dart';
 import 'package:empos/core/widgets/industry_components/universal_calendar_grid_widget.dart';
 import 'package:empos/core/widgets/industry_components/universal_pipeline_kanban_widget.dart';
@@ -53,6 +59,8 @@ import 'package:empos/features/work_orders/presentation/bloc/work_order_bloc.dar
 import 'package:empos/features/work_orders/presentation/bloc/work_order_event.dart';
 import 'package:empos/features/work_orders/presentation/bloc/work_order_state.dart';
 
+class MockLanSyncRepository extends Mock implements LanSyncRepository {}
+
 void main() {
   late Directory tempDir;
   late BookingLocalDataSource bookingDataSource;
@@ -72,6 +80,10 @@ void main() {
   late DentalRepositoryImpl dentalRepository;
   late ClinicBloc clinicBloc;
 
+  late MockLanSyncRepository mockLanSyncRepo;
+  late StreamController<List<ConnectedNode>> nodesController;
+  late LanSyncBloc lanSyncBloc;
+
   setUpAll(() async {
     tempDir = await Directory.systemTemp.createTemp('empos_presentation_test_');
     Hive.init(tempDir.path);
@@ -85,6 +97,14 @@ void main() {
   });
 
   setUp(() async {
+    mockLanSyncRepo = MockLanSyncRepository();
+    nodesController = StreamController<List<ConnectedNode>>.broadcast();
+    when(() => mockLanSyncRepo.connectedNodesStream).thenAnswer((_) => nodesController.stream);
+    when(() => mockLanSyncRepo.connectedNodes).thenReturn([]);
+    when(() => mockLanSyncRepo.isConnected).thenReturn(true);
+    when(() => mockLanSyncRepo.isHost).thenReturn(true);
+    lanSyncBloc = LanSyncBloc(lanSyncRepository: mockLanSyncRepo);
+
     bookingDataSource = BookingLocalDataSourceImpl();
     bookingRepository = BookingRepositoryImpl(localDataSource: bookingDataSource);
     bookingBloc = BookingBloc(
@@ -127,6 +147,8 @@ void main() {
   });
 
   tearDown(() async {
+    await lanSyncBloc.close();
+    await nodesController.close();
     final boxes = [
       BookingLocalDataSourceImpl.bookingsBoxName,
       WorkOrderLocalDataSourceImpl.workOrdersBoxName,
@@ -338,10 +360,13 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: DoctorStationPage(
-              bloc: clinicBloc,
-              blueprint: dentalBlueprint,
+          home: BlocProvider<LanSyncBloc>.value(
+            value: lanSyncBloc,
+            child: Scaffold(
+              body: DoctorStationPage(
+                bloc: clinicBloc,
+                blueprint: dentalBlueprint,
+              ),
             ),
           ),
         ),
@@ -382,10 +407,13 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: ClinicReceptionPage(
-              bloc: clinicBloc,
-              blueprint: dentalBlueprint,
+          home: BlocProvider<LanSyncBloc>.value(
+            value: lanSyncBloc,
+            child: Scaffold(
+              body: ClinicReceptionPage(
+                bloc: clinicBloc,
+                blueprint: dentalBlueprint,
+              ),
             ),
           ),
         ),

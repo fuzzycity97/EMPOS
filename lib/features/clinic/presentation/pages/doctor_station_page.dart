@@ -9,6 +9,13 @@ import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_bloc.dart';
 import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_event.dart';
 import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_state.dart';
 import '../../../../core/network/lan_sync/presentation/widgets/lan_sync_dialog.dart';
+import '../../../customers/domain/entities/customer.dart';
+import '../../../customers/presentation/bloc/customer_bloc.dart';
+import '../../../customers/presentation/bloc/customer_state.dart';
+import '../../../customers/presentation/widgets/customer_ledger_dialog.dart';
+import '../../../bookings/domain/entities/booking_item.dart';
+import '../../../bookings/presentation/bloc/booking_bloc.dart';
+import '../../../bookings/presentation/bloc/booking_state.dart';
 import '../../domain/entities/clinic_visit.dart';
 import '../../domain/entities/patient_profile.dart';
 import '../../domain/entities/procedure_item.dart';
@@ -190,24 +197,46 @@ class DoctorStationPage extends StatelessWidget {
                                       ],
                                     ),
                                     const SizedBox(height: 10),
-                                    ElevatedButton.icon(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.15),
-                                        foregroundColor: theme.colorScheme.primary,
-                                        elevation: 0,
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                      ),
-                                      icon: const Icon(Icons.person_search, size: 16),
-                                      label: const Text(
-                                        'Search All Patients / Archive',
-                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                                      ),
-                                      onPressed: () => _showAllPatientsArchiveDialog(
-                                        context,
-                                        loadedState,
-                                        selectedVisitNotifier,
-                                        isDark,
-                                      ),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.15),
+                                              foregroundColor: theme.colorScheme.primary,
+                                              elevation: 0,
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                                            ),
+                                            icon: const Icon(Icons.person_search, size: 15),
+                                            label: const Text(
+                                              'Archive',
+                                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                            ),
+                                            onPressed: () => _showAllPatientsArchiveDialog(
+                                              context,
+                                              loadedState,
+                                              selectedVisitNotifier,
+                                              isDark,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: theme.colorScheme.primary,
+                                              side: BorderSide(color: theme.colorScheme.primary),
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                                            ),
+                                            icon: const Icon(LucideIcons.calendarDays, size: 14),
+                                            label: const Text(
+                                              'مواعيدي اليوم',
+                                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                            ),
+                                            onPressed: () => _showDoctorAppointmentsDialog(context, isDark),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -829,11 +858,26 @@ class DoctorStationPage extends StatelessWidget {
         .toList()
       ..sort((a, b) => (b.completionTime ?? b.checkInTime).compareTo(a.completionTime ?? a.checkInTime));
 
-    final totalPaid = historicalVisits
-        .fold<double>(0.0, (sum, v) => sum + v.patientCopay);
-    final totalFees = historicalVisits
-        .fold<double>(0.0, (sum, v) => sum + v.totalFee);
-    final totalPending = (totalFees - totalPaid).clamp(0.0, double.infinity);
+    // Find matching customer in CustomerBloc to sync live ledger debts & settlements
+    Customer? matchedCustomer;
+    try {
+      final customerState = context.read<CustomerBloc>().state;
+      if (customerState is CustomersLoaded) {
+        matchedCustomer = customerState.allCustomers.where((c) {
+          if (c.id == currentVisit.patientId) return true;
+          if (patientPhone != null && patientPhone.isNotEmpty && c.phone.trim() == patientPhone) return true;
+          if (c.name.trim().toLowerCase() == patientName) return true;
+          return false;
+        }).firstOrNull;
+      }
+    } catch (_) {}
+
+    final totalFees = historicalVisits.fold<double>(0.0, (sum, v) => sum + v.totalFee);
+    // If we matched the customer ledger, live debt balance represents exact unpaid debt
+    final totalPending = matchedCustomer != null
+        ? matchedCustomer.totalDebt.clamp(0.0, double.infinity)
+        : (totalFees - historicalVisits.fold<double>(0.0, (sum, v) => sum + v.patientCopay)).clamp(0.0, double.infinity);
+    final totalPaid = (totalFees - totalPending).clamp(0.0, double.infinity);
 
     showDialog(
       context: context,
@@ -849,6 +893,18 @@ class DoctorStationPage extends StatelessWidget {
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
+            if (matchedCustomer != null)
+              TextButton.icon(
+                style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => CustomerLedgerDialog(customer: matchedCustomer!),
+                  );
+                },
+                icon: const Icon(LucideIcons.fileSpreadsheet, size: 14),
+                label: const Text('Account Ledger', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
           ],
         ),
         content: SizedBox(
@@ -893,7 +949,7 @@ class DoctorStationPage extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: totalPending > 0 ? Colors.amber : Colors.grey,
+                            color: totalPending > 0 ? Colors.amber : Colors.green,
                           ),
                         ),
                       ],
@@ -925,8 +981,10 @@ class DoctorStationPage extends StatelessWidget {
                           final dateStr = DateFormat('yyyy-MM-dd • hh:mm a').format(hVisit.checkInTime);
                           final treatedTeeth = hVisit.toothChart.where((t) => t.state != ToothState.healthy).toList();
                           final visitDue = (hVisit.totalFee - hVisit.patientCopay).clamp(0.0, double.infinity);
-                          final isFullySettled = visitDue <= 0.001 && hVisit.isPaid;
-                          final isPartiallyPaid = hVisit.patientCopay > 0 && visitDue > 0.001;
+                          final isFullySettled = (matchedCustomer != null && matchedCustomer.totalDebt <= 0.001) ||
+                              (visitDue <= 0.001 && hVisit.isPaid);
+                          final isPartiallyPaid = (matchedCustomer != null && matchedCustomer.totalDebt > 0.001) ||
+                              (hVisit.patientCopay > 0 && visitDue > 0.001);
 
                           return InkWell(
                             borderRadius: BorderRadius.circular(8),
@@ -937,6 +995,7 @@ class DoctorStationPage extends StatelessWidget {
                                   visit: hVisit,
                                   blueprint: blueprint,
                                   patient: patient,
+                                  customer: matchedCustomer,
                                   cumulativeToothChart: cumulativeToothChart,
                                 ),
                               );
@@ -1348,6 +1407,165 @@ class DoctorStationPage extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _showDoctorAppointmentsDialog(BuildContext context, bool isDark) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return BlocBuilder<BookingBloc, BookingState>(
+          builder: (bCtx, bState) {
+            final bookings = bState is BookingLoaded ? bState.bookings : <BookingItem>[];
+            final today = DateTime.now();
+            final todayBookings = bookings.where((b) {
+              return b.startTime.year == today.year &&
+                  b.startTime.month == today.month &&
+                  b.startTime.day == today.day &&
+                  b.isActive;
+            }).toList()
+              ..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+            return Dialog(
+              backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Container(
+                width: 520,
+                constraints: const BoxConstraints(maxHeight: 560),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.calendar_month, color: Colors.blue, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'مواعيد اليوم المجدولة',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              Text(
+                                'Scheduled Appointments for Today (${todayBookings.length})',
+                                style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black54),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 20),
+                          onPressed: () => Navigator.of(ctx).pop(),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 20),
+                    Expanded(
+                      child: todayBookings.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.calendar_today, size: 40, color: isDark ? Colors.white24 : Colors.black26),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'لا توجد مواعيد محجوزة اليوم',
+                                    style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.separated(
+                              shrinkWrap: true,
+                              itemCount: todayBookings.length,
+                              separatorBuilder: (context, index) => const SizedBox(height: 8),
+                              itemBuilder: (context, idx) {
+                                final item = todayBookings[idx];
+                                final timeStr =
+                                    '${item.startTime.hour.toString().padLeft(2, '0')}:${item.startTime.minute.toString().padLeft(2, '0')} - ${item.endTime.hour.toString().padLeft(2, '0')}:${item.endTime.minute.toString().padLeft(2, '0')}';
+
+                                return Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          timeStr,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blue),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item.customerName,
+                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                            ),
+                                            Text(
+                                              item.serviceName,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: isDark ? Colors.white60 : Colors.black54,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: (item.status.name == 'checkedIn'
+                                                  ? Colors.teal
+                                                  : (item.status.name == 'confirmed' ? Colors.blue : Colors.amber))
+                                              .withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          item.status.name.toUpperCase(),
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: item.status.name == 'checkedIn'
+                                                ? Colors.teal
+                                                : (item.status.name == 'confirmed' ? Colors.blue : Colors.amber),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

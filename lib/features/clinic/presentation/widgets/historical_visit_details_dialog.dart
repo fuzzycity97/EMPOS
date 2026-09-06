@@ -5,6 +5,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
+import '../../../customers/domain/entities/customer.dart';
+import '../../../customers/presentation/widgets/customer_ledger_dialog.dart';
 import '../../domain/entities/clinic_visit.dart';
 import '../../domain/entities/patient_profile.dart';
 import 'dental_tooth_matrix_widget.dart';
@@ -16,6 +18,7 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
   final ClinicVisit visit;
   final StoreBlueprint blueprint;
   final PatientProfile? patient;
+  final Customer? customer;
   final List<ToothChartEntry>? cumulativeToothChart;
 
   const HistoricalVisitDetailsDialog({
@@ -23,6 +26,7 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
     required this.visit,
     required this.blueprint,
     this.patient,
+    this.customer,
     this.cumulativeToothChart,
   });
 
@@ -167,7 +171,7 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                       const SizedBox(height: 16),
 
                       // 7. Financial & Billing Summary
-                      _buildFinancialSummary(isDark),
+                      _buildFinancialSummary(context, isDark),
                     ],
                   ),
                 ),
@@ -412,18 +416,24 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildFinancialSummary(bool isDark) {
+  Widget _buildFinancialSummary(BuildContext context, bool isDark) {
+    final hasCustomer = customer != null;
+    final customerDebt = hasCustomer ? customer!.totalDebt : null;
     final visitDue = (visit.totalFee - visit.patientCopay - visit.insurancePaid).clamp(0.0, double.infinity);
-    final isFullySettled = visitDue <= 0.001 && (visit.patientCopay > 0 || visit.insurancePaid > 0 || visit.totalFee == 0);
-    final isPartiallyPaid = (visit.patientCopay > 0 || visit.insurancePaid > 0) && visitDue > 0.001;
 
     final String statusText;
     final Color statusColor;
 
-    if (isFullySettled) {
+    if (customerDebt != null && customerDebt <= 0.001) {
+      statusText = 'PAID & SETTLED (Account Cleared)';
+      statusColor = AppColors.success;
+    } else if (customerDebt != null && customerDebt > 0.001) {
+      statusText = 'PARTIAL DEBT (Account Due: ${customerDebt.toStringAsFixed(2)} EGP)';
+      statusColor = AppColors.warning;
+    } else if (visitDue <= 0.001 && (visit.patientCopay > 0 || visit.insurancePaid > 0 || visit.totalFee == 0)) {
       statusText = 'PAID & SETTLED';
       statusColor = AppColors.success;
-    } else if (isPartiallyPaid) {
+    } else if ((visit.patientCopay > 0 || visit.insurancePaid > 0) && visitDue > 0.001) {
       statusText = 'PARTIAL DEBT (Due: ${visitDue.toStringAsFixed(2)} EGP)';
       statusColor = AppColors.warning;
     } else {
@@ -438,17 +448,64 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         border: Border.all(color: isDark ? AppColors.borderDark : Colors.black12),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _financeStat('Total Fee', '${visit.totalFee.toStringAsFixed(2)} EGP', AppColors.textPrimaryDark),
-          _financeStat('Patient Copay', '${visit.patientCopay.toStringAsFixed(2)} EGP', AppColors.warning),
-          _financeStat('Insurance Covered', '${visit.insurancePaid.toStringAsFixed(2)} EGP', AppColors.primaryLight),
-          _financeStat(
-            'Payment Status',
-            statusText,
-            statusColor,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _financeStat('Total Fee', '${visit.totalFee.toStringAsFixed(2)} EGP', AppColors.textPrimaryDark),
+              _financeStat('Patient Copay', '${visit.patientCopay.toStringAsFixed(2)} EGP', AppColors.warning),
+              _financeStat('Insurance Covered', '${visit.insurancePaid.toStringAsFixed(2)} EGP', AppColors.primaryLight),
+              _financeStat(
+                'Payment Status',
+                statusText,
+                statusColor,
+              ),
+            ],
           ),
+          if (hasCustomer) ...[
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(LucideIcons.wallet, size: 14, color: isDark ? Colors.white60 : Colors.black54),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Live Account Balance: ',
+                      style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54),
+                    ),
+                    Text(
+                      '${customerDebt!.toStringAsFixed(2)} EGP Due',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: customerDebt > 0 ? AppColors.warning : AppColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    side: BorderSide(color: isDark ? Colors.white24 : Colors.black26),
+                  ),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (lCtx) => CustomerLedgerDialog(customer: customer!),
+                    );
+                  },
+                  icon: const Icon(LucideIcons.fileSpreadsheet, size: 14),
+                  label: const Text('View Account Ledger', style: TextStyle(fontSize: 11)),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
