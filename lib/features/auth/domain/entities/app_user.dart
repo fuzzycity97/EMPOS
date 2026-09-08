@@ -16,6 +16,8 @@ class AppUser extends Equatable {
     this.isActive = true,
   });
 
+  bool get isGodMode => role.isGodMode;
+
   AppUser copyWith({
     String? id,
     String? name,

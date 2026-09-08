@@ -54,7 +54,7 @@ class ToothEditorSheet extends StatelessWidget {
   }
 }
 
-class _ToothEditorSheetModal extends StatelessWidget {
+class _ToothEditorSheetModal extends StatefulWidget {
   final ToothChartEntry entry;
   final bool isPediatric;
   final String? doctorName;
@@ -70,18 +70,40 @@ class _ToothEditorSheetModal extends StatelessWidget {
   });
 
   @override
+  State<_ToothEditorSheetModal> createState() => _ToothEditorSheetModalState();
+}
+
+class _ToothEditorSheetModalState extends State<_ToothEditorSheetModal> {
+  late ToothState _selectedState;
+  late SpecialCaseType? _selectedSpecialCase;
+  late int _pocketDepth;
+  late String _surfaceNotation;
+  late final TextEditingController _notesController;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedState = widget.entry.state;
+    _selectedSpecialCase = widget.entry.specialCaseType ??
+        (widget.entry.state == ToothState.specialCase ? SpecialCaseType.customOther : null);
+    _pocketDepth = widget.entry.pocketDepthMm;
+    _surfaceNotation = widget.entry.surfaceNotation;
+    _notesController = TextEditingController(text: widget.entry.notes ?? '');
+  }
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-
-    // Use local ValueNotifiers wrapped in Stateless component to keep 100% StatelessWidget rule
-    final selectedState = ValueNotifier<ToothState>(entry.state);
-    final selectedSpecialCase = ValueNotifier<SpecialCaseType?>(
-      entry.specialCaseType ?? (entry.state == ToothState.specialCase ? SpecialCaseType.customOther : null),
-    );
-    final pocketDepth = ValueNotifier<int>(entry.pocketDepthMm);
-    final surfaceNotation = ValueNotifier<String>(entry.surfaceNotation);
-    final notesController = TextEditingController(text: entry.notes ?? '');
+    final entry = widget.entry;
+    final isPediatric = widget.isPediatric;
+    final onCancel = widget.onCancel;
 
     return AnimatedPadding(
       padding: MediaQuery.of(context).viewInsets,
@@ -127,12 +149,12 @@ class _ToothEditorSheetModal extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: _getStateColor(entry.state).withValues(alpha: 0.15),
+                      color: _getStateColor(_selectedState).withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
-                      _getStateIcon(entry.state),
-                      color: _getStateColor(entry.state),
+                      _getStateIcon(_selectedState),
+                      color: _getStateColor(_selectedState),
                       size: 24,
                     ),
                   ),
@@ -223,96 +245,93 @@ class _ToothEditorSheetModal extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    ValueListenableBuilder<ToothState>(
-                      valueListenable: selectedState,
-                      builder: (context, current, _) {
-                        return Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: ToothState.values.map((s) {
-                            final isSel = current == s;
-                            final color = _getStateColor(s);
-                            return InkWell(
-                              onTap: () => selectedState.value = s,
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: ToothState.values.map((s) {
+                        final isSel = _selectedState == s;
+                        final color = _getStateColor(s);
+                        return InkWell(
+                          onTap: () {
+                            setState(() {
+                              _selectedState = s;
+                              if (s == ToothState.specialCase && _selectedSpecialCase == null) {
+                                _selectedSpecialCase = SpecialCaseType.customOther;
+                              }
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isSel ? color : color.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: isSel ? color : color.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: isSel ? color : color.withValues(alpha: 0.3),
-                                    width: isSel ? 2 : 1,
+                              border: Border.all(
+                                color: isSel ? color : color.withValues(alpha: 0.3),
+                                width: isSel ? 2 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _getStateIcon(s),
+                                  size: 14,
+                                  color: isSel ? Colors.white : color,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  s.displayName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                    color: isSel ? Colors.white : (isDark ? Colors.white : Colors.black87),
                                   ),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      _getStateIcon(s),
-                                      size: 14,
-                                      color: isSel ? Colors.white : color,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      s.displayName,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                        color: isSel ? Colors.white : (isDark ? Colors.white : Colors.black87),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
+                              ],
+                            ),
+                          ),
                         );
-                      },
+                      }).toList(),
                     ),
                     const SizedBox(height: 16),
 
                     // 2. Special Case Sub-Type (Conditional)
-                    ValueListenableBuilder<ToothState>(
-                      valueListenable: selectedState,
-                      builder: (context, current, _) {
-                        if (current != ToothState.specialCase) return const SizedBox.shrink();
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'SPECIAL CASE ANOMALY TYPE',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                                color: Colors.indigo.shade300,
-                              ),
+                    if (_selectedState == ToothState.specialCase) ...[
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'SPECIAL CASE ANOMALY TYPE',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                              color: Colors.indigo.shade300,
                             ),
-                            const SizedBox(height: 8),
-                            ValueListenableBuilder<SpecialCaseType?>(
-                              valueListenable: selectedSpecialCase,
-                              builder: (context, currentSpecial, _) {
-                                return Wrap(
-                                  spacing: 6,
-                                  runSpacing: 6,
-                                  children: SpecialCaseType.values.map((sc) {
-                                    final isSel = currentSpecial == sc;
-                                    return ChoiceChip(
-                                      label: Text(sc.displayName, style: const TextStyle(fontSize: 11)),
-                                      selected: isSel,
-                                      selectedColor: Colors.indigo.withValues(alpha: 0.25),
-                                      onSelected: (_) => selectedSpecialCase.value = sc,
-                                    );
-                                  }).toList(),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                        );
-                      },
-                    ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: SpecialCaseType.values.map((sc) {
+                              final isSel = _selectedSpecialCase == sc;
+                              return ChoiceChip(
+                                label: Text(sc.displayName, style: const TextStyle(fontSize: 11)),
+                                selected: isSel,
+                                selectedColor: Colors.indigo.withValues(alpha: 0.25),
+                                onSelected: (_) {
+                                  setState(() {
+                                    _selectedSpecialCase = sc;
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
+                    ],
 
                     // 3. Periodontal Pocket Depth & Surface Notations
                     Row(
@@ -333,44 +352,43 @@ class _ToothEditorSheetModal extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              ValueListenableBuilder<int>(
-                                valueListenable: pocketDepth,
-                                builder: (context, depth, _) {
-                                  return Row(
-                                    children: [1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) {
-                                      final isSel = depth == d;
-                                      final dColor = d <= 3
-                                          ? Colors.green
-                                          : (d <= 5 ? Colors.amber : Colors.red);
-                                      return Expanded(
-                                        child: InkWell(
-                                          onTap: () => pocketDepth.value = d,
-                                          child: Container(
-                                            margin: const EdgeInsets.symmetric(horizontal: 1),
-                                            padding: const EdgeInsets.symmetric(vertical: 6),
-                                            decoration: BoxDecoration(
-                                              color: isSel ? dColor : dColor.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(4),
-                                              border: Border.all(
-                                                color: isSel ? dColor : dColor.withValues(alpha: 0.3),
-                                              ),
-                                            ),
-                                            child: Center(
-                                              child: Text(
-                                                '$d',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: isSel ? Colors.white : (isDark ? Colors.white : Colors.black87),
-                                                ),
-                                              ),
+                              Row(
+                                children: [1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) {
+                                  final isSel = _pocketDepth == d;
+                                  final dColor = d <= 3
+                                      ? Colors.green
+                                      : (d <= 5 ? Colors.amber : Colors.red);
+                                  return Expanded(
+                                    child: InkWell(
+                                      onTap: () {
+                                        setState(() {
+                                          _pocketDepth = d;
+                                        });
+                                      },
+                                      child: Container(
+                                        margin: const EdgeInsets.symmetric(horizontal: 1),
+                                        padding: const EdgeInsets.symmetric(vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: isSel ? dColor : dColor.withValues(alpha: 0.12),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(
+                                            color: isSel ? dColor : dColor.withValues(alpha: 0.3),
+                                          ),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            '$d',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: isSel ? Colors.white : (isDark ? Colors.white : Colors.black87),
                                             ),
                                           ),
                                         ),
-                                      );
-                                    }).toList(),
+                                      ),
+                                    ),
                                   );
-                                },
+                                }).toList(),
                               ),
                             ],
                           ),
@@ -390,9 +408,8 @@ class _ToothEditorSheetModal extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    ValueListenableBuilder<String>(
-                      valueListenable: surfaceNotation,
-                      builder: (context, not, _) {
+                    Builder(
+                      builder: (context) {
                         final surfaces = [
                           {'code': 'M', 'label': 'Mesial (M)'},
                           {'code': 'O', 'label': entry.category == ToothCategory.incisor ? 'Incisal (I)' : 'Occlusal (O)'},
@@ -404,19 +421,20 @@ class _ToothEditorSheetModal extends StatelessWidget {
                           spacing: 6,
                           children: surfaces.map((s) {
                             final code = s['code']!;
-                            final hasCode = not.contains(code);
+                            final hasCode = _surfaceNotation.contains(code);
                             return FilterChip(
                               label: Text(s['label']!, style: const TextStyle(fontSize: 11)),
                               selected: hasCode,
                               onSelected: (selected) {
-                                final currentVal = surfaceNotation.value;
-                                if (selected) {
-                                  if (!currentVal.contains(code)) {
-                                    surfaceNotation.value = '$currentVal$code';
+                                setState(() {
+                                  if (selected) {
+                                    if (!_surfaceNotation.contains(code)) {
+                                      _surfaceNotation = '$_surfaceNotation$code';
+                                    }
+                                  } else {
+                                    _surfaceNotation = _surfaceNotation.replaceAll(code, '');
                                   }
-                                } else {
-                                  surfaceNotation.value = currentVal.replaceAll(code, '');
-                                }
+                                });
                               },
                             );
                           }).toList(),
@@ -437,7 +455,7 @@ class _ToothEditorSheetModal extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     TextField(
-                      controller: notesController,
+                      controller: _notesController,
                       maxLines: 3,
                       decoration: InputDecoration(
                         hintText: 'Enter clinical observations, pathology details, or proposed treatment plan...',
@@ -545,7 +563,7 @@ class _ToothEditorSheetModal extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton(
-                    onPressed: onCancel,
+                    onPressed: widget.onCancel,
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 12),
@@ -554,31 +572,31 @@ class _ToothEditorSheetModal extends StatelessWidget {
                     label: const Text('Save Tooth Record'),
                     onPressed: () {
                       final newHistory = List<ToothHistoryEntry>.from(entry.history);
-                      final notesText = notesController.text.trim();
+                      final notesText = _notesController.text.trim();
 
                       // Record append-only history entry if state or notes changed
-                      if (selectedState.value != entry.state || notesText.isNotEmpty) {
+                      if (_selectedState != entry.state || notesText.isNotEmpty) {
                         newHistory.add(
                           ToothHistoryEntry(
                             timestamp: DateTime.now(),
-                            state: selectedState.value,
-                            description: notesText.isNotEmpty ? notesText : 'Status updated to ${selectedState.value.displayName}',
-                            doctorName: doctorName,
-                            specialCaseType: selectedSpecialCase.value,
+                            state: _selectedState,
+                            description: notesText.isNotEmpty ? notesText : 'Status updated to ${_selectedState.displayName}',
+                            doctorName: widget.doctorName,
+                            specialCaseType: _selectedSpecialCase,
                           ),
                         );
                       }
 
                       final updated = entry.copyWith(
-                        state: selectedState.value,
-                        specialCaseType: selectedSpecialCase.value,
-                        pocketDepthMm: pocketDepth.value,
-                        surfaceNotation: surfaceNotation.value,
+                        state: _selectedState,
+                        specialCaseType: _selectedSpecialCase,
+                        pocketDepthMm: _pocketDepth,
+                        surfaceNotation: _surfaceNotation,
                         notes: notesText.isNotEmpty ? notesText : entry.notes,
                         history: newHistory,
                       );
 
-                      onSave(updated);
+                      widget.onSave(updated);
                     },
                   ),
                 ],

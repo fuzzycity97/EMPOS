@@ -10,6 +10,7 @@ import '../../../hardware/presentation/widgets/hardware_diagnostics_dialog.dart'
 import '../../../../features/auth/domain/entities/user_role.dart';
 import '../../../../features/auth/presentation/widgets/role_guard_widget.dart';
 import '../../../../features/rmm/presentation/pages/developer_console_page.dart';
+import '../../../../features/builder/presentation/facility_blueprint_builder_screen.dart';
 
 class AdvancedSettingsDialog extends StatelessWidget {
   final ValueNotifier<String> _searchFilterNotifier = ValueNotifier<String>('');
@@ -27,12 +28,42 @@ class AdvancedSettingsDialog extends StatelessWidget {
 
   static String getToggleDescription(String key) {
     switch (key) {
+      case 'sw.clinic_reception':
+        return 'Enables the Reception Desk workspace, patient check-in queue, and triage triage status.';
+      case 'sw.clinic_doctor_station':
+        return 'Activates Doctor Consultation Station, encounter history, clinical diagnoses, and prescriptions.';
+      case 'sw.dental_tooth_chart_editor':
+        return 'Enables 3D Interactive Odontogram, 32-tooth quadrant matrix, surface-level procedures, and notes.';
+      case 'sw.retail_pos':
+        return 'Activates Retail POS Cashier checkout terminal with barcode scanning and instant bill settlement.';
+      case 'sw.orders_returns':
+        return 'Enables Order Management, sales history, receipt reprint, and item return refund workflows.';
+      case 'sw.customers_crm':
+        return 'Activates Customer & Patient directory with loyalty tier status and encounter history.';
+      case 'sw.customer_debt_tracking':
+        return 'Enables Customer Credit Ledger, partial payment tracking, debt aging, and overdue alerts.';
+      case 'sw.inventory_catalog':
+        return 'Activates Inventory Catalog, product SKU definitions, barcodes, stock levels, and low-stock alerts.';
+      case 'sw.service_pipeline':
+        return 'Enables Automotive / Trade / Service Work Orders Kanban board and job status lifecycle.';
+      case 'sw.auto_repair_pipeline':
+        return 'Activates Automotive Repair Work Orders, Bay scheduling, technician assign, and labor time logs.';
+      case 'sw.auto_repair_vin_lookup':
+        return 'Enables automated 17-character VIN barcode decoding and vehicle specification retrieval.';
+      case 'sw.bookings_calendar':
+        return 'Activates Room, Chair, and Appointment multi-view Calendar with conflict resolution.';
+      case 'sw.boss_erp':
+        return 'Activates Boss Executive Dashboard, gross margins, payroll, revenue trends, and audit summaries.';
+      case 'sw.partner_equity_profit_sharing':
+        return 'Enables Partner Ownership Equity splits, net profit distributions, and capital draws.';
+      case 'sw.shift_drawer_reconciliation':
+        return 'Enables Cash Drawer X/Z-Report reconciliation, float declarations, and cash variance audits.';
       case 'sw.table_management':
         return 'Enables Dine-In / Table layout selection and floor tab binding in POS.';
       case 'sw.prescription_scanning':
         return 'Activates Optical Rx scanning, molecule interaction checks, and patient dosage logs.';
       case 'sw.grocery_weight_pricing':
-        return 'Calculates item line totals dynamically from weight scale inputs.';
+        return 'Calculates item line totals dynamically from digital weight scale inputs.';
       case 'sw.box_and_strip_selling':
         return 'Allows breaking whole medicine boxes into sub-unit strips with proportionate pricing.';
       case 'sw.expiry_tracking':
@@ -169,7 +200,31 @@ class AdvancedSettingsDialog extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       RoleGuardWidget(
-                        allowedRoles: const [UserRole.admin],
+                        allowedRoles: const [UserRole.admin, UserRole.technician],
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => FacilityBlueprintBuilderScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(LucideIcons.cpu, size: 14),
+                          label: const Text('Blueprint Studio'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.success,
+                            side: const BorderSide(color: AppColors.success),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      RoleGuardWidget(
+                        allowedRoles: const [UserRole.admin, UserRole.technician],
                         child: OutlinedButton.icon(
                           onPressed: () {
                             Navigator.of(context).pop();
@@ -235,7 +290,7 @@ class AdvancedSettingsDialog extends StatelessWidget {
                         final allToggles = Map<String, bool>.from(blueprint.toggles);
 
                         // Ensure standard core toggles exist in the map
-                        _ensureStandardToggles(allToggles);
+                        _ensureStandardToggles(allToggles, blueprint);
 
                         final swToggles = allToggles.entries
                             .where((e) => e.key.startsWith('sw.'))
@@ -366,29 +421,43 @@ class AdvancedSettingsDialog extends StatelessWidget {
     return label.contains(query) || rawKey.contains(query) || description.contains(query);
   }
 
-  static void _ensureStandardToggles(Map<String, bool> toggles) {
-    final standardKeys = [
-      'sw.prescription_scanning',
-      'sw.table_management',
-      'sw.grocery_weight_pricing',
-      'sw.box_and_strip_selling',
-      'sw.expiry_tracking',
-      'sw.batch_numbers',
-      'sw.loyalty_points',
-      'sw.custom_tax_rates',
-      'sw.multi_shift_management',
-      'sw.compliance_audit_logs',
-      'hw.retail_barcode_scanner',
-      'hw.receipt_printer_80mm',
-      'hw.cash_drawer_kick',
-      'hw.grocery_scale',
-      'hw.optical_prescription_scanner',
-      'hw.customer_display',
-    ];
+  static void _ensureStandardToggles(Map<String, bool> toggles, dynamic blueprint) {
+    // 1. Core Workspace Navigation Switches
+    toggles.putIfAbsent('sw.clinic_reception', () => blueprint.isMedical == true || blueprint.isDental == true);
+    toggles.putIfAbsent('sw.clinic_doctor_station', () => blueprint.isMedical == true || blueprint.isDental == true);
+    toggles.putIfAbsent('sw.dental_tooth_chart_editor', () => blueprint.isDental == true);
+    toggles.putIfAbsent('sw.retail_pos', () => blueprint.isRetail == true || blueprint.isFoodBeverage == true || blueprint.isSupermarket == true || blueprint.isPharmacy == true);
+    toggles.putIfAbsent('sw.orders_returns', () => blueprint.isRetail == true || blueprint.isFoodBeverage == true || blueprint.isSupermarket == true || blueprint.isPharmacy == true);
+    toggles.putIfAbsent('sw.customers_crm', () => true);
+    toggles.putIfAbsent('sw.customer_debt_tracking', () => true);
+    toggles.putIfAbsent('sw.inventory_catalog', () => true);
+    toggles.putIfAbsent('sw.service_pipeline', () => blueprint.isAutomotive == true || blueprint.isRealEstate == true || blueprint.isHomeTrade == true || blueprint.isServices == true);
+    toggles.putIfAbsent('sw.auto_repair_pipeline', () => blueprint.isAutomotive == true);
+    toggles.putIfAbsent('sw.auto_repair_vin_lookup', () => blueprint.isAutomotive == true);
+    toggles.putIfAbsent('sw.bookings_calendar', () => blueprint.isHospitality == true || blueprint.isBeautySpa == true || blueprint.isFitness == true);
+    toggles.putIfAbsent('sw.boss_erp', () => true);
+    toggles.putIfAbsent('sw.partner_equity_profit_sharing', () => true);
+    toggles.putIfAbsent('sw.shift_drawer_reconciliation', () => true);
 
-    for (final k in standardKeys) {
-      toggles.putIfAbsent(k, () => k == 'sw.compliance_audit_logs');
-    }
+    // 2. Specialized Industry Engine Switches
+    toggles.putIfAbsent('sw.table_management', () => blueprint.isRestaurant == true);
+    toggles.putIfAbsent('sw.prescription_scanning', () => blueprint.isPharmacy == true);
+    toggles.putIfAbsent('sw.grocery_weight_pricing', () => blueprint.isSupermarket == true);
+    toggles.putIfAbsent('sw.box_and_strip_selling', () => blueprint.isPharmacy == true);
+    toggles.putIfAbsent('sw.expiry_tracking', () => blueprint.isPharmacy == true || blueprint.isSupermarket == true);
+    toggles.putIfAbsent('sw.batch_numbers', () => blueprint.isPharmacy == true || blueprint.isMedical == true);
+    toggles.putIfAbsent('sw.loyalty_points', () => true);
+    toggles.putIfAbsent('sw.custom_tax_rates', () => true);
+    toggles.putIfAbsent('sw.multi_shift_management', () => true);
+    toggles.putIfAbsent('sw.compliance_audit_logs', () => true);
+
+    // 3. Hardware Peripheral Switches
+    toggles.putIfAbsent('hw.retail_barcode_scanner', () => true);
+    toggles.putIfAbsent('hw.receipt_printer_80mm', () => true);
+    toggles.putIfAbsent('hw.cash_drawer_kick', () => true);
+    toggles.putIfAbsent('hw.grocery_scale', () => blueprint.isSupermarket == true);
+    toggles.putIfAbsent('hw.optical_prescription_scanner', () => blueprint.isPharmacy == true || blueprint.isMedical == true);
+    toggles.putIfAbsent('hw.customer_display', () => false);
   }
 }
 

@@ -154,8 +154,33 @@ class LanSyncDialog extends StatelessWidget {
                                   color: AppColors.textSecondaryDark,
                                   fontSize: 11,
                                 ),
+                                maxLines: 3,
                                 overflow: TextOverflow.ellipsis,
                               ),
+                              if (state is LanSyncError &&
+                                  (state.message.contains('10048') ||
+                                   state.message.contains('already in use') ||
+                                   state.message.contains('Port')))
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: OutlinedButton.icon(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AppColors.info,
+                                      side: const BorderSide(color: AppColors.info),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    ),
+                                    icon: const Icon(LucideIcons.link, size: 12),
+                                    label: const Text(
+                                      'Connect as Client to Local Host (127.0.0.1:9090)',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                    ),
+                                    onPressed: () {
+                                      context.read<LanSyncBloc>().add(
+                                        const ConnectToHostEvent(hostIp: '127.0.0.1', port: 9090),
+                                      );
+                                    },
+                                  ),
+                                ),
                             ],
                           ),
                         ),

@@ -163,7 +163,7 @@ class BookingsCalendarPage extends StatelessWidget {
     // Current user role check for RBAC
     final authState = context.watch<AuthBloc>().state;
     final userRole = authState is AuthAuthenticated ? authState.user.role : UserRole.admin;
-    final isManagerOrAdmin = userRole == UserRole.admin || userRole == UserRole.manager;
+    final isManagerOrAdmin = userRole.isGodMode || userRole == UserRole.manager;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

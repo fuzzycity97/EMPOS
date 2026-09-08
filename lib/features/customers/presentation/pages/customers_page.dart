@@ -136,9 +136,9 @@ class _CustomersView extends StatelessWidget {
       }
     } catch (_) {}
 
-    // Admin and Manager roles have unrestricted financial access.
+    // Admin, Technician (God Mode), and Manager roles have unrestricted financial access.
     // Restricted roles (Doctor, Receptionist, etc.) see masked values.
-    final isPrivileged = role == null || role == UserRole.admin || role == UserRole.manager;
+    final isPrivileged = role == null || role.isGodMode || role == UserRole.manager;
 
     return Row(
       children: [

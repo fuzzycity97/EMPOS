@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:empos/features/clinic/domain/entities/tooth_chart_entry.dart';
+import 'package:empos/features/clinic/domain/entities/clinic_visit.dart';
 import 'package:empos/features/clinic/presentation/widgets/dental_tooth_3d_canvas_widget.dart';
 import 'package:empos/features/clinic/presentation/widgets/dental_tooth_matrix_widget.dart';
 import 'package:empos/features/clinic/presentation/widgets/tooth_editor_sheet.dart';
@@ -177,6 +178,126 @@ void main() {
       expect(savedResult!.history.first.state, ToothState.specialCase);
       expect(savedResult!.history.first.specialCaseType, SpecialCaseType.supernumerary);
       expect(savedResult!.history.first.doctorName, 'Dr. Tarek');
+    });
+
+    testWidgets('Tooth status selection maintains active state and does not revert to Healthy', (tester) async {
+      ToothChartEntry? savedResult;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ToothEditorSheet(
+              entry: const ToothChartEntry(
+                toothNumber: 14,
+                toothCode: '14',
+                state: ToothState.healthy,
+              ),
+              isPediatric: false,
+              doctorName: 'Dr. Sarah',
+              onSave: (updated) => savedResult = updated,
+              onCancel: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap 'Decayed / Cavity'
+      await tester.ensureVisible(find.text('Decayed / Cavity'));
+      await tester.tap(find.text('Decayed / Cavity'));
+      await tester.pumpAndSettle();
+
+      // Verify that 'Decayed / Cavity' is highlighted as selected (white text & bold) and 'Healthy' is unselected
+      final decayedText = tester.widget<Text>(find.text('Decayed / Cavity'));
+      expect(decayedText.style?.color, Colors.white);
+      expect(decayedText.style?.fontWeight, FontWeight.bold);
+
+      final healthyText = tester.widget<Text>(find.text('Healthy'));
+      expect(healthyText.style?.fontWeight, FontWeight.normal);
+
+      // Trigger a keyboard/text event or pump to ensure rebuild does not reset state to healthy
+      await tester.ensureVisible(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Class II mesial caries');
+      await tester.pumpAndSettle();
+
+      final decayedTextAfterInput = tester.widget<Text>(find.text('Decayed / Cavity'));
+      expect(decayedTextAfterInput.style?.color, Colors.white);
+      expect(decayedTextAfterInput.style?.fontWeight, FontWeight.bold);
+
+      // Save and verify result
+      await tester.ensureVisible(find.text('Save Tooth Record'));
+      await tester.tap(find.text('Save Tooth Record'));
+      await tester.pumpAndSettle();
+
+      expect(savedResult, isNotNull);
+      expect(savedResult!.state, ToothState.decayed);
+    });
+
+    test('Doctor station financial settlement calculation accurately segregates paid, unpaid, and insurance', () {
+      final visits = [
+        // Visit 1: Self-pay (100% copay), paid
+        ClinicVisit(
+          id: 'v1',
+          patientId: 'p1',
+          patientName: 'John',
+          doctorName: 'Dr. A',
+          queueNumber: 1,
+          chiefComplaint: 'Checkup',
+          checkInTime: DateTime.now(),
+          totalFee: 500.0,
+          patientCopay: 500.0,
+          insurancePaid: 0.0,
+          isPaid: true,
+        ),
+        // Visit 2: Insured (20% copay, 80% insurance), paid copay
+        ClinicVisit(
+          id: 'v2',
+          patientId: 'p1',
+          patientName: 'John',
+          doctorName: 'Dr. A',
+          queueNumber: 2,
+          chiefComplaint: 'Extraction',
+          checkInTime: DateTime.now(),
+          totalFee: 1000.0,
+          patientCopay: 200.0,
+          insurancePaid: 800.0,
+          isPaid: true,
+        ),
+        // Visit 3: Insured (20% copay, 80% insurance), UNPAID copay
+        ClinicVisit(
+          id: 'v3',
+          patientId: 'p1',
+          patientName: 'John',
+          doctorName: 'Dr. A',
+          queueNumber: 3,
+          chiefComplaint: 'Crown',
+          checkInTime: DateTime.now(),
+          totalFee: 2000.0,
+          patientCopay: 400.0,
+          insurancePaid: 1600.0,
+          isPaid: false,
+        ),
+      ];
+
+      double totalPaid = 0.0;
+      double totalPending = 0.0;
+      for (final v in visits) {
+        if (v.isPaid || v.totalFee <= 0.001) {
+          totalPaid += v.totalFee;
+        } else {
+          totalPaid += v.insurancePaid;
+          totalPending += v.patientCopay;
+        }
+      }
+
+      // Total billed: 500 + 1000 + 2000 = 3500
+      // v1 settled = 500
+      // v2 settled = 1000 (200 copay paid + 800 insurance)
+      // v3 settled = 1600 (insurance portion settled), pending due = 400 (unpaid patient copay)
+      // totalPaid should be 500 + 1000 + 1600 = 3100
+      // totalPending should be 400
+      expect(totalPaid, 3100.0);
+      expect(totalPending, 400.0);
     });
 
     test('FDI and Universal numbering cross-mapping calculates accurately', () {

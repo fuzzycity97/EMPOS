@@ -419,26 +419,21 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
   Widget _buildFinancialSummary(BuildContext context, bool isDark) {
     final hasCustomer = customer != null;
     final customerDebt = hasCustomer ? customer!.totalDebt : null;
-    final visitDue = (visit.totalFee - visit.patientCopay - visit.insurancePaid).clamp(0.0, double.infinity);
+    final isPaid = visit.isPaid || visit.totalFee <= 0.001;
+    final patientDue = isPaid ? 0.0 : visit.patientCopay;
 
     final String statusText;
     final Color statusColor;
 
-    if (customerDebt != null && customerDebt <= 0.001) {
-      statusText = 'PAID & SETTLED (Account Cleared)';
-      statusColor = AppColors.success;
-    } else if (customerDebt != null && customerDebt > 0.001) {
-      statusText = 'PARTIAL DEBT (Account Due: ${customerDebt.toStringAsFixed(2)} EGP)';
-      statusColor = AppColors.warning;
-    } else if (visitDue <= 0.001 && (visit.patientCopay > 0 || visit.insurancePaid > 0 || visit.totalFee == 0)) {
+    if (isPaid) {
       statusText = 'PAID & SETTLED';
       statusColor = AppColors.success;
-    } else if ((visit.patientCopay > 0 || visit.insurancePaid > 0) && visitDue > 0.001) {
-      statusText = 'PARTIAL DEBT (Due: ${visitDue.toStringAsFixed(2)} EGP)';
-      statusColor = AppColors.warning;
-    } else {
-      statusText = 'UNPAID (Due: ${visit.totalFee.toStringAsFixed(2)} EGP)';
+    } else if (visit.status == ClinicVisitStatus.completed) {
+      statusText = 'UNPAID (Due: ${patientDue.toStringAsFixed(2)} EGP)';
       statusColor = AppColors.danger;
+    } else {
+      statusText = 'IN PROGRESS';
+      statusColor = AppColors.warning;
     }
 
     return Container(

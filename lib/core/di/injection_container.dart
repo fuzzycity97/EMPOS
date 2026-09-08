@@ -467,6 +467,7 @@ Future<void> initServiceLocator() async {
       loadStoreBlueprintUseCase: sl(),
       saveStoreBlueprintUseCase: sl(),
       getFeatureToggleUseCase: sl(),
+      lanSyncRepository: sl.isRegistered<LanSyncRepository>() ? sl<LanSyncRepository>() : null,
     ),
   );
 

@@ -176,8 +176,8 @@ class DynamicStationRouter {
   }
 
   static bool _hasRoleAccess(UserRole userRole, Set<UserRole> allowedRoles) {
-    if (userRole == UserRole.admin || userRole == UserRole.manager) {
-      return true; // Admin and Manager have global unrestricted access
+    if (userRole.isGodMode || userRole == UserRole.manager) {
+      return true; // Admin, Technician (God Mode), and Manager have global unrestricted access
     }
     return allowedRoles.contains(userRole);
   }

@@ -87,7 +87,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
       final interfaces = await NetworkInterface.list(
         type: InternetAddressType.IPv4,
         includeLoopback: false,
-      );
+      ).timeout(const Duration(milliseconds: 500), onTimeout: () => []);
       for (final interface in interfaces) {
         for (final addr in interface.addresses) {
           if (!addr.isLoopback && !addr.isLinkLocal) {
@@ -242,7 +242,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
       );
     });
 
-    _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
+    _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port, shared: true);
     _isHost = true;
     _isConnected = true;
 
@@ -350,8 +350,8 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
               final rawNodes = envelope.payload?['nodes'] as List<dynamic>?;
               if (rawNodes != null) {
                 _clientNetworkNodes = rawNodes
-                    .whereType<Map<String, dynamic>>()
-                    .map((n) => ConnectedNode.fromJson(n))
+                    .whereType<Map>()
+                    .map((n) => ConnectedNode.fromJson(Map<String, dynamic>.from(n)))
                     .toList();
                 if (!_connectedNodesController.isClosed) {
                   _connectedNodesController.add(_clientNetworkNodes);

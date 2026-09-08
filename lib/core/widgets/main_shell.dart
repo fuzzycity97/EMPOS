@@ -6,6 +6,8 @@ import '../config/data/models/store_blueprint_model.dart';
 import '../config/presentation/bloc/config_bloc.dart';
 import '../config/presentation/bloc/config_state.dart';
 import '../config/presentation/widgets/advanced_settings_dialog.dart';
+import '../../features/builder/presentation/facility_blueprint_builder_screen.dart';
+import '../../features/rmm/presentation/pages/technician_fleet_console_page.dart';
 import '../network/lan_sync/presentation/bloc/lan_sync_bloc.dart';
 import '../network/lan_sync/presentation/bloc/lan_sync_event.dart';
 import '../network/lan_sync/presentation/bloc/lan_sync_state.dart';
@@ -121,6 +123,11 @@ class MainShell extends StatelessWidget {
             return PinLockScreen();
           }
           final currentUser = authState.user;
+
+          // Dedicated Engineering & Provisioning Console for Technician (God Mode)
+          if (currentUser.role == UserRole.technician) {
+            return TechnicianFleetConsolePage();
+          }
 
           return BlocBuilder<ConfigBloc, ConfigState>(
             builder: (context, configState) {
@@ -327,9 +334,30 @@ class MainShell extends StatelessWidget {
                 );
               }
 
-              // Filter nav items by currentUser role
+              // 10. Blueprint Studio & Visual Toggles (God Mode / System Developer / Lead Technician)
+              if (currentUser.role.isGodMode) {
+                allNavItems.add(
+                  _NavItem(
+                    label: 'Blueprint Studio',
+                    icon: LucideIcons.cpu,
+                    page: FacilityBlueprintBuilderScreen(
+                      onSaveAndExport: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Facility Blueprint exported and synchronized successfully!'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      },
+                    ),
+                    allowedRoles: const [UserRole.admin, UserRole.technician],
+                  ),
+                );
+              }
+
+              // Filter nav items by currentUser role (God Mode grants universal access to all workspaces)
               final navItems = allNavItems
-                  .where((item) => item.allowedRoles.contains(currentUser.role))
+                  .where((item) => currentUser.role.isGodMode || item.allowedRoles.contains(currentUser.role))
                   .toList();
 
               // Fallback if all filtered tabs are empty
@@ -628,10 +656,10 @@ class MainShell extends StatelessWidget {
                                         : currentUser.role == UserRole.receptionist
                                             ? LucideIcons.userCheck
                                             : currentUser.role == UserRole.technician
-                                                ? LucideIcons.wrench
+                                                ? LucideIcons.cpu
                                                 : LucideIcons.user,
                             size: 14,
-                            color: AppColors.primary,
+                            color: currentUser.role.isGodMode ? AppColors.accent : AppColors.primary,
                           ),
                           const SizedBox(width: 6),
                           Text(
@@ -665,9 +693,25 @@ class MainShell extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
 
-                    // Store Config & Advanced Settings (Admin & Manager only)
+                    // Quick Blueprint Studio Button (God Mode / System Developer)
+                    if (currentUser.role.isGodMode) ...[
+                      IconButton(
+                        icon: const Icon(LucideIcons.cpu, size: 18, color: AppColors.accent),
+                        tooltip: 'Facility Blueprint Studio & Visual Toggles (God Mode)',
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => FacilityBlueprintBuilderScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+
+                    // Store Config & Advanced Settings (Admin, Manager, Technician / God Mode)
                     RoleGuardWidget(
-                      allowedRoles: const [UserRole.admin, UserRole.manager],
+                      allowedRoles: const [UserRole.admin, UserRole.manager, UserRole.technician],
                       child: IconButton(
                         icon: const Icon(LucideIcons.settings, size: 18),
                         tooltip: 'Advanced Settings & Industry Toggles',

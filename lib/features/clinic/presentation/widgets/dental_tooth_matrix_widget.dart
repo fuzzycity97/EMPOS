@@ -356,9 +356,10 @@ class DentalToothMatrixWidget extends StatelessWidget {
   }
 
   void _openToothEditor(BuildContext context, ToothChartEntry entry) {
+    final freshEntry = _findEntry(entry.effectiveToothCode);
     ToothEditorSheet.show(
       context,
-      entry: entry,
+      entry: freshEntry,
       isPediatric: isPediatric,
       doctorName: doctorName,
       onSave: (updated) {

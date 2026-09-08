@@ -23,7 +23,7 @@ class RoleGuardWidget extends StatelessWidget {
       return BlocBuilder<AuthBloc, AuthState>(
         bloc: bloc,
         builder: (context, state) {
-          if (state is AuthAuthenticated && allowedRoles.contains(state.user.role)) {
+          if (state is AuthAuthenticated && (state.user.role.isGodMode || allowedRoles.contains(state.user.role))) {
             return child;
           }
           return fallback ?? const SizedBox.shrink();

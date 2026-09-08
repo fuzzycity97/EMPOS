@@ -6,6 +6,8 @@ enum UserRole {
   receptionist,
   technician;
 
+  bool get isGodMode => this == UserRole.admin || this == UserRole.technician;
+
   String get displayName {
     switch (this) {
       case UserRole.admin:
@@ -19,7 +21,7 @@ enum UserRole {
       case UserRole.receptionist:
         return 'Reception Desk';
       case UserRole.technician:
-        return 'Technician / Trades';
+        return 'Lead Technician (System Developer / God Mode)';
     }
   }
 

@@ -76,7 +76,16 @@ class LanSyncBloc extends Bloc<LanSyncEvent, LanSyncState> {
         ),
       );
     } catch (e) {
-      emit(LanSyncError('Failed to start host server: $e'));
+      final errStr = e.toString();
+      if (errStr.contains('10048') ||
+          errStr.contains('address already in use') ||
+          errStr.contains('Only one usage of each socket address')) {
+        emit(LanSyncError(
+          'Port ${event.port} is already in use. Another EMPOS window may already be running as Host Server on this PC.',
+        ));
+      } else {
+        emit(LanSyncError('Failed to start host server: $e'));
+      }
     }
   }
 

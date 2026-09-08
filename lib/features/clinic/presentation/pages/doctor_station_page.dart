@@ -5,6 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
+import '../../../../core/config/presentation/bloc/config_bloc.dart';
+import '../../../../core/config/presentation/bloc/config_state.dart';
 import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_bloc.dart';
 import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_event.dart';
 import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_state.dart';
@@ -42,6 +44,14 @@ class DoctorStationPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
+    StoreBlueprint currentBlueprint = blueprint;
+    try {
+      final configState = context.watch<ConfigBloc>().state;
+      if (configState is ConfigLoaded) {
+        currentBlueprint = configState.blueprint;
+      }
+    } catch (_) {}
 
     final selectedVisitNotifier = ValueNotifier<String?>(null);
     final loadedVisitIdNotifier = ValueNotifier<String?>(null);
@@ -406,7 +416,7 @@ class DoctorStationPage extends StatelessWidget {
                                       const SizedBox(height: 20),
 
                                       // Dental vs General Workspace
-                                      if (blueprint.isDental) ...[
+                                      if (currentBlueprint.isDental || currentBlueprint.isEnabled('sw.dental_tooth_chart_editor')) ...[
                                         DentalToothMatrixWidget(
                                           toothChart: loadedState.activeToothChart ?? [],
                                           isPediatric: isPediatric,
@@ -431,6 +441,7 @@ class DoctorStationPage extends StatelessWidget {
                                         totalFeeController,
                                         labResultsController,
                                         isDark,
+                                        patient: activePatient,
                                       ),
                                       const SizedBox(height: 20),
                                       DoctorAttachmentsLightbox(
@@ -872,12 +883,16 @@ class DoctorStationPage extends StatelessWidget {
       }
     } catch (_) {}
 
-    final totalFees = historicalVisits.fold<double>(0.0, (sum, v) => sum + v.totalFee);
-    // If we matched the customer ledger, live debt balance represents exact unpaid debt
-    final totalPending = matchedCustomer != null
-        ? matchedCustomer.totalDebt.clamp(0.0, double.infinity)
-        : (totalFees - historicalVisits.fold<double>(0.0, (sum, v) => sum + v.patientCopay)).clamp(0.0, double.infinity);
-    final totalPaid = (totalFees - totalPending).clamp(0.0, double.infinity);
+    double totalPaid = 0.0;
+    double totalPending = 0.0;
+    for (final v in historicalVisits) {
+      if (v.isPaid || v.totalFee <= 0.001) {
+        totalPaid += v.totalFee;
+      } else {
+        totalPaid += v.insurancePaid;
+        totalPending += v.patientCopay;
+      }
+    }
 
     showDialog(
       context: context,
@@ -954,6 +969,19 @@ class DoctorStationPage extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (matchedCustomer != null && matchedCustomer.totalDebt > 0.001) ...[
+                      Container(height: 24, width: 1, color: Colors.white24),
+                      Column(
+                        children: [
+                          const Text('ACCOUNT DEBT', style: TextStyle(fontSize: 10, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 2),
+                          Text(
+                            'EGP ${matchedCustomer.totalDebt.toStringAsFixed(2)}',
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.redAccent),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -980,11 +1008,15 @@ class DoctorStationPage extends StatelessWidget {
                           final hVisit = historicalVisits[idx];
                           final dateStr = DateFormat('yyyy-MM-dd • hh:mm a').format(hVisit.checkInTime);
                           final treatedTeeth = hVisit.toothChart.where((t) => t.state != ToothState.healthy).toList();
-                          final visitDue = (hVisit.totalFee - hVisit.patientCopay).clamp(0.0, double.infinity);
-                          final isFullySettled = (matchedCustomer != null && matchedCustomer.totalDebt <= 0.001) ||
-                              (visitDue <= 0.001 && hVisit.isPaid);
-                          final isPartiallyPaid = (matchedCustomer != null && matchedCustomer.totalDebt > 0.001) ||
-                              (hVisit.patientCopay > 0 && visitDue > 0.001);
+                          final isFullySettled = hVisit.isPaid || hVisit.totalFee <= 0.001;
+                          final visitDue = isFullySettled ? 0.0 : hVisit.patientCopay;
+                          final isInsuranceCovered = !isFullySettled && hVisit.insurancePaid > 0.001;
+                          final insInfo = hVisit.insurancePaid > 0.001
+                              ? ' (Ins: EGP ${hVisit.insurancePaid.toStringAsFixed(2)})'
+                              : '';
+                          final settlementInfo = isFullySettled
+                              ? 'Copay Settled: EGP ${hVisit.patientCopay.toStringAsFixed(2)}'
+                              : 'Due: EGP ${visitDue.toStringAsFixed(2)}$insInfo';
 
                           return InkWell(
                             borderRadius: BorderRadius.circular(8),
@@ -1026,7 +1058,7 @@ class DoctorStationPage extends StatelessWidget {
                                             decoration: BoxDecoration(
                                               color: isFullySettled
                                                   ? Colors.green.withValues(alpha: 0.2)
-                                                  : (isPartiallyPaid
+                                                  : (isInsuranceCovered
                                                       ? Colors.amber.withValues(alpha: 0.2)
                                                       : Colors.red.withValues(alpha: 0.2)),
                                               borderRadius: BorderRadius.circular(4),
@@ -1034,15 +1066,15 @@ class DoctorStationPage extends StatelessWidget {
                                             child: Text(
                                               isFullySettled
                                                   ? 'PAID & SETTLED'
-                                                  : (isPartiallyPaid
-                                                      ? 'PARTIAL DEBT'
+                                                  : (isInsuranceCovered
+                                                      ? 'COPAY DUE'
                                                       : 'UNPAID'),
                                               style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.bold,
                                                 color: isFullySettled
                                                     ? Colors.green
-                                                    : (isPartiallyPaid ? Colors.amber : Colors.redAccent),
+                                                    : (isInsuranceCovered ? Colors.amber : Colors.redAccent),
                                               ),
                                             ),
                                           ),
@@ -1089,16 +1121,17 @@ class DoctorStationPage extends StatelessWidget {
                                       padding: const EdgeInsets.only(top: 2),
                                       child: Text('Dental Chart: ${treatedTeeth.map((t) => "#${t.effectiveToothCode} (${t.state.displayName})").join(", ")}', style: const TextStyle(fontSize: 11, color: Colors.amber)),
                                     ),
-                                  const SizedBox(height: 6),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
-                                        'Fee: EGP ${hVisit.totalFee.toStringAsFixed(2)} • Copay Paid: EGP ${hVisit.patientCopay.toStringAsFixed(2)}${visitDue > 0.001 ? " • Due: EGP ${visitDue.toStringAsFixed(2)}" : ""}',
+                                        'Fee: EGP ${hVisit.totalFee.toStringAsFixed(2)} • $settlementInfo',
                                         style: TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.bold,
-                                          color: visitDue > 0.001 ? Colors.amber : Colors.white70,
+                                          color: isFullySettled
+                                              ? Colors.green
+                                              : (visitDue > 0.001 ? Colors.amber : Colors.white70),
                                         ),
                                       ),
                                       const Text(
@@ -1189,8 +1222,9 @@ class DoctorStationPage extends StatelessWidget {
     TextEditingController prescriptionController,
     TextEditingController feeController,
     TextEditingController labResultsController,
-    bool isDark,
-  ) {
+    bool isDark, {
+    PatientProfile? patient,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1243,6 +1277,54 @@ class DoctorStationPage extends StatelessWidget {
               hintText: '0.00 (Enter amount to charge)',
               border: OutlineInputBorder(),
             ),
+          ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: feeController,
+            builder: (context, val, _) {
+              final fee = double.tryParse(val.text.trim()) ?? 0.0;
+              if (fee <= 0) return const SizedBox.shrink();
+              final copayRatio = patient?.defaultCopayPercentage ?? 1.0;
+              final patientCopay = fee * copayRatio;
+              final insurancePaid = fee - patientCopay;
+              final hasInsurance = patient?.insuranceProvider != null && insurancePaid > 0.001;
+
+              return Container(
+                margin: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.teal.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.teal.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.receipt_long, size: 18, color: Colors.teal),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 4,
+                        children: [
+                          Text(
+                            'Patient Copay: EGP ${patientCopay.toStringAsFixed(2)} (${(copayRatio * 100).toInt()}%)',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal),
+                          ),
+                          if (hasInsurance)
+                            Text(
+                              'Insurance: EGP ${insurancePaid.toStringAsFixed(2)} (${patient!.insuranceProvider})',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueAccent),
+                            ),
+                          Text(
+                            'Total Charge: EGP ${fee.toStringAsFixed(2)}',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.black87),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
