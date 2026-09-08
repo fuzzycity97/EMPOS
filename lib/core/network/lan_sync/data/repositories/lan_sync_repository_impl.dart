@@ -62,7 +62,13 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   @override
   bool get isConnected => _isConnected;
 
+  static String? _instanceIdOverride;
+  static void setInstanceIdOverride(String? id) => _instanceIdOverride = id;
+
   static String getLocalInstanceId() {
+    if (_instanceIdOverride != null && _instanceIdOverride!.isNotEmpty) {
+      return _instanceIdOverride!;
+    }
     const envId = String.fromEnvironment('INSTANCE_ID', defaultValue: '');
     if (envId.isNotEmpty) return envId;
     try {
@@ -75,6 +81,9 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
 
   static String getLocalStationRole({bool isHost = false}) {
     final id = getLocalInstanceId().toLowerCase();
+    if (id.contains('god') || id.contains('tech') || id.contains('admin')) {
+      return isHost ? 'Technician Hub (Host God Mode)' : 'Technician Hub (God Mode)';
+    }
     if (id.contains('doc')) return 'Doctor Station';
     if (id.contains('recept')) return isHost ? 'Reception Desk (Host)' : 'Reception Desk';
     if (id.contains('cashier') || id.contains('pos')) return 'POS Cashier';
@@ -500,7 +509,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   }
 
   @override
-  Future<void> disconnect() async {
+  Future<void> disconnect({bool clearPersistedRole = true}) async {
     _shouldAutoReconnect = false;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
@@ -547,6 +556,13 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
     _isConnected = false;
     if (!_connectedNodesController.isClosed) {
       _connectedNodesController.add([]);
+    }
+
+    if (clearPersistedRole) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_lanProfileStorageKey);
+      } catch (_) {}
     }
   }
 

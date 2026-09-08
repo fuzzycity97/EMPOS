@@ -19,6 +19,7 @@ import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_state.dart'
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../builder/presentation/facility_blueprint_builder_screen.dart';
+import '../../../sync/domain/services/sync_connection_manager.dart';
 
 /// The dedicated Technician God Mode interface for remote network provisioning,
 /// discovery of system devices/apps, remote toggle editing, and LAN push deployments.
@@ -45,15 +46,15 @@ class TechnicianFleetConsolePage extends StatelessWidget {
     LanSyncRepository? customRepository,
   }) {
     final repo = customRepository ?? sl<LanSyncRepository>();
-    final localId = LanSyncRepositoryImpl.getLocalInstanceId();
-    final defaultLocalNode = ConnectedNode(
-      id: localId,
-      role: 'This Station (Local Terminal)',
-      ipAddress: '127.0.0.1',
+    LanSyncRepositoryImpl.setInstanceIdOverride('god-mode-hub');
+    final defaultGodHubNode = ConnectedNode(
+      id: 'god-mode-hub',
+      role: 'Master Blueprint (Global Template)',
+      ipAddress: 'ALL_STATIONS',
       connectedAt: DateTime.now(),
-      appName: 'EMPOS Local Station (Active)',
+      appName: 'EMPOS Global Fleet Template',
     );
-    final selectedNode = ValueNotifier<ConnectedNode?>(defaultLocalNode);
+    final selectedNode = ValueNotifier<ConnectedNode?>(defaultGodHubNode);
     final targetToggles = ValueNotifier<Map<String, bool>>({});
     final search = ValueNotifier<String>('');
     final deploySuccess = ValueNotifier<String?>(null);
@@ -305,8 +306,8 @@ class TechnicianFleetConsolePage extends StatelessWidget {
             ),
           ),
 
-          // Server IP Input & Actions
-          if (!isConnected) ...[
+          // Server IP Input & Client Connect (available when standalone or when hosting to allow fast handoff)
+          if (!isClientConnected) ...[
             SizedBox(
               width: 180,
               height: 32,
@@ -314,7 +315,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
                 controller: serverIpController,
                 style: const TextStyle(fontSize: 12, color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'Server IP (e.g. 192.168.1.100)',
+                  hintText: isHostServer ? 'Remote Server IP' : 'Server IP (e.g. 192.168.1.100)',
                   hintStyle: const TextStyle(fontSize: 11, color: AppColors.textMutedDark),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   filled: true,
@@ -327,10 +328,19 @@ class TechnicianFleetConsolePage extends StatelessWidget {
               ),
             ),
             ElevatedButton.icon(
-              onPressed: () {
+              onPressed: () async {
                 final targetIp = serverIpController.text.trim();
                 if (targetIp.isNotEmpty) {
-                  context.read<LanSyncBloc>().add(ConnectToHostEvent(hostIp: targetIp));
+                  if (isHostServer) {
+                    try {
+                      if (sl.isRegistered<SyncConnectionManager>()) {
+                        await sl<SyncConnectionManager>().clearHostMode();
+                      }
+                    } catch (_) {}
+                  }
+                  if (context.mounted) {
+                    context.read<LanSyncBloc>().add(ConnectToHostEvent(hostIp: targetIp));
+                  }
                 }
               },
               icon: const Icon(LucideIcons.plug, size: 13),
@@ -343,22 +353,56 @@ class TechnicianFleetConsolePage extends StatelessWidget {
                 textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               ),
             ),
-          ] else ...[
+          ],
+
+          // Disconnect or Start Host Server actions
+          if (isHostServer) ...[
+            ElevatedButton.icon(
+              onPressed: () async {
+                try {
+                  if (sl.isRegistered<SyncConnectionManager>()) {
+                    await sl<SyncConnectionManager>().clearHostMode();
+                  }
+                } catch (_) {}
+                if (context.mounted) {
+                  context.read<LanSyncBloc>().add(const DisconnectLanSyncEvent());
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Local host server stopped and host persistence cleared. Terminal is now in standalone client mode.',
+                      ),
+                      backgroundColor: AppColors.info,
+                      duration: Duration(seconds: 4),
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(LucideIcons.unplug, size: 13),
+              label: const Text('Disconnect Local Server'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger.withValues(alpha: 0.2),
+                foregroundColor: AppColors.danger,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ] else if (isClientConnected) ...[
             ElevatedButton.icon(
               onPressed: () {
                 context.read<LanSyncBloc>().add(const DisconnectLanSyncEvent());
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      'Technician terminal safely disconnected from network. All deployed settings remain permanently saved on target stations!',
+                      'Terminal disconnected from server. Saved settings remain active locally.',
                     ),
                     backgroundColor: AppColors.info,
-                    duration: Duration(seconds: 4),
+                    duration: Duration(seconds: 3),
                   ),
                 );
               },
               icon: const Icon(LucideIcons.unplug, size: 13),
-              label: Text(isHostServer ? 'Disconnect Local Server' : 'Disconnect from Server'),
+              label: const Text('Disconnect from Server'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.danger.withValues(alpha: 0.2),
                 foregroundColor: AppColors.danger,
@@ -415,26 +459,41 @@ class TechnicianFleetConsolePage extends StatelessWidget {
       initialData: lanSyncRepository.connectedNodes,
       builder: (context, snapshot) {
         final liveNodes = snapshot.data ?? lanSyncRepository.connectedNodes;
-        final localId = LanSyncRepositoryImpl.getLocalInstanceId();
-        final allNodes = <ConnectedNode>[];
+        final localId = LanSyncRepositoryImpl.getLocalInstanceId().toLowerCase();
 
-        // 1. Always provide This Machine / Local Terminal
-        allNodes.add(
-          ConnectedNode(
-            id: localId,
-            role: 'This Station (Local Terminal)',
-            ipAddress: '127.0.0.1',
-            connectedAt: DateTime.now(),
-            appName: 'EMPOS Local Station (Active)',
-          ),
+        // 1. Master Facility Blueprint Template (Authority)
+        final templateNode = ConnectedNode(
+          id: 'god-mode-hub',
+          role: 'Master Blueprint (Global Template)',
+          ipAddress: 'ALL_STATIONS',
+          connectedAt: DateTime.now(),
+          appName: 'EMPOS Global Fleet Template',
         );
 
-        // 2. Add all live discovered network peers (including host server if connected)
+        // 2. Remote client stations discovered over LAN
+        final remoteClientNodes = <ConnectedNode>[];
         for (final liveNode in liveNodes) {
-          if (liveNode.id != localId && !allNodes.any((n) => n.id == liveNode.id)) {
-            allNodes.add(liveNode);
+          final id = liveNode.id.toLowerCase();
+          final role = liveNode.role.toLowerCase();
+
+          // Exclude god hub, master authority, and host server daemon
+          if (id == 'god-mode-hub' || role.contains('god') || role.contains('master blueprint') || role.contains('technician hub')) {
+            continue;
+          }
+          if (id == 'host-server' || id == localId) {
+            continue;
+          }
+          // If this machine is the host server, exclude the host node itself
+          if (lanSyncRepository.isHost && (role.contains('hub host') || role.contains('(host)'))) {
+            continue;
+          }
+
+          if (!remoteClientNodes.any((n) => n.id == liveNode.id)) {
+            remoteClientNodes.add(liveNode);
           }
         }
+
+        final allNodes = [templateNode, ...remoteClientNodes];
 
         return Container(
           color: AppColors.surfaceDark,
@@ -452,7 +511,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'DISCOVERED FLEET (${allNodes.length})',
+                        'DISCOVERED FLEET (${remoteClientNodes.length})',
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 12,
@@ -528,6 +587,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
 
                         final node = allNodes[index];
                         final isSelected = activeSelected?.id == node.id;
+                        final isGodHub = node.id == 'god-mode-hub';
 
                         return InkWell(
                           onTap: () {
@@ -583,15 +643,15 @@ class TechnicianFleetConsolePage extends StatelessWidget {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: AppColors.success.withValues(alpha: 0.15),
+                                        color: (isGodHub ? AppColors.accent : AppColors.success).withValues(alpha: 0.15),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
-                                      child: const Text(
-                                        'READY',
+                                      child: Text(
+                                        isGodHub ? 'FLEET TEMPLATE' : 'READY',
                                         style: TextStyle(
                                           fontSize: 9,
                                           fontWeight: FontWeight.w900,
-                                          color: AppColors.success,
+                                          color: isGodHub ? AppColors.accent : AppColors.success,
                                         ),
                                       ),
                                     ),
@@ -608,7 +668,9 @@ class TechnicianFleetConsolePage extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'IP Address: ${node.ipAddress} • Station ID: ${node.id}',
+                                  isGodHub
+                                      ? 'Target: Broadcast to All Remote Stations • Not for God Hub'
+                                      : 'IP Address: ${node.ipAddress} • Station ID: ${node.id}',
                                   style: const TextStyle(
                                     fontSize: 11,
                                     color: AppColors.textSecondaryDark,
@@ -643,6 +705,8 @@ class TechnicianFleetConsolePage extends StatelessWidget {
             ),
           );
         }
+
+        final isMasterHub = selectedNode.id == 'god-mode-hub';
 
         return Container(
           color: AppColors.backgroundDark,
@@ -679,7 +743,9 @@ class TechnicianFleetConsolePage extends StatelessWidget {
                             runSpacing: 4,
                             children: [
                               Text(
-                                'CONFIGURING TARGET: ${selectedNode.role.toUpperCase()}',
+                                isMasterHub
+                                    ? 'GLOBAL FLEET BLUEPRINT (MASTER TEMPLATE)'
+                                    : 'CONFIGURING TARGET: ${selectedNode.role.toUpperCase()}',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
@@ -694,7 +760,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
-                                  selectedNode.appName,
+                                  isMasterHub ? 'FLEET TEMPLATE (NOT FOR GOD HUB)' : selectedNode.appName,
                                   style: const TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
@@ -706,7 +772,9 @@ class TechnicianFleetConsolePage extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Target IP: ${selectedNode.ipAddress} • Station ID: ${selectedNode.id}',
+                            isMasterHub
+                                ? 'Master system engine template • Broadcasts to all connected client devices (Doctor, Reception, POS) • Does not apply to God Hub'
+                                : 'Target IP: ${selectedNode.ipAddress} • Station ID: ${selectedNode.id}',
                             style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondaryDark),
                           ),
                         ],
@@ -751,6 +819,29 @@ class TechnicianFleetConsolePage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
+
+              if (isMasterHub)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(LucideIcons.info, size: 16, color: AppColors.primaryLight),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'The God Mode Technician station is the central provisioning authority and does not run clinic/reception/POS workstations on itself. These toggles define the global template to push to connected client devices.',
+                          style: TextStyle(fontSize: 11.5, color: Colors.white70, height: 1.3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
               // Toggles List
               Expanded(
@@ -952,11 +1043,14 @@ class TechnicianFleetConsolePage extends StatelessWidget {
 
     // 3. If target is current station or server, also update local ConfigBloc
     final localId = LanSyncRepositoryImpl.getLocalInstanceId();
-    final isTargetLocal = targetNode.id == localId ||
+    final isTargetLocal = targetNode.id == 'god-mode-hub' ||
+        targetNode.id == localId ||
         targetNode.id == 'local' ||
         targetNode.id.contains('server') ||
         targetNode.role.toLowerCase().contains('this station') ||
-        targetNode.role.toLowerCase().contains('local');
+        targetNode.role.toLowerCase().contains('local') ||
+        targetNode.role.toLowerCase().contains('master') ||
+        targetNode.role.toLowerCase().contains('blueprint');
 
     if (context.mounted && isTargetLocal) {
       context.read<ConfigBloc>().add(UpdateBlueprintEvent(updatedBlueprint));
@@ -970,6 +1064,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
 
   static IconData _getNodeIcon(String role) {
     final r = role.toLowerCase();
+    if (r.contains('god') || r.contains('tech') || r.contains('admin')) return LucideIcons.cpu;
     if (r.contains('doctor') || r.contains('clinic')) return LucideIcons.stethoscope;
     if (r.contains('recept')) return LucideIcons.userCheck;
     if (r.contains('pos') || r.contains('cashier')) return LucideIcons.shoppingCart;

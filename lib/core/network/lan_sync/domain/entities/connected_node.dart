@@ -22,7 +22,9 @@ class ConnectedNode extends Equatable {
     if (r.contains('pos') || r.contains('cashier')) return 'EMPOS Retail POS Register';
     if (r.contains('recept')) return 'EMPOS Reception & Queue Desk';
     if (r.contains('host') || r.contains('server') || r.contains('hub')) return 'EMPOS Central Store Server';
-    if (r.contains('tech')) return 'EMPOS Technician Provisioning Tool';
+    if (r.contains('god') || r.contains('admin') || r.contains('tech')) {
+      return 'EMPOS Technician Provisioning Tool';
+    }
     return 'EMPOS Universal Station';
   }
 

@@ -292,6 +292,41 @@ class SyncConnectionManager extends ChangeNotifier {
     }
   }
 
+  /// Clears host server configuration so this terminal will not automatically bind
+  /// as a server on boot, reverting to client mode.
+  Future<void> clearHostMode() async {
+    _retryTimer?.cancel();
+    _retryAttempt = 0;
+    _isDeliberateServerShutdown = true;
+    _activeRole = AppNodeRole.client;
+    _state = SyncConnectionState.disconnected;
+    _clientSocket?.dispose();
+    _clientSocket = null;
+
+    final profile = NodeProfileConfig(
+      role: AppNodeRole.client,
+      serverUrl: 'http://127.0.0.1:3000',
+      hostPort: 3000,
+      mode: 'LAN',
+      lastActive: DateTime.now(),
+    );
+    _cachedProfile = profile;
+    await _persistProfile(profile);
+
+    // Also stop the embedded server daemon if running
+    try {
+      if (di.sl.isRegistered<LanSyncRepository>()) {
+        final lanRepo = di.sl<LanSyncRepository>();
+        if (lanRepo.isHost) {
+          await lanRepo.disconnect(clearPersistedRole: true);
+        }
+      }
+    } catch (_) {}
+
+    _logEvent('HOST_MODE_CLEARED', 'Station removed from Host role and configured as Client terminal.');
+    notifyListeners();
+  }
+
   Future<void> _persistProfile(NodeProfileConfig profile) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_storageKey, jsonEncode(profile.toJson()));

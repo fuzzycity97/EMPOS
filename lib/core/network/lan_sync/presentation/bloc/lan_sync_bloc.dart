@@ -117,7 +117,7 @@ class LanSyncBloc extends Bloc<LanSyncEvent, LanSyncState> {
     DisconnectLanSyncEvent event,
     Emitter<LanSyncState> emit,
   ) async {
-    await lanSyncRepository.disconnect();
+    await lanSyncRepository.disconnect(clearPersistedRole: true);
     emit(const LanSyncDisconnected());
   }
 
