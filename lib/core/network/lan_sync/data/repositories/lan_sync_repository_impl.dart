@@ -47,13 +47,32 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
 
   @override
   List<ConnectedNode> get connectedNodes {
+    final result = <ConnectedNode>[];
+
     if (_isHost) {
       if (_hostNode != null) {
-        return [_hostNode!, ..._nodeMap.values];
+        result.add(_hostNode!);
       }
-      return _nodeMap.values.toList();
+      final clientSeen = <String>{};
+      for (final node in _nodeMap.values) {
+        final id = node.id.toLowerCase();
+        if (!clientSeen.contains(id)) {
+          clientSeen.add(id);
+          result.add(node);
+        }
+      }
+      return result;
     }
-    return _clientNetworkNodes;
+
+    final seen = <String>{};
+    for (final node in _clientNetworkNodes) {
+      final id = node.id.toLowerCase();
+      if (!seen.contains(id)) {
+        seen.add(id);
+        result.add(node);
+      }
+    }
+    return result;
   }
 
   @override
@@ -63,7 +82,15 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   bool get isConnected => _isConnected;
 
   static String? _instanceIdOverride;
+  static String? _localRoleOverride;
+  static String? _localAppNameOverride;
+
+  static String? _primaryLocalIpOverride;
+
   static void setInstanceIdOverride(String? id) => _instanceIdOverride = id;
+  static void setLocalRoleOverride(String? role) => _localRoleOverride = role;
+  static void setLocalAppNameOverride(String? app) => _localAppNameOverride = app;
+  static void setPrimaryLocalIpOverride(String? ip) => _primaryLocalIpOverride = ip;
 
   static String getLocalInstanceId() {
     if (_instanceIdOverride != null && _instanceIdOverride!.isNotEmpty) {
@@ -80,6 +107,9 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   }
 
   static String getLocalStationRole({bool isHost = false}) {
+    if (_localRoleOverride != null && _localRoleOverride!.isNotEmpty) {
+      return _localRoleOverride!;
+    }
     final id = getLocalInstanceId().toLowerCase();
     if (id.contains('god') || id.contains('tech') || id.contains('admin')) {
       return isHost ? 'Technician Hub (Host God Mode)' : 'Technician Hub (God Mode)';
@@ -92,6 +122,12 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   }
 
   static Future<String> getPrimaryLocalIp() async {
+    if (_primaryLocalIpOverride != null && _primaryLocalIpOverride!.isNotEmpty) {
+      return _primaryLocalIpOverride!;
+    }
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      return '127.0.0.1';
+    }
     try {
       final interfaces = await NetworkInterface.list(
         type: InternetAddressType.IPv4,
@@ -195,10 +231,32 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
 
             // Handle Node Joined Handshake
             if (envelope.type == MessageRoutes.nodeJoined) {
+              final senderId = envelope.senderId.isNotEmpty ? envelope.senderId : placeholderNode.id;
+              final senderRole = envelope.senderRole.isNotEmpty ? envelope.senderRole : placeholderNode.role;
+              final senderIp = envelope.payload?['ip']?.toString() ?? placeholderNode.ipAddress;
+              final appName = envelope.payload?['appName']?.toString();
+
+              // If an existing channel in _nodeMap already had this senderId, evict and close the older one
+              final staleChannels = <WebSocketChannel>[];
+              _nodeMap.forEach((ch, existingNode) {
+                if (ch != channel && existingNode.id.toLowerCase() == senderId.toLowerCase()) {
+                  staleChannels.add(ch);
+                }
+              });
+              for (final stale in staleChannels) {
+                _activeChannels.remove(stale);
+                _nodeMap.remove(stale);
+                try {
+                  stale.sink.close();
+                } catch (_) {}
+              }
+
               final realNode = ConnectedNode(
-                id: envelope.senderId.isNotEmpty ? envelope.senderId : placeholderNode.id,
-                role: envelope.senderRole.isNotEmpty ? envelope.senderRole : placeholderNode.role,
-                ipAddress: envelope.payload?['ip']?.toString() ?? placeholderNode.ipAddress,
+                id: senderId,
+                role: senderRole,
+                ipAddress: senderIp,
+                appName: appName,
+                connectedAt: DateTime.now(),
               );
               _nodeMap[channel] = realNode;
 
@@ -584,6 +642,42 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
         }
       }
     } catch (_) {}
+  }
+
+  @override
+  Future<void> updateStationIdentity({
+    required String id,
+    required String role,
+    String? appName,
+  }) async {
+    _instanceIdOverride = id;
+    _localRoleOverride = role;
+    _localAppNameOverride = appName;
+
+    if (_isConnected) {
+      final localIp = await getPrimaryLocalIp();
+      final handshake = SyncEnvelope.create(
+        type: MessageRoutes.nodeJoined,
+        senderId: id,
+        senderRole: role,
+        payload: {
+          'ip': localIp,
+          'hostname': Platform.localHostname,
+          'appName': appName ?? (role.toLowerCase().contains('doctor')
+              ? 'EMPOS Clinical / Dental Suite'
+              : role.toLowerCase().contains('recept')
+                  ? 'EMPOS Front-Desk Reception Suite'
+                  : 'EMPOS Client Workstation'),
+        },
+      );
+      try {
+        await broadcast(handshake);
+      } catch (_) {}
+    }
+
+    if (!_connectedNodesController.isClosed) {
+      _connectedNodesController.add(connectedNodes);
+    }
   }
 
   void dispose() {

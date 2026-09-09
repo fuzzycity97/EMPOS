@@ -677,7 +677,7 @@ class MainShell extends StatelessWidget {
                             },
                             borderRadius: BorderRadius.circular(12),
                             child: const Tooltip(
-                              message: 'Lock Station / Switch User',
+                              message: 'Lock Station',
                               child: Padding(
                                 padding: EdgeInsets.all(2),
                                 child: Icon(
@@ -687,6 +687,49 @@ class MainShell extends StatelessWidget {
                                 ),
                               ),
                             ),
+                          ),
+                          const SizedBox(width: 4),
+                          PopupMenuButton<String>(
+                            tooltip: 'Quick Switch Station Profile',
+                            icon: const Icon(LucideIcons.arrowRightLeft, size: 13, color: AppColors.info),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 180),
+                            color: AppColors.surfaceElevatedDark,
+                            onSelected: (pin) {
+                              context.read<AuthBloc>().add(LoginRequested(pin));
+                            },
+                            itemBuilder: (_) => [
+                              const PopupMenuItem(
+                                value: '3333',
+                                child: Row(
+                                  children: [
+                                    Icon(LucideIcons.userCheck, size: 14, color: AppColors.info),
+                                    SizedBox(width: 8),
+                                    Text('Switch to Reception (3333)', style: TextStyle(fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: '1111',
+                                child: Row(
+                                  children: [
+                                    Icon(LucideIcons.stethoscope, size: 14, color: AppColors.success),
+                                    SizedBox(width: 8),
+                                    Text('Switch to Doctor (1111)', style: TextStyle(fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: '0000',
+                                child: Row(
+                                  children: [
+                                    Icon(LucideIcons.shieldCheck, size: 14, color: AppColors.primary),
+                                    SizedBox(width: 8),
+                                    Text('Switch to Admin (0000)', style: TextStyle(fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),

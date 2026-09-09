@@ -119,6 +119,11 @@ void main() {
     });
 
     testWidgets('Renders offline standalone mode with start host and connect buttons', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       final bloc = LanSyncBloc(lanSyncRepository: mockRepo);
 
       await tester.pumpWidget(
@@ -131,16 +136,24 @@ void main() {
           ),
         ),
       );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('LAN Real-Time Sync Engine'), findsOneWidget);
       expect(find.text('Offline / Standalone Mode'), findsOneWidget);
       expect(find.text('Start as Host Server'), findsOneWidget);
       expect(find.text('Connect to Hub Server'), findsOneWidget);
 
-      await bloc.close();
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(() async => await bloc.close());
     });
 
     testWidgets('Renders Host Server mode with connected client stations and Disconnect button', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       when(() => mockRepo.startHostServer(port: 9090)).thenAnswer((_) async {});
       when(() => mockRepo.isConnected).thenReturn(true);
       when(() => mockRepo.isHost).thenReturn(true);
@@ -151,7 +164,6 @@ void main() {
 
       final bloc = LanSyncBloc(lanSyncRepository: mockRepo);
       bloc.add(const StartHostServerEvent(port: 9090));
-      await bloc.stream.firstWhere((s) => s is LanSyncConnected);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -163,7 +175,8 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
 
       expect(find.textContaining('Hub Server Active'), findsOneWidget);
       expect(find.textContaining('Connected Client Stations (1)'), findsOneWidget);
@@ -171,10 +184,16 @@ void main() {
       expect(find.text('Doctor Station'), findsOneWidget);
       expect(find.text('Stop Server'), findsOneWidget);
 
-      await bloc.close();
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(() async => await bloc.close());
     });
 
     testWidgets('Renders Client mode with Station Connected and network nodes', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       when(() => mockRepo.connectToHost('192.168.1.10', port: 9090)).thenAnswer((_) async {});
       when(() => mockRepo.isConnected).thenReturn(true);
       when(() => mockRepo.isHost).thenReturn(false);
@@ -185,7 +204,6 @@ void main() {
 
       final bloc = LanSyncBloc(lanSyncRepository: mockRepo);
       bloc.add(const ConnectToHostEvent(hostIp: '192.168.1.10', port: 9090));
-      await bloc.stream.firstWhere((s) => s is LanSyncConnected);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -197,7 +215,8 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
 
       expect(find.textContaining('Station Connected to 192.168.1.10:9090'), findsOneWidget);
       expect(find.textContaining('Connected Stations in Network (2)'), findsOneWidget);
@@ -205,7 +224,8 @@ void main() {
       expect(find.text('doctor'), findsOneWidget);
       expect(find.text('Disconnect'), findsOneWidget);
 
-      await bloc.close();
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(() async => await bloc.close());
     });
   });
 }

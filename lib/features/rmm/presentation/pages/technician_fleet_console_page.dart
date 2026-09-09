@@ -1023,14 +1023,16 @@ class TechnicianFleetConsolePage extends StatelessWidget {
       toggles: Map<String, bool>.from(effectiveToggles),
     );
 
-    // 1. Create CONFIG_UPDATE envelope targeted at this station
+    final isMasterHub = targetNode.id == 'god-mode-hub';
+
+    // 1. Create CONFIG_UPDATE envelope targeted at this station (or 'all' if Master Hub)
     final envelope = SyncEnvelope.create(
       type: 'CONFIG_UPDATE',
       scope: 'global',
       senderId: 'technician-terminal',
       senderRole: 'Lead Technician (God Mode)',
       payload: {
-        'targetStationId': targetNode.id,
+        'targetStationId': isMasterHub ? 'all' : targetNode.id,
         'targetAppName': targetNode.appName,
         'blueprint': StoreBlueprintModel.fromEntity(updatedBlueprint).toJson(),
       },
@@ -1041,9 +1043,10 @@ class TechnicianFleetConsolePage extends StatelessWidget {
       await lanSyncRepository.broadcast(envelope);
     } catch (_) {}
 
-    // 3. If target is current station or server, also update local ConfigBloc
+    // 3. If target is master hub, current station or server, also update local ConfigBloc
     final localId = LanSyncRepositoryImpl.getLocalInstanceId();
-    final isTargetLocal = targetNode.id == 'god-mode-hub' ||
+    final isTargetLocal = isMasterHub ||
+        targetNode.id == 'god-mode-hub' ||
         targetNode.id == localId ||
         targetNode.id == 'local' ||
         targetNode.id.contains('server') ||
@@ -1057,9 +1060,11 @@ class TechnicianFleetConsolePage extends StatelessWidget {
     }
 
     // 4. Update UI banner
-    deploymentSuccessNotifier.value = isTargetLocal
-        ? 'Settings saved & refreshed successfully on this machine! All toggles (including 3D Dental Chart) are now active and permanently saved to the database.'
-        : 'Configuration deployed successfully to ${targetNode.role} (${targetNode.ipAddress})! Target device has refreshed and saved settings permanently to its local database.';
+    deploymentSuccessNotifier.value = isMasterHub
+        ? 'Settings saved & refreshed successfully on this machine! Global Fleet Blueprint deployed to all remote stations (Doctor, Reception, POS) and saved permanently!'
+        : (isTargetLocal
+            ? 'Settings saved & refreshed successfully on this machine! All toggles (including 3D Dental Chart) are now active and permanently saved to the database.'
+            : 'Configuration deployed successfully to ${targetNode.role} (${targetNode.ipAddress})! Target device has refreshed and saved settings permanently to its local database.');
   }
 
   static IconData _getNodeIcon(String role) {

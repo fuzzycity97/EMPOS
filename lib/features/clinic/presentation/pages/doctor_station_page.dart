@@ -40,6 +40,29 @@ class DoctorStationPage extends StatelessWidget {
     required this.blueprint,
   });
 
+  static List<ToothChartEntry> _getEffectiveToothChart(List<ToothChartEntry>? chart, bool isPediatric) {
+    if (chart != null && chart.isNotEmpty) return chart;
+    if (isPediatric) {
+      return ToothChartEntry.primaryToothCodes.asMap().entries.map((entry) {
+        return ToothChartEntry(
+          toothNumber: entry.key + 1,
+          toothCode: entry.value,
+          isDeciduous: true,
+          state: ToothState.healthy,
+        );
+      }).toList();
+    }
+    return List.generate(
+      32,
+      (index) => ToothChartEntry(
+        toothNumber: index + 1,
+        toothCode: (index + 1).toString(),
+        isDeciduous: false,
+        state: ToothState.healthy,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -125,7 +148,8 @@ class DoctorStationPage extends StatelessWidget {
               }
               doctorAttachmentsNotifier.value = existingAttachments;
 
-              if (blueprint.isDental) {
+              final isDentalEnabled = blueprint.isDental || blueprint.isEnabled('sw.dental_tooth_chart_editor');
+              if (isDentalEnabled) {
                 final patientForAge = loadedState.patients.cast<PatientProfile?>().firstWhere(
                   (p) => p?.id == activeVisit.patientId,
                   orElse: () => null,
@@ -258,12 +282,42 @@ class DoctorStationPage extends StatelessWidget {
                                     ? Center(
                                         child: Padding(
                                           padding: const EdgeInsets.all(24),
-                                          child: Text(
-                                            'No patients in waiting queue',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: isDark ? Colors.white38 : Colors.black38,
-                                            ),
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                'No patients in waiting queue',
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  color: isDark ? Colors.white38 : Colors.black38,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 14),
+                                              ElevatedButton.icon(
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: theme.colorScheme.primary,
+                                                  foregroundColor: Colors.white,
+                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                ),
+                                                icon: const Icon(Icons.person_add_outlined, size: 14),
+                                                label: const Text(
+                                                  'Add Demo Test Patient',
+                                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                                ),
+                                                onPressed: () {
+                                                  final pid = 'demo_patient_${DateTime.now().millisecondsSinceEpoch % 10000}';
+                                                  bloc.add(
+                                                    CheckInPatientEvent(
+                                                      patientId: pid,
+                                                      patientName: 'Demo Patient (Test Consultation)',
+                                                      doctorName: 'Dr. Specialist',
+                                                      chiefComplaint: 'Tooth pain & 3D Chart evaluation',
+                                                      triageLevel: 'Routine',
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       )
@@ -304,7 +358,8 @@ class DoctorStationPage extends StatelessWidget {
                                                   ));
                                                 }
                                                 doctorAttachmentsNotifier.value = exAtts;
-                                                if (blueprint.isDental) {
+                                                final isDental = blueprint.isDental || blueprint.isEnabled('sw.dental_tooth_chart_editor');
+                                                if (isDental) {
                                                   final isPed = (patient?.calculatedAge != null && patient!.calculatedAge! < 12);
                                                   if (visit.toothChart.isNotEmpty) {
                                                     bloc.add(ResetToothChartEvent(initialEntries: visit.toothChart));
@@ -349,9 +404,10 @@ class DoctorStationPage extends StatelessWidget {
                                                   if (visit.status == ClinicVisitStatus.waiting) ...[
                                                     ElevatedButton(
                                                       style: ElevatedButton.styleFrom(
-                                                        backgroundColor: Colors.amber[800],
-                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                                        minimumSize: const Size(44, 24),
+                                                        backgroundColor: theme.colorScheme.primary,
+                                                        foregroundColor: Colors.white,
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        minimumSize: const Size(60, 30),
                                                       ),
                                                       onPressed: () {
                                                         bloc.add(
@@ -360,21 +416,22 @@ class DoctorStationPage extends StatelessWidget {
                                                             status: ClinicVisitStatus.inExamination,
                                                           ),
                                                         );
+                                                        selectedVisitNotifier.value = visit.id;
                                                       },
-                                                      child: const Text('Call', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
+                                                      child: const Text('Call In', style: TextStyle(fontSize: 11)),
                                                     ),
-                                                    const SizedBox(width: 6),
+                                                    const SizedBox(width: 4),
                                                   ],
                                                   Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                     decoration: BoxDecoration(
                                                       color: visit.status == ClinicVisitStatus.inExamination
                                                           ? Colors.amber.withValues(alpha: 0.2)
                                                           : Colors.blue.withValues(alpha: 0.2),
-                                                      borderRadius: BorderRadius.circular(6),
+                                                      borderRadius: BorderRadius.circular(8),
                                                     ),
                                                     child: Text(
-                                                      visit.status == ClinicVisitStatus.inExamination ? 'In Room' : 'Waiting',
+                                                      visit.status == ClinicVisitStatus.inExamination ? 'IN ROOM' : 'WAITING',
                                                       style: TextStyle(
                                                         fontSize: 10,
                                                         fontWeight: FontWeight.bold,
@@ -396,16 +453,69 @@ class DoctorStationPage extends StatelessWidget {
                         // CENTRAL WORKSPACE
                         Expanded(
                           child: activeVisit == null
-                              ? Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(Icons.medical_information_outlined, size: 64, color: isDark ? Colors.white24 : Colors.black26),
-                                      const SizedBox(height: 16),
-                                      const Text('Select a patient from the queue to begin clinical consultation'),
-                                    ],
-                                  ),
-                                )
+                              ? ((currentBlueprint.isDental || currentBlueprint.isEnabled('sw.dental_tooth_chart_editor'))
+                                  ? SingleChildScrollView(
+                                      padding: const EdgeInsets.all(24),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(14),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.primary.withValues(alpha: 0.12),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                const Icon(Icons.view_in_ar, color: AppColors.primary, size: 24),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      const Text(
+                                                        '3D Dental Odontogram • Interactive Exploration Mode',
+                                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                        'Select a patient from the waiting queue on the left to tie clinical findings to their permanent record, or interact with and test the 3D tooth matrix below directly.',
+                                                        style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black87),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+                                          DentalToothMatrixWidget(
+                                            toothChart: _getEffectiveToothChart(loadedState.activeToothChart, false),
+                                            isPediatric: false,
+                                            doctorName: 'Dr. Specialist',
+                                            onToothUpdated: (updatedEntry) {
+                                              bloc.add(
+                                                UpdateToothChartEntryEvent(
+                                                  patientId: 'sandbox_test_patient',
+                                                  entry: updatedEntry,
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.medical_information_outlined, size: 64, color: isDark ? Colors.white24 : Colors.black26),
+                                          const SizedBox(height: 16),
+                                          const Text('Select a patient from the queue to begin clinical consultation'),
+                                        ],
+                                      ),
+                                    ))
                               : SingleChildScrollView(
                                   padding: const EdgeInsets.all(24),
                                   child: Column(
@@ -418,7 +528,7 @@ class DoctorStationPage extends StatelessWidget {
                                       // Dental vs General Workspace
                                       if (currentBlueprint.isDental || currentBlueprint.isEnabled('sw.dental_tooth_chart_editor')) ...[
                                         DentalToothMatrixWidget(
-                                          toothChart: loadedState.activeToothChart ?? [],
+                                          toothChart: _getEffectiveToothChart(loadedState.activeToothChart, isPediatric),
                                           isPediatric: isPediatric,
                                           doctorName: activeVisit.doctorName,
                                           onToothUpdated: (updatedEntry) {

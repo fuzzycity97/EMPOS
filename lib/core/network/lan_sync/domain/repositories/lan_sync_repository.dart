@@ -14,4 +14,5 @@ abstract class LanSyncRepository {
   Future<void> autoRestoreConnection();
   Future<void> broadcast(SyncEnvelope envelope);
   Future<void> disconnect({bool clearPersistedRole = true});
+  Future<void> updateStationIdentity({required String id, required String role, String? appName});
 }

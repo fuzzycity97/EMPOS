@@ -35,9 +35,18 @@ class ConfigBloc extends Bloc<ConfigEvent, ConfigState> {
           try {
             final rawBp = payload['blueprint'];
             final map = rawBp is Map<String, dynamic> ? rawBp : Map<String, dynamic>.from(rawBp as Map);
-            final targetId = payload['targetStationId']?.toString();
-            final localId = LanSyncRepositoryImpl.getLocalInstanceId();
-            if (targetId == null || targetId.isEmpty || targetId == 'all' || targetId == localId) {
+            final targetId = payload['targetStationId']?.toString().toLowerCase().trim();
+            final localId = LanSyncRepositoryImpl.getLocalInstanceId().toLowerCase().trim();
+            final isTargetedToMe = targetId == null ||
+                targetId.isEmpty ||
+                targetId == 'all' ||
+                targetId == 'all_stations' ||
+                targetId == 'god-mode-hub' ||
+                targetId == localId ||
+                localId.contains(targetId) ||
+                targetId.contains(localId);
+
+            if (isTargetedToMe) {
               final newBp = StoreBlueprintModel.fromJson(map);
               add(UpdateBlueprintEvent(newBp));
             }

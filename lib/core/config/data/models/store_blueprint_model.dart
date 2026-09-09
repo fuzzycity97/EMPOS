@@ -258,6 +258,7 @@ class StoreBlueprintModel extends StoreBlueprint {
       toggles: const {
         'sw.clinic_reception': true,
         'sw.clinic_doctor_station': true,
+        'sw.dental_tooth_chart_editor': true,
         'sw.bookings_calendar': true,
         'sw.customers_crm': true,
         'sw.inventory_catalog': true,

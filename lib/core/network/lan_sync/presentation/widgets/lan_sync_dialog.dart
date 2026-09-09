@@ -214,9 +214,29 @@ class LanSyncDialog extends StatelessWidget {
                     if (state is LanSyncConnected) {
                       // Filter stations: for host, show client stations primarily; for client show all network nodes
                       final isHost = state.isHost;
-                      final displayNodes = isHost
-                          ? state.nodes.where((n) => !n.role.toLowerCase().contains('host')).toList()
+                      final rawNodes = isHost
+                          ? state.nodes.where((n) {
+                              final r = n.role.toLowerCase();
+                              final id = n.id.toLowerCase();
+                              return !r.contains('host') &&
+                                  !r.contains('god') &&
+                                  !r.contains('technician hub') &&
+                                  id != state.localStationId.toLowerCase() &&
+                                  id != 'god-mode-hub' &&
+                                  id != 'host-server';
+                            }).toList()
                           : state.nodes;
+
+                      // De-duplicate stations by unique ID
+                      final seen = <String>{};
+                      final displayNodes = <ConnectedNode>[];
+                      for (final node in rawNodes) {
+                        final id = node.id.toLowerCase();
+                        if (!seen.contains(id)) {
+                          seen.add(id);
+                          displayNodes.add(node);
+                        }
+                      }
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
