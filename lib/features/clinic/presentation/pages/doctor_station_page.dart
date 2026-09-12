@@ -81,7 +81,6 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
 
   late final ValueNotifier<String?> _selectedVisitNotifier;
   late final ValueNotifier<String?> _loadedVisitIdNotifier;
-  late final ValueNotifier<bool> _showCompletedQueueNotifier;
   late final TextEditingController _clinicalNotesController;
   late final TextEditingController _prescriptionController;
   late final TextEditingController _totalFeeController;
@@ -99,7 +98,6 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
     super.initState();
     _selectedVisitNotifier = ValueNotifier<String?>(null);
     _loadedVisitIdNotifier = ValueNotifier<String?>(null);
-    _showCompletedQueueNotifier = ValueNotifier<bool>(false);
     _clinicalNotesController = TextEditingController();
     _prescriptionController = TextEditingController();
     _totalFeeController = TextEditingController();
@@ -123,7 +121,6 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
   void dispose() {
     _selectedVisitNotifier.dispose();
     _loadedVisitIdNotifier.dispose();
-    _showCompletedQueueNotifier.dispose();
     _clinicalNotesController.dispose();
     _prescriptionController.dispose();
     _totalFeeController.dispose();
@@ -206,10 +203,6 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
         final activeQueue = loadedState.queue
             .where((v) => v.status == ClinicVisitStatus.waiting || v.status == ClinicVisitStatus.inExamination)
             .toList();
-        final completedTodayQueue = loadedState.queue
-            .where((v) => v.status == ClinicVisitStatus.completed)
-            .toList()
-          ..sort((a, b) => (b.completionTime ?? b.checkInTime).compareTo(a.completionTime ?? a.checkInTime));
 
         return ValueListenableBuilder<String?>(
           valueListenable: selectedVisitNotifier,
@@ -354,79 +347,6 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                       ],
                                     ),
                                     const SizedBox(height: 10),
-                                    ValueListenableBuilder<bool>(
-                                      valueListenable: _showCompletedQueueNotifier,
-                                      builder: (context, showCompleted, _) {
-                                        return Container(
-                                          padding: const EdgeInsets.all(3),
-                                          decoration: BoxDecoration(
-                                            color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF1F5F9),
-                                            borderRadius: BorderRadius.circular(8),
-                                            border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Expanded(
-                                                child: InkWell(
-                                                  borderRadius: BorderRadius.circular(6),
-                                                  onTap: () => _showCompletedQueueNotifier.value = false,
-                                                  child: Container(
-                                                    padding: const EdgeInsets.symmetric(vertical: 6),
-                                                    decoration: BoxDecoration(
-                                                      color: !showCompleted
-                                                          ? theme.colorScheme.primary
-                                                          : Colors.transparent,
-                                                      borderRadius: BorderRadius.circular(6),
-                                                    ),
-                                                    child: Center(
-                                                      child: Text(
-                                                        '${AppLanguage.tr('Waiting', 'الانتظار')} (${activeQueue.length})',
-                                                        style: TextStyle(
-                                                          fontSize: 11.5,
-                                                          fontWeight: FontWeight.bold,
-                                                          color: !showCompleted
-                                                              ? Colors.white
-                                                              : (isDark ? Colors.white70 : Colors.black87),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Expanded(
-                                                child: InkWell(
-                                                  borderRadius: BorderRadius.circular(6),
-                                                  onTap: () => _showCompletedQueueNotifier.value = true,
-                                                  child: Container(
-                                                    padding: const EdgeInsets.symmetric(vertical: 6),
-                                                    decoration: BoxDecoration(
-                                                      color: showCompleted
-                                                          ? (isDark ? const Color(0xFF0284C7) : Colors.blueAccent)
-                                                          : Colors.transparent,
-                                                      borderRadius: BorderRadius.circular(6),
-                                                    ),
-                                                    child: Center(
-                                                      child: Text(
-                                                        '${AppLanguage.tr('Completed', 'مكتمل اليوم')} (${completedTodayQueue.length})',
-                                                        style: TextStyle(
-                                                          fontSize: 11.5,
-                                                          fontWeight: FontWeight.bold,
-                                                          color: showCompleted
-                                                              ? Colors.white
-                                                              : (isDark ? Colors.white70 : Colors.black87),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                    const SizedBox(height: 10),
                                     Row(
                                       children: [
                                         Expanded(
@@ -493,148 +413,10 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                 ),
                               ),
 
-                              // Queue List
+                              // Queue List (Waiting Patients)
                               Expanded(
-                                child: ValueListenableBuilder<bool>(
-                                  valueListenable: _showCompletedQueueNotifier,
-                                  builder: (context, showCompleted, _) {
-                                    if (showCompleted) {
-                                      if (completedTodayQueue.isEmpty) {
-                                        return Center(
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(24),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  LucideIcons.checkCircle2,
-                                                  size: 38,
-                                                  color: isDark ? Colors.white24 : Colors.black26,
-                                                ),
-                                                const SizedBox(height: 12),
-                                                Text(
-                                                  AppLanguage.tr('No completed visits yet today', 'لا توجد كشوفات مكتملة اليوم حتى الآن'),
-                                                  textAlign: TextAlign.center,
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 13,
-                                                    color: isDark ? Colors.white70 : Colors.black87,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Text(
-                                                  AppLanguage.tr(
-                                                    'Completed consultations will appear here with live settlement status from reception.',
-                                                    'الكشوفات المكتملة ستظهر هنا مع حالة التحصيل والسداد الفورية من الاستقبال.',
-                                                  ),
-                                                  textAlign: TextAlign.center,
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    height: 1.4,
-                                                    color: isDark ? Colors.white38 : Colors.black38,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      }
-
-                                      return ListView.builder(
-                                        itemCount: completedTodayQueue.length,
-                                        itemBuilder: (context, index) {
-                                          final visit = completedTodayQueue[index];
-                                          final patient = loadedState.patients.cast<PatientProfile?>().firstWhere(
-                                                (p) => p?.id == visit.patientId,
-                                                orElse: () => null,
-                                              );
-                                          final isSelected = activeVisit?.id == visit.id;
-                                          final isPaid = visit.isPaid || visit.totalFee <= 0.001;
-                                          final effIns = (visit.insurancePaid > 0.001) ? visit.insurancePaid : 0.0;
-                                          final effCopay = visit.patientCopay > 0.001
-                                              ? visit.patientCopay
-                                              : (visit.totalFee - effIns);
-
-                                          return Material(
-                                            color: Colors.transparent,
-                                            child: ListTile(
-                                              selected: isSelected,
-                                              selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-                                              onTap: () {
-                                                selectedVisitNotifier.value = visit.id;
-                                                loadedVisitIdNotifier.value = visit.id;
-                                                clinicalNotesController.text = visit.diagnosis ?? '';
-                                                prescriptionController.text = visit.prescriptions.join(', ');
-                                                totalFeeController.text = visit.totalFee > 0 ? visit.totalFee.toStringAsFixed(2) : '';
-                                                labResultsController.text = visit.labResults ?? '';
-                                              },
-                                              title: Text(
-                                                visit.patientName,
-                                                style: TextStyle(
-                                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                                                ),
-                                              ),
-                                              subtitle: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    'Completed: ${DateFormat('hh:mm a').format(visit.completionTime ?? visit.checkInTime)}${visit.diagnosis != null && visit.diagnosis!.isNotEmpty ? " • ${visit.diagnosis}" : ""}',
-                                                    style: const TextStyle(fontSize: 11),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                    decoration: BoxDecoration(
-                                                      color: isPaid
-                                                          ? Colors.green.withValues(alpha: 0.2)
-                                                          : Colors.amber.withValues(alpha: 0.2),
-                                                      borderRadius: BorderRadius.circular(4),
-                                                    ),
-                                                    child: Row(
-                                                      mainAxisSize: MainAxisSize.min,
-                                                      children: [
-                                                        Icon(
-                                                          isPaid ? LucideIcons.checkCheck : LucideIcons.hourglass,
-                                                          size: 11,
-                                                          color: isPaid ? Colors.green : Colors.amber[800],
-                                                        ),
-                                                        const SizedBox(width: 4),
-                                                        Text(
-                                                          isPaid
-                                                              ? 'PAID & SETTLED (${visit.totalFee.toStringAsFixed(2)} EGP)'
-                                                              : 'AWAITING BILLING (${effCopay.toStringAsFixed(2)} EGP)',
-                                                          style: TextStyle(
-                                                            fontSize: 10,
-                                                            fontWeight: FontWeight.bold,
-                                                            color: isPaid ? Colors.green : Colors.amber[800],
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                              trailing: IconButton(
-                                                icon: const Icon(LucideIcons.fileSpreadsheet, size: 16),
-                                                tooltip: 'View History & Logs',
-                                                onPressed: () => _showPatientHistoryDialog(
-                                                  context,
-                                                  visit,
-                                                  patient,
-                                                  loadedState.queue,
-                                                  loadedState.activeToothChart,
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    }
-
-                                    if (activeQueue.isEmpty) {
-                                      return Center(
+                                child: activeQueue.isEmpty
+                                    ? Center(
                                         child: Padding(
                                           padding: const EdgeInsets.all(24),
                                           child: Column(
@@ -657,7 +439,10 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                               ),
                                               const SizedBox(height: 8),
                                               Text(
-                                                AppLanguage.tr('Patients are registered and checked in at the Reception Desk.\nTransferred patients will automatically appear here.', 'يتم تسجيل واستقبال المرضى من قسم الاستقبال.\nالمرضى المحولون سيظهرون تلقائياً هنا.'),
+                                                AppLanguage.tr(
+                                                  'Patients are registered and checked in at the Reception Desk.\nTransferred patients will automatically appear here.',
+                                                  'يتم تسجيل واستقبال المرضى من قسم الاستقبال.\nالمرضى المحولون سيظهرون تلقائياً هنا.',
+                                                ),
                                                 textAlign: TextAlign.center,
                                                 style: TextStyle(
                                                   fontSize: 11,
@@ -673,7 +458,8 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                                 ),
                                                 onPressed: () {
-                                                  final pid = 'demo_patient_${DateTime.now().millisecondsSinceEpoch % 10000}';
+                                                  final now = DateTime.now();
+                                                  final pid = 'demo_${now.millisecondsSinceEpoch}';
                                                   bloc.add(
                                                     CheckInPatientEvent(
                                                       patientId: pid,
@@ -687,135 +473,131 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                             ],
                                           ),
                                         ),
-                                      );
-                                    }
+                                      )
+                                    : ListView.builder(
+                                        itemCount: activeQueue.length,
+                                        itemBuilder: (context, index) {
+                                          final visit = activeQueue[index];
+                                          final patient = loadedState.patients.cast<PatientProfile?>().firstWhere(
+                                                (p) => p?.id == visit.patientId,
+                                                orElse: () => null,
+                                              );
+                                          final isSelected = activeVisit?.id == visit.id;
 
-                                    return ListView.builder(
-                                      itemCount: activeQueue.length,
-                                      itemBuilder: (context, index) {
-                                        final visit = activeQueue[index];
-                                        final patient = loadedState.patients.cast<PatientProfile?>().firstWhere(
-                                              (p) => p?.id == visit.patientId,
-                                              orElse: () => null,
-                                            );
-                                        final isSelected = activeVisit?.id == visit.id;
-
-                                        return Material(
-                                          color: Colors.transparent,
-                                          child: ListTile(
-                                            selected: isSelected,
-                                            selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.12),
-                                            onTap: () {
-                                              selectedVisitNotifier.value = visit.id;
-                                              loadedVisitIdNotifier.value = visit.id;
-                                              clinicalNotesController.text = visit.diagnosis ?? '';
-                                              prescriptionController.text = visit.prescriptions.join(', ');
-                                              totalFeeController.text = visit.totalFee > 0 ? visit.totalFee.toStringAsFixed(2) : '';
-                                              labResultsController.text = visit.labResults ?? '';
-                                              final exAtts = <MedicalAttachment>[];
-                                              for (int i = 0; i < visit.attachmentPaths.length; i++) {
-                                                final path = visit.attachmentPaths[i];
-                                                final title = i < visit.attachmentTitles.length ? visit.attachmentTitles[i] : 'Attachment #${i + 1}';
-                                                exAtts.add(MedicalAttachment(
-                                                  id: 'att_${visit.id}_$i',
-                                                  title: title,
-                                                  type: MedicalAttachmentType.xrayRadiograph,
-                                                  uploadDate: visit.checkInTime,
-                                                  fileSize: 'Saved File',
-                                                  doctorNotes: 'Consultation attachment',
-                                                  filePath: path,
-                                                ));
-                                              }
-                                              doctorAttachmentsNotifier.value = exAtts;
-                                              final isDental = currentBlueprint.isEnabled('sw.dental_tooth_chart_editor', defaultValue: currentBlueprint.isDental);
-                                              if (isDental) {
-                                                final isPed = (patient?.calculatedAge != null && patient!.calculatedAge! < 12);
-                                                if (visit.toothChart.isNotEmpty) {
-                                                  bloc.add(ResetToothChartEvent(initialEntries: visit.toothChart));
-                                                } else {
-                                                  bloc.add(ResetToothChartEvent(isPediatric: isPed));
+                                          return Material(
+                                            color: Colors.transparent,
+                                            child: ListTile(
+                                              selected: isSelected,
+                                              selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.12),
+                                              onTap: () {
+                                                selectedVisitNotifier.value = visit.id;
+                                                loadedVisitIdNotifier.value = visit.id;
+                                                clinicalNotesController.text = visit.diagnosis ?? '';
+                                                prescriptionController.text = visit.prescriptions.join(', ');
+                                                totalFeeController.text = visit.totalFee > 0 ? visit.totalFee.toStringAsFixed(2) : '';
+                                                labResultsController.text = visit.labResults ?? '';
+                                                final exAtts = <MedicalAttachment>[];
+                                                for (int i = 0; i < visit.attachmentPaths.length; i++) {
+                                                  final path = visit.attachmentPaths[i];
+                                                  final title = i < visit.attachmentTitles.length ? visit.attachmentTitles[i] : 'Attachment #${i + 1}';
+                                                  exAtts.add(MedicalAttachment(
+                                                    id: 'att_${visit.id}_$i',
+                                                    title: title,
+                                                    type: MedicalAttachmentType.xrayRadiograph,
+                                                    uploadDate: visit.checkInTime,
+                                                    fileSize: 'Saved File',
+                                                    doctorNotes: 'Consultation attachment',
+                                                    filePath: path,
+                                                  ));
                                                 }
-                                              }
-                                            },
-                                            title: Text(
-                                              visit.patientName,
-                                              style: TextStyle(
-                                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                                              ),
-                                            ),
-                                            subtitle: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  visit.chiefComplaint,
-                                                  style: const TextStyle(fontSize: 12),
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
+                                                doctorAttachmentsNotifier.value = exAtts;
+                                                final isDental = currentBlueprint.isEnabled('sw.dental_tooth_chart_editor', defaultValue: currentBlueprint.isDental);
+                                                if (isDental) {
+                                                  final isPed = (patient?.calculatedAge != null && patient!.calculatedAge! < 12);
+                                                  if (visit.toothChart.isNotEmpty) {
+                                                    bloc.add(ResetToothChartEvent(initialEntries: visit.toothChart));
+                                                  } else {
+                                                    bloc.add(ResetToothChartEvent(isPediatric: isPed));
+                                                  }
+                                                }
+                                              },
+                                              title: Text(
+                                                visit.patientName,
+                                                style: TextStyle(
+                                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                                                 ),
-                                                const SizedBox(height: 4),
-                                                if (patient?.allergies.isNotEmpty == true)
+                                              ),
+                                              subtitle: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    visit.chiefComplaint,
+                                                    style: const TextStyle(fontSize: 12),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  if (patient?.allergies.isNotEmpty == true)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.red.withValues(alpha: 0.2),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                      child: Text(
+                                                        'Allergy: ${patient!.allergies.join(", ")}',
+                                                        style: const TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                              trailing: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  if (visit.status == ClinicVisitStatus.waiting) ...[
+                                                    ElevatedButton(
+                                                      style: ElevatedButton.styleFrom(
+                                                        backgroundColor: theme.colorScheme.primary,
+                                                        foregroundColor: Colors.white,
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        minimumSize: const Size(60, 30),
+                                                      ),
+                                                      onPressed: () {
+                                                        bloc.add(
+                                                          UpdateVisitStatusEvent(
+                                                            visitId: visit.id,
+                                                            status: ClinicVisitStatus.inExamination,
+                                                          ),
+                                                        );
+                                                        selectedVisitNotifier.value = visit.id;
+                                                      },
+                                                      child: const Text('Call In', style: TextStyle(fontSize: 11)),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                  ],
                                                   Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                     decoration: BoxDecoration(
-                                                      color: Colors.red.withValues(alpha: 0.2),
-                                                      borderRadius: BorderRadius.circular(4),
+                                                      color: visit.status == ClinicVisitStatus.inExamination
+                                                          ? Colors.amber.withValues(alpha: 0.2)
+                                                          : Colors.blue.withValues(alpha: 0.2),
+                                                      borderRadius: BorderRadius.circular(8),
                                                     ),
                                                     child: Text(
-                                                      'Allergy: ${patient!.allergies.join(", ")}',
-                                                      style: const TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold),
+                                                      visit.status == ClinicVisitStatus.inExamination ? 'IN ROOM' : 'WAITING',
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: visit.status == ClinicVisitStatus.inExamination ? Colors.amber[800] : Colors.blue,
+                                                      ),
                                                     ),
                                                   ),
-                                              ],
-                                            ),
-                                            trailing: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                if (visit.status == ClinicVisitStatus.waiting) ...[
-                                                  ElevatedButton(
-                                                    style: ElevatedButton.styleFrom(
-                                                      backgroundColor: theme.colorScheme.primary,
-                                                      foregroundColor: Colors.white,
-                                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                      minimumSize: const Size(60, 30),
-                                                    ),
-                                                    onPressed: () {
-                                                      bloc.add(
-                                                        UpdateVisitStatusEvent(
-                                                          visitId: visit.id,
-                                                          status: ClinicVisitStatus.inExamination,
-                                                        ),
-                                                      );
-                                                      selectedVisitNotifier.value = visit.id;
-                                                    },
-                                                    child: const Text('Call In', style: TextStyle(fontSize: 11)),
-                                                  ),
-                                                  const SizedBox(width: 4),
                                                 ],
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                  decoration: BoxDecoration(
-                                                    color: visit.status == ClinicVisitStatus.inExamination
-                                                        ? Colors.amber.withValues(alpha: 0.2)
-                                                        : Colors.blue.withValues(alpha: 0.2),
-                                                    borderRadius: BorderRadius.circular(8),
-                                                  ),
-                                                  child: Text(
-                                                    visit.status == ClinicVisitStatus.inExamination ? 'IN ROOM' : 'WAITING',
-                                                    style: TextStyle(
-                                                      fontSize: 10,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: visit.status == ClinicVisitStatus.inExamination ? Colors.amber[800] : Colors.blue,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
+                                              ),
                                             ),
-                                          ),
-                                        );
-                                      },
-                                    );
-                                  },
-                                ),
+                                          );
+                                        },
+                                      ),
                               ),
                             ],
                           ),
@@ -937,89 +719,131 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
 
                                       // Live Settlement Status Banner for Completed Consultations
                                       if (activeVisit.status == ClinicVisitStatus.completed) ...[
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                          decoration: BoxDecoration(
-                                            color: (activeVisit.isPaid || activeVisit.totalFee <= 0.001)
-                                                ? Colors.green.withValues(alpha: 0.12)
-                                                : Colors.amber.withValues(alpha: 0.12),
-                                            borderRadius: BorderRadius.circular(10),
-                                            border: Border.all(
-                                              color: (activeVisit.isPaid || activeVisit.totalFee <= 0.001)
-                                                  ? Colors.green.withValues(alpha: 0.4)
-                                                  : Colors.amber.withValues(alpha: 0.4),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                (activeVisit.isPaid || activeVisit.totalFee <= 0.001)
-                                                    ? LucideIcons.circleCheck
-                                                    : LucideIcons.hourglass,
-                                                color: (activeVisit.isPaid || activeVisit.totalFee <= 0.001)
-                                                    ? Colors.green
-                                                    : Colors.amber[800],
-                                                size: 22,
+                                        Builder(
+                                          builder: (context) {
+                                            Customer? matchedCustomer;
+                                            try {
+                                              final custState = context.watch<CustomerBloc>().state;
+                                              if (custState is CustomersLoaded) {
+                                                matchedCustomer = custState.allCustomers.where((c) {
+                                                  if (c.id == activeVisit.patientId) return true;
+                                                  if (activePatient?.phone != null && activePatient!.phone.isNotEmpty && c.phone.trim() == activePatient.phone.trim()) return true;
+                                                  if (c.name.trim().toLowerCase() == activeVisit.patientName.trim().toLowerCase()) return true;
+                                                  return false;
+                                                }).firstOrNull;
+                                              }
+                                            } catch (_) {}
+
+                                            final custDebt = matchedCustomer?.totalDebt ?? 0.0;
+                                            final isPartiallySettled = activeVisit.isPaid && custDebt > 0.001;
+                                            final isFullySettled = (activeVisit.isPaid || activeVisit.totalFee <= 0.001) && !isPartiallySettled;
+                                            final totalPaidAmount = isPartiallySettled
+                                                ? (activeVisit.totalFee - custDebt).clamp(0.0, double.infinity)
+                                                : activeVisit.totalFee;
+
+                                            return Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                              decoration: BoxDecoration(
+                                                color: isPartiallySettled
+                                                    ? Colors.amber.withValues(alpha: 0.12)
+                                                    : (isFullySettled
+                                                        ? Colors.green.withValues(alpha: 0.12)
+                                                        : Colors.amber.withValues(alpha: 0.12)),
+                                                borderRadius: BorderRadius.circular(10),
+                                                border: Border.all(
+                                                  color: isPartiallySettled
+                                                      ? Colors.amber.withValues(alpha: 0.5)
+                                                      : (isFullySettled
+                                                          ? Colors.green.withValues(alpha: 0.4)
+                                                          : Colors.amber.withValues(alpha: 0.4)),
+                                                ),
                                               ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      (activeVisit.isPaid || activeVisit.totalFee <= 0.001)
-                                                          ? AppLanguage.tr('Visit Paid & Settled at Reception', 'تم تحصيل وسداد الزيارة بالاستقبال')
-                                                          : AppLanguage.tr('Consultation Completed • Awaiting Settlement at Reception', 'اكتمل الكشف الطبي • في انتظار السداد بالاستقبال'),
-                                                      style: TextStyle(
-                                                        fontWeight: FontWeight.bold,
-                                                        fontSize: 13.5,
-                                                        color: (activeVisit.isPaid || activeVisit.totalFee <= 0.001)
-                                                            ? Colors.green
-                                                            : Colors.amber[800],
-                                                      ),
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    isPartiallySettled
+                                                        ? LucideIcons.hourglass
+                                                        : (isFullySettled
+                                                            ? LucideIcons.circleCheck
+                                                            : LucideIcons.hourglass),
+                                                    color: isPartiallySettled
+                                                        ? Colors.amber[800]
+                                                        : (isFullySettled ? Colors.green : Colors.amber[800]),
+                                                    size: 22,
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          isPartiallySettled
+                                                              ? AppLanguage.tr(
+                                                                  'Visit Partially Settled • Outstanding Balance',
+                                                                  'تم سداد جزء من الزيارة • يوجد رصيد متبقي ذمة',
+                                                                )
+                                                              : (isFullySettled
+                                                                  ? AppLanguage.tr(
+                                                                      'Visit Paid & Settled at Reception',
+                                                                      'تم تحصيل وسداد الزيارة بالاستقبال',
+                                                                    )
+                                                                  : AppLanguage.tr(
+                                                                      'Consultation Completed • Awaiting Settlement at Reception',
+                                                                      'اكتمل الكشف الطبي • في انتظار السداد بالاستقبال',
+                                                                    )),
+                                                          style: TextStyle(
+                                                            fontWeight: FontWeight.bold,
+                                                            fontSize: 13.5,
+                                                            color: isPartiallySettled
+                                                                ? Colors.amber[800]
+                                                                : (isFullySettled ? Colors.green : Colors.amber[800]),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(height: 2),
+                                                        Text(
+                                                          isPartiallySettled
+                                                              ? 'Paid: EGP ${totalPaidAmount.toStringAsFixed(2)} • Remaining Account Debt: EGP ${custDebt.toStringAsFixed(2)} Due'
+                                                              : (isFullySettled
+                                                                  ? 'Total Paid: EGP ${activeVisit.totalFee.toStringAsFixed(2)}${activeVisit.insurancePaid > 0.001 ? " (Insurance Covered: EGP ${activeVisit.insurancePaid.toStringAsFixed(2)})" : ""}'
+                                                                  : 'Patient Copay Due: EGP ${(activeVisit.patientCopay > 0.001 ? activeVisit.patientCopay : activeVisit.totalFee).toStringAsFixed(2)}${activeVisit.insurancePaid > 0.001 ? " (Insurance Claim: EGP ${activeVisit.insurancePaid.toStringAsFixed(2)})" : ""}'),
+                                                          style: TextStyle(
+                                                            fontSize: 12,
+                                                            color: isDark ? Colors.white70 : Colors.black87,
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
-                                                    const SizedBox(height: 2),
-                                                    Text(
-                                                      (activeVisit.isPaid || activeVisit.totalFee <= 0.001)
-                                                          ? 'Total Paid: EGP ${activeVisit.totalFee.toStringAsFixed(2)}${activeVisit.insurancePaid > 0.001 ? " (Insurance Covered: EGP ${activeVisit.insurancePaid.toStringAsFixed(2)})" : ""}'
-                                                          : 'Patient Copay Due: EGP ${(activeVisit.patientCopay > 0.001 ? activeVisit.patientCopay : activeVisit.totalFee).toStringAsFixed(2)}${activeVisit.insurancePaid > 0.001 ? " (Insurance Claim: EGP ${activeVisit.insurancePaid.toStringAsFixed(2)})" : ""}',
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        color: isDark ? Colors.white70 : Colors.black87,
-                                                      ),
+                                                  ),
+                                                  ElevatedButton.icon(
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: isPartiallySettled
+                                                          ? Colors.amber[800]
+                                                          : (isFullySettled ? Colors.green : Colors.amber[800]),
+                                                      foregroundColor: Colors.white,
+                                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                      elevation: 0,
                                                     ),
-                                                  ],
-                                                ),
+                                                    icon: const Icon(LucideIcons.fileSpreadsheet, size: 14),
+                                                    label: Text(
+                                                      AppLanguage.tr('View History & Logs', 'سجل الزيارات والمدفوعات'),
+                                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                                    ),
+                                                    onPressed: () => _showPatientHistoryDialog(
+                                                      context,
+                                                      activeVisit,
+                                                      activePatient,
+                                                      loadedState.queue,
+                                                      loadedState.activeToothChart,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                              ElevatedButton.icon(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: (activeVisit.isPaid || activeVisit.totalFee <= 0.001)
-                                                      ? Colors.green
-                                                      : Colors.amber[800],
-                                                  foregroundColor: Colors.white,
-                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                                  elevation: 0,
-                                                ),
-                                                icon: const Icon(LucideIcons.fileSpreadsheet, size: 14),
-                                                label: Text(
-                                                  AppLanguage.tr('View History & Logs', 'سجل الزيارات والمدفوعات'),
-                                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                                ),
-                                                onPressed: () => _showPatientHistoryDialog(
-                                                  context,
-                                                  activeVisit,
-                                                  activePatient,
-                                                  loadedState.queue,
-                                                  loadedState.activeToothChart,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                            );
+                                          },
                                         ),
                                         const SizedBox(height: 16),
                                       ],
 
-                                      // Multi-Specialty 3D Anatomical Workspace (Dental, Ophthalmology, Orthopedics, Physio, Gastro, Cardio, Derma)
                                       MultiSpecialtyAnatomyCanvasWidget(
                                         key: ValueKey('anatomy_canvas_${activeVisit.id}'),
                                         blueprint: currentBlueprint,
@@ -1118,8 +942,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                     icon: const Icon(LucideIcons.userCheck, size: 14),
                                                     label: Text(AppLanguage.tr('Next Queued Patient', 'المريض التالي بالانتظار')),
                                                     onPressed: () {
-                                                      _showCompletedQueueNotifier.value = false;
-                                                      if (activeQueue.isNotEmpty) {
+                                                                                                            if (activeQueue.isNotEmpty) {
                                                         selectedVisitNotifier.value = activeQueue.first.id;
                                                       } else {
                                                         selectedVisitNotifier.value = null;
@@ -1198,8 +1021,8 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                               }
 
                                               // Switch to Completed Today view and keep this visit selected
-                                              _showCompletedQueueNotifier.value = true;
-                                              selectedVisitNotifier.value = completedVisit.id;
+                                              selectedVisitNotifier.value = null;
+                                              loadedVisitIdNotifier.value = null;
 
                                               ScaffoldMessenger.of(context).showSnackBar(
                                                 const SnackBar(content: Text('Consultation completed and sent to reception billing')),
@@ -1627,6 +1450,12 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
               }
             }
 
+            final custDebt = matchedCustomer?.totalDebt ?? 0.0;
+            if (custDebt > 0.001) {
+              totalPending += custDebt;
+              totalPatientPaid = (totalPatientPaid - custDebt).clamp(0.0, double.infinity);
+            }
+
             return AlertDialog(
               title: Row(
                 children: [
@@ -1774,31 +1603,45 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                 final isCurrent = hVisit.id == currentVisit.id;
                                 final dateStr = DateFormat('yyyy-MM-dd • hh:mm a').format(hVisit.checkInTime);
                                 final treatedTeeth = hVisit.toothChart.where((t) => t.state != ToothState.healthy).toList();
-                                final isFullySettled = hVisit.isPaid || hVisit.totalFee <= 0.001;
+                                final isDebtCarried = (matchedCustomer != null && matchedCustomer.totalDebt > 0.001);
+                                final isPartiallySettled = hVisit.isPaid && isDebtCarried;
+                                final isFullySettled = (hVisit.isPaid || hVisit.totalFee <= 0.001) && !isDebtCarried;
                                 final effectiveInsurance = (hVisit.insurancePaid > 0.001) ? hVisit.insurancePaid : 0.0;
                                 final effectiveCopay = hVisit.patientCopay > 0.001
                                     ? hVisit.patientCopay
                                     : (hVisit.totalFee - effectiveInsurance);
                                 final isInsuranceCovered = !isFullySettled && effectiveInsurance > 0.001;
-                                final visitDue = isFullySettled ? 0.0 : effectiveCopay;
+                                final visitDue = isPartiallySettled ? matchedCustomer.totalDebt : (isFullySettled ? 0.0 : effectiveCopay);
                                 final insInfo = effectiveInsurance > 0.001
                                     ? ' (Carrier: EGP ${effectiveInsurance.toStringAsFixed(2)})'
                                     : '';
-                                final settlementInfo = isFullySettled
-                                    ? '${effectiveInsurance > 0.001 ? "Copay Settled" : "Settled"}: EGP ${effectiveCopay.toStringAsFixed(2)}$insInfo'
-                                    : 'Due: EGP ${visitDue.toStringAsFixed(2)}$insInfo';
+                                final paidAmount = isPartiallySettled
+                                    ? (effectiveCopay - matchedCustomer.totalDebt).clamp(0.0, double.infinity)
+                                    : effectiveCopay;
+                                final settlementInfo = isPartiallySettled
+                                    ? 'Partially Settled (Paid: EGP ${paidAmount.toStringAsFixed(2)} • Due: EGP ${visitDue.toStringAsFixed(2)})$insInfo'
+                                    : (isFullySettled
+                                        ? '${effectiveInsurance > 0.001 ? "Copay Settled" : "Settled"}: EGP ${effectiveCopay.toStringAsFixed(2)}$insInfo'
+                                        : 'Due: EGP ${visitDue.toStringAsFixed(2)}$insInfo');
 
                                 return InkWell(
                                   borderRadius: BorderRadius.circular(8),
                                   onTap: () {
                                     showDialog(
                                       context: ctx,
-                                      builder: (dCtx) => HistoricalVisitDetailsDialog(
-                                        visit: hVisit,
-                                        blueprint: blueprint,
-                                        patient: patient,
-                                        customer: matchedCustomer,
-                                        cumulativeToothChart: activeToothChart,
+                                      builder: (dCtx) => MultiBlocProvider(
+                                        providers: [
+                                          BlocProvider<ClinicBloc>.value(value: clinicBloc),
+                                          if (customerBloc != null)
+                                            BlocProvider<CustomerBloc>.value(value: customerBloc),
+                                        ],
+                                        child: HistoricalVisitDetailsDialog(
+                                          visit: hVisit,
+                                          blueprint: blueprint,
+                                          patient: patient,
+                                          customer: matchedCustomer,
+                                          cumulativeToothChart: activeToothChart,
+                                        ),
                                       ),
                                     );
                                   },
@@ -1842,25 +1685,31 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                 Container(
                                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                   decoration: BoxDecoration(
-                                                    color: isFullySettled
-                                                        ? Colors.green.withValues(alpha: 0.2)
-                                                        : (isInsuranceCovered
-                                                            ? Colors.amber.withValues(alpha: 0.2)
-                                                            : Colors.red.withValues(alpha: 0.2)),
+                                                    color: isPartiallySettled
+                                                        ? Colors.amber.withValues(alpha: 0.2)
+                                                        : (isFullySettled
+                                                            ? Colors.green.withValues(alpha: 0.2)
+                                                            : (isInsuranceCovered
+                                                                ? Colors.amber.withValues(alpha: 0.2)
+                                                                : Colors.red.withValues(alpha: 0.2))),
                                                     borderRadius: BorderRadius.circular(4),
                                                   ),
                                                   child: Text(
-                                                    isFullySettled
-                                                        ? 'PAID & SETTLED'
-                                                        : (isInsuranceCovered
-                                                            ? 'COPAY DUE'
-                                                            : 'AWAITING BILLING'),
+                                                    isPartiallySettled
+                                                        ? 'PARTIALLY SETTLED'
+                                                        : (isFullySettled
+                                                            ? 'PAID & SETTLED'
+                                                            : (isInsuranceCovered
+                                                                ? 'COPAY DUE'
+                                                                : 'AWAITING BILLING')),
                                                     style: TextStyle(
                                                       fontSize: 10,
                                                       fontWeight: FontWeight.bold,
-                                                      color: isFullySettled
-                                                          ? Colors.green
-                                                          : (isInsuranceCovered ? Colors.amber : Colors.redAccent),
+                                                      color: isPartiallySettled
+                                                          ? Colors.amber[800]
+                                                          : (isFullySettled
+                                                              ? Colors.green
+                                                              : (isInsuranceCovered ? Colors.amber : Colors.redAccent)),
                                                     ),
                                                   ),
                                                 ),

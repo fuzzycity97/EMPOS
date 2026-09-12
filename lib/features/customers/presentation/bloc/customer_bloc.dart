@@ -8,6 +8,7 @@ import '../../../../core/utils/currency_formatter.dart';
 import '../../data/models/customer_ledger_entry_model.dart';
 import '../../data/models/customer_model.dart';
 import '../../domain/entities/customer.dart';
+import '../../domain/entities/customer_ledger_entry.dart';
 import '../../domain/repositories/customer_repository.dart';
 import '../../domain/usecases/charge_customer_debt_usecase.dart';
 import '../../domain/usecases/get_customer_by_id_usecase.dart';
@@ -160,15 +161,22 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
     SelectCustomerEvent event,
     Emitter<CustomerState> emit,
   ) async {
-    if (state is! CustomersLoaded) return;
-    final currentState = state as CustomersLoaded;
-
     if (event.customerId == null) {
-      emit(currentState.copyWith(
-        clearSelectedCustomer: true,
-        selectedCustomerLedger: const [],
-      ));
+      if (state is CustomersLoaded) {
+        emit((state as CustomersLoaded).copyWith(
+          clearSelectedCustomer: true,
+          selectedCustomerLedger: const [],
+        ));
+      }
       return;
+    }
+
+    List<Customer> allCustomers = [];
+    if (state is CustomersLoaded) {
+      allCustomers = (state as CustomersLoaded).allCustomers;
+    } else {
+      final custsRes = await getCustomersUseCase();
+      custsRes.fold((_) {}, (c) => allCustomers = c);
     }
 
     final customerRes = await getCustomerByIdUseCase(event.customerId!);
@@ -176,17 +184,25 @@ class CustomerBloc extends Bloc<CustomerEvent, CustomerState> {
 
     Customer? selectedCustomer;
     customerRes.fold((_) {}, (c) => selectedCustomer = c);
+    selectedCustomer ??= allCustomers.where((c) => c.id == event.customerId).firstOrNull;
 
-    ledgerRes.fold(
-      (_) => emit(currentState.copyWith(
-        selectedCustomer: selectedCustomer,
-        selectedCustomerLedger: const [],
-      )),
-      (ledger) => emit(currentState.copyWith(
+    List<CustomerLedgerEntry> ledger = [];
+    ledgerRes.fold((_) {}, (l) => ledger = l);
+
+    if (state is CustomersLoaded) {
+      final currentState = state as CustomersLoaded;
+      emit(currentState.copyWith(
         selectedCustomer: selectedCustomer,
         selectedCustomerLedger: ledger,
-      )),
-    );
+      ));
+    } else {
+      emit(CustomersLoaded(
+        allCustomers: allCustomers,
+        displayedCustomers: allCustomers,
+        selectedCustomer: selectedCustomer,
+        selectedCustomerLedger: ledger,
+      ));
+    }
   }
 
   Future<void> _onSaveCustomer(

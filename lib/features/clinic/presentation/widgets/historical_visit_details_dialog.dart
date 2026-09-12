@@ -54,8 +54,14 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
     Customer? activeCustomer = customer;
     try {
       final custState = context.watch<CustomerBloc>().state;
-      if (custState is CustomersLoaded && customer != null) {
-        final match = custState.allCustomers.where((c) => c.id == customer!.id).firstOrNull;
+      if (custState is CustomersLoaded) {
+        final match = custState.allCustomers.where((c) {
+          if (customer != null && c.id == customer!.id) return true;
+          if (c.id == activeVisit.patientId) return true;
+          if (patient?.phone != null && patient!.phone.isNotEmpty && c.phone.trim() == patient!.phone.trim()) return true;
+          if (c.name.trim().toLowerCase() == activeVisit.patientName.trim().toLowerCase()) return true;
+          return false;
+        }).firstOrNull;
         if (match != null) {
           activeCustomer = match;
         }
