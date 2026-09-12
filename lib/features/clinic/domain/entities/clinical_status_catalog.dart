@@ -66,7 +66,6 @@ class ClinicalStatusCatalog {
       case ClinicalSpecialtyDiscipline.pediatrics:
         return _pediatricStatuses;
       case ClinicalSpecialtyDiscipline.general:
-      default:
         return _generalMedicineStatuses;
     }
   }

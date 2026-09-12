@@ -85,7 +85,7 @@ class ClinicalStatusInspectorModal extends StatelessWidget {
                     return ListView.separated(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final statusDef = filtered[index];
                         final isSelected = currentStatus?.status.id == statusDef.id;
@@ -251,7 +251,7 @@ class ClinicalStatusInspectorModal extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             scrollDirection: Axis.horizontal,
             itemCount: ClinicalStatusCategory.values.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 6),
+            separatorBuilder: (_, _) => const SizedBox(width: 6),
             itemBuilder: (context, index) {
               final cat = ClinicalStatusCategory.values[index];
               final isSelected = cat == activeCat;
