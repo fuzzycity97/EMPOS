@@ -1,29 +1,102 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../constants/app_colors.dart';
 import '../../../../constants/app_dimensions.dart';
+import '../../data/repositories/lan_sync_repository_impl.dart';
 import '../../domain/entities/connected_node.dart';
 import '../bloc/lan_sync_bloc.dart';
 import '../bloc/lan_sync_event.dart';
 import '../bloc/lan_sync_state.dart';
 
-class LanSyncDialog extends StatelessWidget {
-  final TextEditingController ipController;
-  final TextEditingController portController;
+class LanSyncDialog extends StatefulWidget {
+  final String? defaultIp;
+  final String defaultPort;
 
-  const LanSyncDialog._({
+  const LanSyncDialog({
     super.key,
-    required this.ipController,
-    required this.portController,
+    this.defaultIp,
+    this.defaultPort = '9090',
   });
 
-  factory LanSyncDialog({Key? key, String defaultIp = '192.168.1.10'}) {
-    return LanSyncDialog._(
-      key: key,
-      ipController: TextEditingController(text: defaultIp),
-      portController: TextEditingController(text: '9090'),
-    );
+  @override
+  State<LanSyncDialog> createState() => _LanSyncDialogState();
+}
+
+class _LanSyncDialogState extends State<LanSyncDialog> {
+  late final TextEditingController _ipController;
+  late final TextEditingController _portController;
+  bool _isAutoConnecting = false;
+  String? _autoStatusText;
+
+  @override
+  void initState() {
+    super.initState();
+    _ipController = TextEditingController(text: widget.defaultIp ?? '127.0.0.1');
+    _portController = TextEditingController(text: widget.defaultPort);
+    _initSavedIp();
+  }
+
+  Future<void> _initSavedIp() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString('empos_last_connected_host_ip');
+      if (saved != null && saved.isNotEmpty && mounted) {
+        setState(() {
+          _ipController.text = saved;
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _ipController.dispose();
+    _portController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleAutoConnect() async {
+    if (_isAutoConnecting) return;
+    setState(() {
+      _isAutoConnecting = true;
+      _autoStatusText = 'جاري البحث التلقائي عن السيرفر المتاح على الشبكة...';
+    });
+
+    try {
+      final port = int.tryParse(_portController.text.trim()) ?? 9090;
+      final discoveredIp = await LanSyncRepositoryImpl.discoverHostServer(port: port);
+
+      if (!mounted) return;
+
+      if (discoveredIp != null && discoveredIp.isNotEmpty) {
+        _ipController.text = discoveredIp;
+        setState(() {
+          _autoStatusText = 'تم العثور على السيرفر ($discoveredIp)! جاري الاتصال...';
+        });
+        context.read<LanSyncBloc>().add(ConnectToHostEvent(hostIp: discoveredIp, port: port));
+      } else {
+        final targetIp = _ipController.text.trim().isNotEmpty ? _ipController.text.trim() : '127.0.0.1';
+        _ipController.text = targetIp;
+        setState(() {
+          _autoStatusText = 'الاتصال بالسيرفر ($targetIp)...';
+        });
+        context.read<LanSyncBloc>().add(ConnectToHostEvent(hostIp: targetIp, port: port));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _autoStatusText = 'فشل الاتصال التلقائي: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAutoConnecting = false;
+        });
+      }
+    }
   }
 
   @override
@@ -35,155 +108,180 @@ class LanSyncDialog extends StatelessWidget {
         side: const BorderSide(color: AppColors.borderDark),
       ),
       child: Container(
-        width: 620,
-        height: 600,
+        width: 640,
+        height: 620,
         padding: const EdgeInsets.all(AppDimensions.space24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-              // ── DIALOG HEADER ─────────────────────────────────────────────
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                    ),
-                    child: const Icon(LucideIcons.wifi, color: AppColors.primary, size: 22),
+            // ── DIALOG HEADER ─────────────────────────────────────────────
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
                   ),
-                  const SizedBox(width: AppDimensions.space12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'LAN Real-Time Sync Engine',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+                  child: const Icon(LucideIcons.wifi, color: AppColors.primary, size: 22),
+                ),
+                const SizedBox(width: AppDimensions.space12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'LAN Real-Time Sync Engine',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Peer-to-peer WebSocket event bus for Doctor, Reception & POS stations',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondaryDark,
-                          ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Peer-to-peer WebSocket event bus for Doctor, Reception & POS stations',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondaryDark,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: AppColors.textSecondaryDark),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppDimensions.space20),
+                ),
+                IconButton(
+                  icon: const Icon(LucideIcons.x, color: AppColors.textSecondaryDark),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppDimensions.space20),
 
-              // ── CURRENT CONNECTION STATUS CARD ────────────────────────────
-              BlocBuilder<LanSyncBloc, LanSyncState>(
-                builder: (context, state) {
-                  final isConnected = state is LanSyncConnected;
-                  final isHost = isConnected && state.isHost;
+            // ── CURRENT CONNECTION STATUS CARD ────────────────────────────
+            BlocBuilder<LanSyncBloc, LanSyncState>(
+              builder: (context, state) {
+                final isConnected = state is LanSyncConnected;
+                final isHost = isConnected && state.isHost;
 
-                  Color statusColor = AppColors.textSecondaryDark;
-                  String statusTitle = 'Offline / Standalone Mode';
-                  String statusSubtitle = 'Local database active. Connect to host or start server to sync.';
-                  IconData statusIcon = LucideIcons.wifiOff;
+                Color statusColor = AppColors.textSecondaryDark;
+                String statusTitle = 'Offline / Standalone Mode';
+                String statusSubtitle = 'Local database active. Connect to host or start server to sync.';
+                IconData statusIcon = LucideIcons.wifiOff;
 
-                  if (state is LanSyncConnecting) {
-                    statusColor = AppColors.warning;
-                    statusTitle = 'Connecting to ${state.targetAddress ?? 'Host'}...';
-                    statusSubtitle = 'Verifying WebSocket connection and peer handshake...';
-                    statusIcon = LucideIcons.refreshCw;
-                  } else if (isConnected) {
-                    if (isHost) {
-                      statusColor = AppColors.success;
-                      statusTitle = 'Hub Server Active (Listening on port ${state.port})';
-                      final clientCount = state.nodes.where((n) => !n.role.toLowerCase().contains('host')).length;
-                      statusSubtitle = 'Host LAN IP: ${state.address} • Connected Client Stations: $clientCount';
-                      statusIcon = LucideIcons.server;
-                    } else {
-                      statusColor = AppColors.info;
-                      statusTitle = 'Station Connected to ${state.address}:${state.port}';
-                      final idDisplay = state.localStationId.isNotEmpty ? state.localStationId : 'Doctor';
-                      final roleDisplay = state.localStationRole.isNotEmpty ? state.localStationRole : 'Doctor Station';
-                      statusSubtitle = 'Local Station: $idDisplay ($roleDisplay) • ${state.nodes.length} Network Nodes Active';
-                      statusIcon = LucideIcons.laptop;
-                    }
-                  } else if (state is LanSyncError) {
-                    statusColor = AppColors.danger;
-                    statusTitle = 'Connection Error';
-                    statusSubtitle = state.message;
-                    statusIcon = LucideIcons.alertCircle;
+                if (state is LanSyncConnecting) {
+                  statusColor = AppColors.warning;
+                  statusTitle = 'Connecting to ${state.targetAddress ?? 'Host'}...';
+                  statusSubtitle = 'Verifying WebSocket connection and peer handshake...';
+                  statusIcon = LucideIcons.refreshCw;
+                } else if (isConnected) {
+                  if (isHost) {
+                    statusColor = AppColors.success;
+                    statusTitle = 'Hub Server Active (Listening on port ${state.port})';
+                    final clientCount = state.nodes.where((n) => !n.role.toLowerCase().contains('host')).length;
+                    statusSubtitle = 'Host LAN IP: ${state.address} • Connected Client Stations: $clientCount';
+                    statusIcon = LucideIcons.server;
+                  } else {
+                    statusColor = AppColors.info;
+                    statusTitle = 'Station Connected to ${state.address}:${state.port}';
+                    final idDisplay = state.localStationId.isNotEmpty ? state.localStationId : 'Doctor';
+                    final roleDisplay = state.localStationRole.isNotEmpty ? state.localStationRole : 'Doctor Station';
+                    statusSubtitle = 'Local Station: $idDisplay ($roleDisplay) • ${state.nodes.length} Network Nodes Active';
+                    statusIcon = LucideIcons.laptop;
                   }
+                } else if (state is LanSyncError) {
+                  statusColor = AppColors.danger;
+                  statusTitle = 'Connection Error';
+                  statusSubtitle = state.message;
+                  statusIcon = LucideIcons.alertCircle;
+                }
 
-                  return Container(
-                    padding: const EdgeInsets.all(AppDimensions.space16),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                      border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(statusIcon, color: statusColor, size: 22),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                statusTitle,
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                return Container(
+                  padding: const EdgeInsets.all(AppDimensions.space16),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(statusIcon, color: statusColor, size: 22),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              statusTitle,
+                              style: TextStyle(
+                                color: statusColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
                               ),
-                              const SizedBox(height: 3),
-                              Text(
-                                statusSubtitle,
-                                style: const TextStyle(
-                                  color: AppColors.textSecondaryDark,
-                                  fontSize: 11,
-                                ),
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              statusSubtitle,
+                              style: const TextStyle(
+                                color: AppColors.textSecondaryDark,
+                                fontSize: 11,
                               ),
-                              if (state is LanSyncError &&
-                                  (state.message.contains('10048') ||
-                                   state.message.contains('already in use') ||
-                                   state.message.contains('Port')))
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: OutlinedButton.icon(
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: AppColors.info,
-                                      side: const BorderSide(color: AppColors.info),
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (state is LanSyncError &&
+                                (state.message.contains('10048') ||
+                                 state.message.contains('already in use') ||
+                                 state.message.contains('Port')))
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 6,
+                                  children: [
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.info,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      ),
+                                      icon: const Icon(LucideIcons.zap, size: 13, color: Colors.white),
+                                      label: const Text(
+                                        'اتصال فوري بالسيرفر المحلي (127.0.0.1:9090)',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                      onPressed: () {
+                                        context.read<LanSyncBloc>().add(
+                                          const ConnectToHostEvent(hostIp: '127.0.0.1', port: 9090),
+                                        );
+                                      },
                                     ),
-                                    icon: const Icon(LucideIcons.link, size: 12),
-                                    label: const Text(
-                                      'Connect as Client to Local Host (127.0.0.1:9090)',
-                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                    OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.info,
+                                        side: const BorderSide(color: AppColors.info),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      ),
+                                      icon: _isAutoConnecting
+                                          ? const SizedBox(
+                                              width: 12,
+                                              height: 12,
+                                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.info),
+                                            )
+                                          : const Icon(LucideIcons.search, size: 13),
+                                      label: const Text(
+                                        'بحث واتصال تلقائي بالسيرفر',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                      onPressed: _isAutoConnecting ? null : _handleAutoConnect,
                                     ),
-                                    onPressed: () {
-                                      context.read<LanSyncBloc>().add(
-                                        const ConnectToHostEvent(hostIp: '127.0.0.1', port: 9090),
-                                      );
-                                    },
-                                  ),
+                                  ],
                                 ),
-                            ],
-                          ),
+                              ),
+                          ],
                         ),
+                      ),
                         if (isConnected || state is LanSyncConnecting) ...[
                           const SizedBox(width: 8),
                           ElevatedButton.icon(
@@ -427,8 +525,52 @@ class LanSyncDialog extends StatelessWidget {
                                   ],
                                 ),
                                 const SizedBox(height: 12),
+                                // 1-Click Auto-Discovery & Auto-Connect Button
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    minimumSize: const Size(double.infinity, 42),
+                                    elevation: 1,
+                                  ),
+                                  icon: _isAutoConnecting
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        )
+                                      : const Icon(LucideIcons.zap, size: 18, color: Colors.white),
+                                  label: Text(
+                                    _isAutoConnecting
+                                        ? 'جاري فحص الشبكة والاتصال تلقائياً...'
+                                        : '⚡ اتصال تلقائي بالسيرفر المتاح (Auto-Connect)',
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                  ),
+                                  onPressed: _isAutoConnecting ? null : _handleAutoConnect,
+                                ),
+                                if (_autoStatusText != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _autoStatusText!,
+                                    style: const TextStyle(color: AppColors.info, fontSize: 11),
+                                  ),
+                                ],
+                                const SizedBox(height: 14),
+                                const Row(
+                                  children: [
+                                    Expanded(child: Divider(color: AppColors.borderDark)),
+                                    Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 8),
+                                      child: Text(
+                                        'أو كتابة الـ IP يدوياً / Or Manual IP',
+                                        style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 10),
+                                      ),
+                                    ),
+                                    Expanded(child: Divider(color: AppColors.borderDark)),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
                                 TextField(
-                                  controller: ipController,
+                                  controller: _ipController,
                                   style: const TextStyle(color: Colors.white, fontSize: 13),
                                   decoration: const InputDecoration(
                                     labelText: 'Host Server IP Address',
@@ -437,18 +579,19 @@ class LanSyncDialog extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(height: 12),
-                                ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.info,
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.info,
+                                    side: const BorderSide(color: AppColors.info),
                                     minimumSize: const Size(double.infinity, 38),
                                   ),
-                                  icon: const Icon(LucideIcons.link, size: 16, color: Colors.white),
+                                  icon: const Icon(LucideIcons.link, size: 16),
                                   label: const Text(
-                                    'Connect to Hub Server',
-                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                    'Connect to IP Specified Above',
+                                    style: TextStyle(fontWeight: FontWeight.bold),
                                   ),
                                   onPressed: () {
-                                    final ip = ipController.text.trim();
+                                    final ip = _ipController.text.trim();
                                     if (ip.isNotEmpty) {
                                       context.read<LanSyncBloc>().add(ConnectToHostEvent(hostIp: ip, port: 9090));
                                     }

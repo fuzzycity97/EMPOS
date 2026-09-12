@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
 import '../../../../core/config/presentation/bloc/config_bloc.dart';
 import '../../../../core/config/presentation/bloc/config_state.dart';
@@ -218,7 +219,7 @@ class DoctorStationPage extends StatelessWidget {
                                   children: [
                                     Row(
                                       children: [
-                                        Icon(Icons.people_alt_outlined, color: theme.colorScheme.primary),
+                                        Icon(LucideIcons.users, color: theme.colorScheme.primary, size: 20),
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
@@ -242,7 +243,7 @@ class DoctorStationPage extends StatelessWidget {
                                               elevation: 0,
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
                                             ),
-                                            icon: const Icon(Icons.person_search, size: 15),
+                                            icon: const Icon(LucideIcons.userSearch, size: 15),
                                             label: const Text(
                                               'Archive',
                                               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
@@ -300,7 +301,7 @@ class DoctorStationPage extends StatelessWidget {
                                                   foregroundColor: Colors.white,
                                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                                 ),
-                                                icon: const Icon(Icons.person_add_outlined, size: 14),
+                                                icon: const Icon(LucideIcons.userPlus, size: 14),
                                                 label: const Text(
                                                   'Add Demo Test Patient',
                                                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
@@ -453,69 +454,79 @@ class DoctorStationPage extends StatelessWidget {
                         // CENTRAL WORKSPACE
                         Expanded(
                           child: activeVisit == null
-                              ? ((currentBlueprint.isDental || currentBlueprint.isEnabled('sw.dental_tooth_chart_editor'))
-                                  ? SingleChildScrollView(
-                                      padding: const EdgeInsets.all(24),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(14),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.primary.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.view_in_ar, color: AppColors.primary, size: 24),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      const Text(
-                                                        '3D Dental Odontogram • Interactive Exploration Mode',
-                                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
-                                                      ),
-                                                      const SizedBox(height: 2),
-                                                      Text(
-                                                        'Select a patient from the waiting queue on the left to tie clinical findings to their permanent record, or interact with and test the 3D tooth matrix below directly.',
-                                                        style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black87),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
+                              ? Center(
+                                  child: Container(
+                                    constraints: const BoxConstraints(maxWidth: 480),
+                                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+                                    margin: const EdgeInsets.all(24),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+                                          blurRadius: 20,
+                                          offset: const Offset(0, 8),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(18),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary.withValues(alpha: 0.12),
+                                            shape: BoxShape.circle,
                                           ),
-                                          const SizedBox(height: 16),
-                                          DentalToothMatrixWidget(
-                                            toothChart: _getEffectiveToothChart(loadedState.activeToothChart, false),
-                                            isPediatric: false,
-                                            doctorName: 'Dr. Specialist',
-                                            onToothUpdated: (updatedEntry) {
-                                              bloc.add(
-                                                UpdateToothChartEntryEvent(
-                                                  patientId: 'sandbox_test_patient',
-                                                  entry: updatedEntry,
-                                                ),
-                                              );
+                                          child: const Icon(LucideIcons.stethoscope, color: AppColors.primary, size: 36),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        const Text(
+                                          'لا يوجد مريض محدد حالياً',
+                                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'No Active Patient Selected',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: isDark ? Colors.white54 : Colors.black45,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          'يرجى اختيار مريض من قائمة الانتظار على اليسار لبدء الكشف الطبي وتوثيق الإجراءات ومخطط الأسنان، أو تسجيل مريض جديد من الاستقبال.',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: isDark ? Colors.white70 : Colors.black87,
+                                            height: 1.5,
+                                          ),
+                                        ),
+                                        if (activeQueue.isNotEmpty) ...[
+                                          const SizedBox(height: 20),
+                                          OutlinedButton.icon(
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: AppColors.primary,
+                                              side: const BorderSide(color: AppColors.primary),
+                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                            ),
+                                            icon: const Icon(LucideIcons.play, size: 14),
+                                            label: Text('معاينة أول مريض بالانتظار: ${activeQueue.first.patientName}'),
+                                            onPressed: () {
+                                              selectedVisitNotifier.value = activeQueue.first.id;
                                             },
                                           ),
                                         ],
-                                      ),
-                                    )
-                                  : Center(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.medical_information_outlined, size: 64, color: isDark ? Colors.white24 : Colors.black26),
-                                          const SizedBox(height: 16),
-                                          const Text('Select a patient from the queue to begin clinical consultation'),
-                                        ],
-                                      ),
-                                    ))
+                                      ],
+                                    ),
+                                  ),
+                                )
                               : SingleChildScrollView(
                                   padding: const EdgeInsets.all(24),
                                   child: Column(
@@ -628,7 +639,7 @@ class DoctorStationPage extends StatelessWidget {
                                               const SnackBar(content: Text('Consultation completed and sent to reception billing')),
                                             );
                                           },
-                                          icon: const Icon(Icons.check_circle_outline, color: Colors.white),
+                                          icon: const Icon(LucideIcons.checkCircle2, color: Colors.white, size: 16),
                                           label: const Text(
                                             'Complete & Send to Reception',
                                             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
@@ -753,7 +764,7 @@ class DoctorStationPage extends StatelessWidget {
                 },
                 child: Row(
                   children: [
-                    Icon(Icons.settings_ethernet, size: 14, color: isDark ? Colors.white60 : Colors.black54),
+                    Icon(LucideIcons.network, size: 14, color: isDark ? Colors.white60 : Colors.black54),
                     const SizedBox(width: 4),
                     Text(
                       'LAN Settings',
@@ -864,7 +875,7 @@ class DoctorStationPage extends StatelessWidget {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       ),
-                      icon: const Icon(Icons.volume_up, size: 16),
+                      icon: const Icon(LucideIcons.volume2, size: 16),
                       label: const Text('Call Patient', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                       onPressed: () {
                         bloc.add(
@@ -893,7 +904,7 @@ class DoctorStationPage extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     ),
-                    icon: const Icon(Icons.favorite_border, size: 16),
+                    icon: const Icon(LucideIcons.heart, size: 16),
                     label: const Text('Medical History', style: TextStyle(fontSize: 12)),
                     onPressed: () => showDialog(
                       context: context,
@@ -914,7 +925,7 @@ class DoctorStationPage extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     ),
-                    icon: const Icon(Icons.history, size: 16),
+                    icon: const Icon(LucideIcons.history, size: 16),
                     label: const Text('View Patient History', style: TextStyle(fontSize: 12)),
                     onPressed: () => _showPatientHistoryDialog(context, visit, patient, allVisits, activeToothChart),
                   ),
@@ -922,7 +933,7 @@ class DoctorStationPage extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     ),
-                    icon: const Icon(Icons.edit_note, size: 16),
+                    icon: const Icon(LucideIcons.filePenLine, size: 16),
                     label: const Text('Edit Vitals', style: TextStyle(fontSize: 12)),
                     onPressed: () => _showEditVitalsDialog(context, visit),
                   ),
@@ -940,15 +951,15 @@ class DoctorStationPage extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _vitalChip('Heart Rate', visit.heartRate, Icons.favorite, Colors.red, isDark),
+                  _vitalChip('Heart Rate', visit.heartRate, LucideIcons.heart, Colors.red, isDark),
                   const SizedBox(width: 12),
-                  _vitalChip('Blood Pressure', visit.bloodPressure, Icons.speed, Colors.purple, isDark),
+                  _vitalChip('Blood Pressure', visit.bloodPressure, LucideIcons.activity, Colors.purple, isDark),
                   const SizedBox(width: 12),
-                  _vitalChip('SpO2', visit.spo2, Icons.air, Colors.teal, isDark),
+                  _vitalChip('SpO2', visit.spo2, LucideIcons.wind, Colors.teal, isDark),
                   const SizedBox(width: 12),
-                  _vitalChip('Temperature', visit.temperature, Icons.thermostat, Colors.amber, isDark),
+                  _vitalChip('Temperature', visit.temperature, LucideIcons.thermometer, Colors.amber, isDark),
                   const SizedBox(width: 12),
-                  _vitalChip('Respiration', visit.respiratoryRate, Icons.timer, Colors.blue, isDark),
+                  _vitalChip('Respiration', visit.respiratoryRate, LucideIcons.clock, Colors.blue, isDark),
                 ],
               ),
             ),
@@ -1009,7 +1020,7 @@ class DoctorStationPage extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.history_edu, color: Colors.blue),
+            const Icon(LucideIcons.fileSpreadsheet, color: Colors.blue),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -1201,7 +1212,7 @@ class DoctorStationPage extends StatelessWidget {
                                             ),
                                           ),
                                           const SizedBox(width: 6),
-                                          const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+                                          const Icon(LucideIcons.chevronRight, size: 16, color: Colors.grey),
                                         ],
                                       ),
                                     ],
@@ -1408,7 +1419,7 @@ class DoctorStationPage extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.receipt_long, size: 18, color: Colors.teal),
+                    const Icon(LucideIcons.receipt, size: 18, color: Colors.teal),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Wrap(
@@ -1464,7 +1475,7 @@ class DoctorStationPage extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.folder_shared_outlined, color: Colors.blue, size: 24),
+                    const Icon(LucideIcons.folderOpen, color: Colors.blue, size: 24),
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
@@ -1473,7 +1484,7 @@ class DoctorStationPage extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(LucideIcons.x, size: 20),
                       onPressed: () => Navigator.of(ctx).pop(),
                     ),
                   ],
@@ -1482,7 +1493,7 @@ class DoctorStationPage extends StatelessWidget {
                 TextField(
                   autofocus: true,
                   decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search),
+                    prefixIcon: Icon(LucideIcons.search, size: 16),
                     hintText: 'Search patient by full name or phone number...',
                     border: OutlineInputBorder(),
                   ),
@@ -1563,7 +1574,7 @@ class DoctorStationPage extends StatelessWidget {
                                     ),
                                   ),
                                 OutlinedButton.icon(
-                                  icon: const Icon(Icons.history, size: 14),
+                                  icon: const Icon(LucideIcons.history, size: 14),
                                   label: const Text('View File & Visits', style: TextStyle(fontSize: 11)),
                                   onPressed: () {
                                     final dummyVisit = patientVisits.isNotEmpty
@@ -1606,156 +1617,159 @@ class DoctorStationPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) {
-        return BlocBuilder<BookingBloc, BookingState>(
-          builder: (bCtx, bState) {
-            final bookings = bState is BookingLoaded ? bState.bookings : <BookingItem>[];
-            final today = DateTime.now();
-            final todayBookings = bookings.where((b) {
-              return b.startTime.year == today.year &&
-                  b.startTime.month == today.month &&
-                  b.startTime.day == today.day &&
-                  b.isActive;
-            }).toList()
-              ..sort((a, b) => a.startTime.compareTo(b.startTime));
+        return BlocProvider<BookingBloc>.value(
+          value: sl<BookingBloc>(),
+          child: BlocBuilder<BookingBloc, BookingState>(
+            builder: (bCtx, bState) {
+              final bookings = bState is BookingLoaded ? bState.bookings : <BookingItem>[];
+              final today = DateTime.now();
+              final todayBookings = bookings.where((b) {
+                return b.startTime.year == today.year &&
+                    b.startTime.month == today.month &&
+                    b.startTime.day == today.day &&
+                    b.isActive;
+              }).toList()
+                ..sort((a, b) => a.startTime.compareTo(b.startTime));
 
-            return Dialog(
-              backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Container(
-                width: 520,
-                constraints: const BoxConstraints(maxHeight: 560),
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
+              return Dialog(
+                backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Container(
+                  width: 520,
+                  constraints: const BoxConstraints(maxHeight: 560),
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(LucideIcons.calendar, color: Colors.blue, size: 20),
                           ),
-                          child: const Icon(Icons.calendar_month, color: Colors.blue, size: 20),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'مواعيد اليوم المجدولة',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                              Text(
-                                'Scheduled Appointments for Today (${todayBookings.length})',
-                                style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black54),
-                              ),
-                            ],
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'مواعيد اليوم المجدولة',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
+                                Text(
+                                  'Scheduled Appointments for Today (${todayBookings.length})',
+                                  style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black54),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 20),
-                          onPressed: () => Navigator.of(ctx).pop(),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 20),
-                    Expanded(
-                      child: todayBookings.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.calendar_today, size: 40, color: isDark ? Colors.white24 : Colors.black26),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    'لا توجد مواعيد محجوزة اليوم',
-                                    style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 13),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.separated(
-                              shrinkWrap: true,
-                              itemCount: todayBookings.length,
-                              separatorBuilder: (context, index) => const SizedBox(height: 8),
-                              itemBuilder: (context, idx) {
-                                final item = todayBookings[idx];
-                                final timeStr =
-                                    '${item.startTime.hour.toString().padLeft(2, '0')}:${item.startTime.minute.toString().padLeft(2, '0')} - ${item.endTime.hour.toString().padLeft(2, '0')}:${item.endTime.minute.toString().padLeft(2, '0')}';
+                          IconButton(
+                            icon: const Icon(LucideIcons.x, size: 20),
+                            onPressed: () => Navigator.of(ctx).pop(),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 20),
+                      Expanded(
+                        child: todayBookings.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(LucideIcons.calendarDays, size: 40, color: isDark ? Colors.white24 : Colors.black26),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'لا توجد مواعيد محجوزة اليوم',
+                                      style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.separated(
+                                shrinkWrap: true,
+                                itemCount: todayBookings.length,
+                                separatorBuilder: (context, index) => const SizedBox(height: 8),
+                                itemBuilder: (context, idx) {
+                                  final item = todayBookings[idx];
+                                  final timeStr =
+                                      '${item.startTime.hour.toString().padLeft(2, '0')}:${item.startTime.minute.toString().padLeft(2, '0')} - ${item.endTime.hour.toString().padLeft(2, '0')}:${item.endTime.minute.toString().padLeft(2, '0')}';
 
-                                return Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.blue.withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          timeStr,
-                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blue),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              item.customerName,
-                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                            ),
-                                            Text(
-                                              item.serviceName,
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: isDark ? Colors.white60 : Colors.black54,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: (item.status.name == 'checkedIn'
-                                                  ? Colors.teal
-                                                  : (item.status.name == 'confirmed' ? Colors.blue : Colors.amber))
-                                              .withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          item.status.name.toUpperCase(),
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                            color: item.status.name == 'checkedIn'
-                                                ? Colors.teal
-                                                : (item.status.name == 'confirmed' ? Colors.blue : Colors.amber),
+                                  return Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.blue.withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            timeStr,
+                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.blue),
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item.customerName,
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                              ),
+                                              Text(
+                                                item.serviceName,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: isDark ? Colors.white60 : Colors.black54,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: (item.status.name == 'checkedIn'
+                                                    ? Colors.teal
+                                                    : (item.status.name == 'confirmed' ? Colors.blue : Colors.amber))
+                                                .withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            item.status.name.toUpperCase(),
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: item.status.name == 'checkedIn'
+                                                  ? Colors.teal
+                                                  : (item.status.name == 'confirmed' ? Colors.blue : Colors.amber),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
