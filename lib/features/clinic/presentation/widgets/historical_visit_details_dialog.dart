@@ -9,9 +9,12 @@ import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../customers/domain/entities/customer.dart';
 import '../../../customers/presentation/bloc/customer_bloc.dart';
+import '../../../customers/presentation/bloc/customer_state.dart';
 import '../../../customers/presentation/widgets/customer_ledger_dialog.dart';
 import '../../domain/entities/clinic_visit.dart';
 import '../../domain/entities/patient_profile.dart';
+import '../bloc/clinic_bloc.dart';
+import '../bloc/clinic_state.dart';
 import 'dental_tooth_matrix_widget.dart';
 import '../../domain/entities/tooth_chart_entry.dart';
 
@@ -36,12 +39,35 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final dateStr = DateFormat('EEEE, MMM d, yyyy • hh:mm a').format(visit.checkInTime);
+
+    ClinicVisit activeVisit = visit;
+    try {
+      final clinicState = context.watch<ClinicBloc>().state;
+      if (clinicState is ClinicLoaded) {
+        final match = clinicState.queue.where((v) => v.id == visit.id).firstOrNull;
+        if (match != null) {
+          activeVisit = match;
+        }
+      }
+    } catch (_) {}
+
+    Customer? activeCustomer = customer;
+    try {
+      final custState = context.watch<CustomerBloc>().state;
+      if (custState is CustomersLoaded && customer != null) {
+        final match = custState.allCustomers.where((c) => c.id == customer!.id).firstOrNull;
+        if (match != null) {
+          activeCustomer = match;
+        }
+      }
+    } catch (_) {}
+
+    final dateStr = DateFormat('EEEE, MMM d, yyyy • hh:mm a').format(activeVisit.checkInTime);
     final isPediatric = (patient?.calculatedAge != null && patient!.calculatedAge! < 12) ||
-        visit.chiefComplaint.toLowerCase().contains('pediatric') ||
-        visit.chiefComplaint.toLowerCase().contains('child');
-    final effectiveToothChart = visit.toothChart.isNotEmpty
-        ? visit.toothChart
+        activeVisit.chiefComplaint.toLowerCase().contains('pediatric') ||
+        activeVisit.chiefComplaint.toLowerCase().contains('child');
+    final effectiveToothChart = activeVisit.toothChart.isNotEmpty
+        ? activeVisit.toothChart
         : (cumulativeToothChart ?? []);
 
     return Dialog(
@@ -82,7 +108,7 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Historical Medical Record: ${visit.patientName}',
+                                    'Historical Medical Record: ${activeVisit.patientName}',
                                     style: const TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
@@ -108,17 +134,17 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: visit.status == ClinicVisitStatus.completed
+                          color: activeVisit.status == ClinicVisitStatus.completed
                               ? AppColors.success.withValues(alpha: 0.15)
                               : AppColors.primary.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
                         ),
                         child: Text(
-                          visit.status.name.toUpperCase(),
+                          activeVisit.status.name.toUpperCase(),
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: visit.status == ClinicVisitStatus.completed
+                            color: activeVisit.status == ClinicVisitStatus.completed
                                 ? AppColors.success
                                 : AppColors.primaryLight,
                           ),
@@ -175,7 +201,7 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                       const SizedBox(height: 16),
 
                       // 7. Financial & Billing Summary
-                      _buildFinancialSummary(context, isDark),
+                      _buildFinancialSummary(context, isDark, activeVisit, activeCustomer),
                     ],
                   ),
                 ),
@@ -420,17 +446,19 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildFinancialSummary(BuildContext context, bool isDark) {
-    final hasCustomer = customer != null;
-    final customerDebt = hasCustomer ? customer!.totalDebt : null;
-    final isPaid = visit.isPaid || visit.totalFee <= 0.001;
+  Widget _buildFinancialSummary(BuildContext context, bool isDark, [ClinicVisit? vOverride, Customer? cOverride]) {
+    final effectiveVisit = vOverride ?? visit;
+    final effectiveCust = cOverride ?? customer;
+    final hasCustomer = effectiveCust != null;
+    final customerDebt = hasCustomer ? effectiveCust.totalDebt : null;
+    final isPaid = effectiveVisit.isPaid || effectiveVisit.totalFee <= 0.001;
 
-    final effectiveInsurance = (visit.insurancePaid > 0.001)
-        ? visit.insurancePaid
+    final effectiveInsurance = (effectiveVisit.insurancePaid > 0.001)
+        ? effectiveVisit.insurancePaid
         : 0.0;
-    final effectiveCopay = visit.patientCopay > 0.001
-        ? visit.patientCopay
-        : (visit.totalFee - effectiveInsurance);
+    final effectiveCopay = effectiveVisit.patientCopay > 0.001
+        ? effectiveVisit.patientCopay
+        : (effectiveVisit.totalFee - effectiveInsurance);
     final patientDue = isPaid ? 0.0 : effectiveCopay;
 
     final String statusText;
@@ -442,7 +470,7 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
     } else if (isPaid) {
       statusText = 'PAID & SETTLED';
       statusColor = AppColors.success;
-    } else if (visit.status == ClinicVisitStatus.completed) {
+    } else if (effectiveVisit.status == ClinicVisitStatus.completed) {
       statusText = 'UNPAID (Due: ${patientDue.toStringAsFixed(2)} EGP)';
       statusColor = AppColors.danger;
     } else {
@@ -463,7 +491,7 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _financeStat('Total Fee', '${visit.totalFee.toStringAsFixed(2)} EGP', AppColors.textPrimaryDark),
+              _financeStat('Total Fee', '${effectiveVisit.totalFee.toStringAsFixed(2)} EGP', AppColors.textPrimaryDark),
               _financeStat(
                 effectiveInsurance > 0.001 ? 'Patient Copay' : 'Patient Share',
                 '${effectiveCopay.toStringAsFixed(2)} EGP',
@@ -522,7 +550,7 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                     showDialog(
                       context: context,
                       builder: (lCtx) {
-                        final dialog = CustomerLedgerDialog(customer: customer!);
+                        final dialog = CustomerLedgerDialog(customer: effectiveCust);
                         if (bloc != null) {
                           return BlocProvider<CustomerBloc>.value(value: bloc, child: dialog);
                         }
