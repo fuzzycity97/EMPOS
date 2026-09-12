@@ -626,9 +626,11 @@ class ClinicReceptionPage extends StatelessWidget {
                                       context.read<CustomerBloc>().add(const LoadCustomersEvent());
                                     } catch (_) {}
 
+                                    final settledVisit = visit.copyWith(isPaid: true);
+
                                     // 1. Dispatch actual print job via Printing package
                                     await ClinicReceiptGenerator.printReceipt(
-                                      visit: visit,
+                                      visit: settledVisit,
                                       patient: patient,
                                       amountPaid: amountPaid,
                                       blueprint: blueprint,
@@ -639,7 +641,7 @@ class ClinicReceptionPage extends StatelessWidget {
                                       showDialog(
                                         context: context,
                                         builder: (_) => ClinicReceiptDialog(
-                                          visit: visit,
+                                          visit: settledVisit,
                                           patient: patient,
                                           amountPaid: amountPaid,
                                           blueprint: blueprint,

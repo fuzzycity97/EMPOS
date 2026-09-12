@@ -1504,6 +1504,30 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
     );
   }
 
+  ClinicBloc _safeGetClinicBloc(BuildContext ctx) {
+    try {
+      return ctx.read<ClinicBloc>();
+    } catch (_) {
+      try {
+        return bloc;
+      } catch (_) {
+        return sl<ClinicBloc>();
+      }
+    }
+  }
+
+  CustomerBloc? _safeGetCustomerBloc(BuildContext ctx) {
+    try {
+      return ctx.read<CustomerBloc>();
+    } catch (_) {
+      try {
+        return sl<CustomerBloc>();
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
   void _showPatientHistoryDialog(
     BuildContext context,
     ClinicVisit currentVisit,
@@ -1511,15 +1535,8 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
     List<ClinicVisit> allVisits,
     List<ToothChartEntry>? cumulativeToothChart,
   ) {
-    final clinicBloc = context.read<ClinicBloc>();
-    CustomerBloc? customerBloc;
-    try {
-      customerBloc = context.read<CustomerBloc>();
-    } catch (_) {
-      try {
-        customerBloc = sl<CustomerBloc>();
-      } catch (_) {}
-    }
+    final clinicBloc = _safeGetClinicBloc(context);
+    final customerBloc = _safeGetCustomerBloc(context);
 
     showDialog(
       context: context,
@@ -2080,10 +2097,18 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
   ) {
     final searchNotifier = ValueNotifier<String>('');
     final allPatients = loadedState.patients;
+    final clinicBloc = _safeGetClinicBloc(context);
+    final customerBloc = _safeGetCustomerBloc(context);
 
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
+      builder: (ctx) => MultiBlocProvider(
+        providers: [
+          BlocProvider<ClinicBloc>.value(value: clinicBloc),
+          if (customerBloc != null)
+            BlocProvider<CustomerBloc>.value(value: customerBloc),
+        ],
+        child: Dialog(
         backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ConstrainedBox(
@@ -2143,9 +2168,12 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                         separatorBuilder: (ctx, i) => const Divider(height: 1),
                         itemBuilder: (context, idx) {
                           final patient = filtered[idx];
-                          final patientVisits = loadedState.queue
-                              .where((v) => v.patientId == patient.id)
-                              .toList();
+                          final patientVisits = loadedState.queue.where((v) {
+                            if (v.patientId == patient.id) return true;
+                            if (patient.phone.isNotEmpty && v.chiefComplaint.contains(patient.phone)) return true;
+                            if (v.patientName.trim().toLowerCase() == patient.name.trim().toLowerCase()) return true;
+                            return false;
+                          }).toList();
                           final activeVisit = patientVisits.cast<ClinicVisit?>().firstWhere(
                                 (v) => v?.status == ClinicVisitStatus.waiting || v?.status == ClinicVisitStatus.inExamination,
                                 orElse: () => null,
@@ -2230,6 +2258,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
           ),
         ),
       ),
+    ),
     );
   }
 

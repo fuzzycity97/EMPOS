@@ -547,9 +547,29 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
         : null;
     final riskFactors = rfRes?.getOrElse(() => MedicalRiskFactor.defaultFactors) ?? MedicalRiskFactor.defaultFactors;
 
-    queueResult.fold(
-      (failure) => emit(ClinicError(failure.message)),
-      (queue) {
+    await queueResult.fold(
+      (failure) async => emit(ClinicError(failure.message)),
+      (queue) async {
+        // Auto-heal completed visits that were already settled in customer ledger but still had isPaid == false
+        if (customerRepository != null) {
+          for (int i = 0; i < queue.length; i++) {
+            final v = queue[i];
+            if (v.status == ClinicVisitStatus.completed && !v.isPaid) {
+              try {
+                final lRes = await customerRepository!.getCustomerLedger(v.patientId);
+                final entries = lRes.getOrElse(() => []);
+                final hasSettlement = entries.any((e) =>
+                    (e.notes?.contains('Visit #${v.id}') ?? false));
+                if (hasSettlement) {
+                  final healed = v.copyWith(isPaid: true);
+                  queue[i] = healed;
+                  await _saveVisitLocally(healed);
+                }
+              } catch (_) {}
+            }
+          }
+        }
+
         final patients = patientsResult.getOrElse(() => []);
         final waitMin = waitResult.getOrElse(() => 15);
         final billingVisits = queue.where((v) => v.status == ClinicVisitStatus.completed && !v.isPaid).toList();
@@ -911,7 +931,7 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           : 0.0;
 
       final updatedVisit = visit.copyWith(
-        isPaid: remainingDebt <= 0.001,
+        isPaid: true,
         patientCopay: expectedPatientShare,
         insurancePaid: insuranceShare,
       );
@@ -943,7 +963,14 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           }
 
           // 1. Record consultation charge in ledger if copay was due (ONLY the patient copay share!)
-          if (expectedPatientShare > 0) {
+          // Prevent duplicate debt charges if this visit was already billed to the ledger
+          final existingLedgerRes = await customerRepository!.getCustomerLedger(targetCustId);
+          final existingEntries = existingLedgerRes.getOrElse(() => []);
+          final alreadyCharged = existingEntries.any((e) =>
+              e.type == CustomerLedgerType.debtCharge &&
+              (e.notes?.contains('Visit #${visit.id}') ?? false));
+
+          if (!alreadyCharged && expectedPatientShare > 0) {
             await customerRepository!.chargeCustomerDebt(
               customerId: targetCustId,
               amount: expectedPatientShare,
