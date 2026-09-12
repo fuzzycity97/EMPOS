@@ -205,5 +205,28 @@ void main() {
       expect(clientRepo.isConnected, isFalse);
       expect(clientRepo.connectedNodes.isEmpty, isTrue);
     });
+
+    test('Host Shelf server responds with 200 OK on HTTP /health and /status probes', () async {
+      const testPort = 9878;
+      await hostRepo.startHostServer(port: testPort);
+
+      final client = HttpClient();
+      final healthReq = await client.getUrl(Uri.parse('http://127.0.0.1:$testPort/health'));
+      final healthResp = await healthReq.close();
+      expect(healthResp.statusCode, HttpStatus.ok);
+
+      final statusReq = await client.getUrl(Uri.parse('http://127.0.0.1:$testPort/status'));
+      final statusResp = await statusReq.close();
+      expect(statusResp.statusCode, HttpStatus.ok);
+      client.close();
+    });
+
+    test('Client connect validates IP syntax and throws quickly on invalid IP format', () async {
+      expect(
+        () async => await clientRepo.connectToHost('invalid.ip.format.here', port: 9090),
+        throwsA(isA<FormatException>()),
+      );
+      expect(clientRepo.isConnected, isFalse);
+    });
   });
 }

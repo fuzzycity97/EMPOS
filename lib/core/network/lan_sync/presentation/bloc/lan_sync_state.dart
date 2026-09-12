@@ -59,9 +59,10 @@ class LanSyncDisconnected extends LanSyncState {
 
 class LanSyncError extends LanSyncState {
   final String message;
+  final String? failedIp;
 
-  const LanSyncError(this.message);
+  const LanSyncError(this.message, {this.failedIp});
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, failedIp];
 }

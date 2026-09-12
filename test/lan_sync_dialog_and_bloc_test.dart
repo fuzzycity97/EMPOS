@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:empos/core/network/lan_sync/domain/entities/connected_node.dart';
 import 'package:empos/core/network/lan_sync/domain/entities/sync_envelope.dart';
 import 'package:empos/core/network/lan_sync/domain/repositories/lan_sync_repository.dart';
+import 'package:empos/core/network/lan_sync/data/services/lan_discovery_service.dart';
 import 'package:empos/core/network/lan_sync/presentation/bloc/lan_sync_bloc.dart';
 import 'package:empos/core/network/lan_sync/presentation/bloc/lan_sync_event.dart';
 import 'package:empos/core/network/lan_sync/presentation/bloc/lan_sync_state.dart';
@@ -35,6 +36,10 @@ void main() {
       when(() => mockRepo.connectedNodes).thenReturn([]);
       when(() => mockRepo.isConnected).thenReturn(false);
       when(() => mockRepo.isHost).thenReturn(false);
+      when(() => mockRepo.discoveredHostsStream).thenAnswer((_) => const Stream.empty());
+      when(() => mockRepo.discoveredHosts).thenReturn([]);
+      when(() => mockRepo.startDiscoveryScanner()).thenReturn(null);
+      when(() => mockRepo.stopDiscoveryScanner()).thenReturn(null);
     });
 
     tearDown(() {
@@ -66,7 +71,7 @@ void main() {
       await bloc.close();
     });
 
-    test('ConnectToHostEvent failure emits LanSyncConnecting then LanSyncError', () async {
+    test('ConnectToHostEvent failure emits LanSyncConnecting then LanSyncError with failedIp', () async {
       when(() => mockRepo.connectToHost('192.168.1.50', port: 9090))
           .thenThrow(Exception('Socket connection refused'));
 
@@ -78,9 +83,16 @@ void main() {
         bloc.stream,
         emitsInOrder([
           isA<LanSyncConnecting>(),
-          isA<LanSyncError>().having((s) => s.message, 'message', contains('Socket connection refused')),
+          isA<LanSyncError>()
+              .having((s) => s.message, 'message', contains('Socket connection refused'))
+              .having((s) => s.failedIp, 'failedIp', '192.168.1.50'),
         ]),
       );
+
+      // Verify that connectedNodes update does NOT erase LanSyncError
+      nodesController.add([]);
+      await Future.delayed(const Duration(milliseconds: 50));
+      expect(bloc.state, isA<LanSyncError>());
 
       await bloc.close();
     });
@@ -104,21 +116,28 @@ void main() {
   group('LanSyncDialog Widget Presentation Tests', () {
     late MockLanSyncRepository mockRepo;
     late StreamController<List<ConnectedNode>> nodesController;
+    late StreamController<List<DiscoveredHost>> discoveryController;
 
     setUp(() {
       mockRepo = MockLanSyncRepository();
       nodesController = StreamController<List<ConnectedNode>>.broadcast();
+      discoveryController = StreamController<List<DiscoveredHost>>.broadcast();
       when(() => mockRepo.connectedNodesStream).thenAnswer((_) => nodesController.stream);
       when(() => mockRepo.connectedNodes).thenReturn([]);
       when(() => mockRepo.isConnected).thenReturn(false);
       when(() => mockRepo.isHost).thenReturn(false);
+      when(() => mockRepo.discoveredHostsStream).thenAnswer((_) => discoveryController.stream);
+      when(() => mockRepo.discoveredHosts).thenReturn([]);
+      when(() => mockRepo.startDiscoveryScanner()).thenReturn(null);
+      when(() => mockRepo.stopDiscoveryScanner()).thenReturn(null);
     });
 
     tearDown(() {
       nodesController.close();
+      discoveryController.close();
     });
 
-    testWidgets('Renders offline standalone mode with start host and connect buttons', (tester) async {
+    testWidgets('Renders offline standalone mode with start host, auto-discovery scanner and connect buttons', (tester) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -131,7 +150,7 @@ void main() {
           home: Scaffold(
             body: BlocProvider.value(
               value: bloc,
-              child: LanSyncDialog(),
+              child: const LanSyncDialog(),
             ),
           ),
         ),
@@ -142,7 +161,83 @@ void main() {
       expect(find.text('LAN Real-Time Sync Engine'), findsOneWidget);
       expect(find.text('Offline / Standalone Mode'), findsOneWidget);
       expect(find.text('Start as Host Server'), findsOneWidget);
+      expect(find.textContaining('Auto-Discovered LAN Servers'), findsOneWidget);
       expect(find.text('Connect to Hub Server'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(() async => await bloc.close());
+    });
+
+    testWidgets('Renders diagnostic error card with troubleshooting checklist when LanSyncError occurs', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => mockRepo.connectToHost('192.168.1.99', port: 9090))
+          .thenThrow(Exception('No EMPOS Host Server found at 192.168.1.99:9090.'));
+
+      final bloc = LanSyncBloc(lanSyncRepository: mockRepo);
+      bloc.add(const ConnectToHostEvent(hostIp: '192.168.1.99', port: 9090));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BlocProvider.value(
+              value: bloc,
+              child: const LanSyncDialog(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.textContaining('Cannot Reach Server (192.168.1.99)'), findsOneWidget);
+      expect(find.text('Diagnostic Troubleshooting Checklist:'), findsOneWidget);
+      expect(find.text('Retry Connection'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(() async => await bloc.close());
+    });
+
+    testWidgets('Renders discovered LAN servers and auto-populates on 1-Tap Connect', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => mockRepo.discoveredHosts).thenReturn([
+        DiscoveredHost(
+          id: 'reception-host',
+          role: 'Hub Host',
+          ip: '192.168.1.42',
+          port: 9090,
+          lastSeen: DateTime.now(),
+        ),
+      ]);
+      when(() => mockRepo.connectToHost('192.168.1.42', port: 9090)).thenAnswer((_) async {});
+
+      final bloc = LanSyncBloc(lanSyncRepository: mockRepo);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BlocProvider.value(
+              value: bloc,
+              child: const LanSyncDialog(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('reception-host'), findsOneWidget);
+      expect(find.text('1-Tap Connect'), findsOneWidget);
+
+      await tester.tap(find.text('1-Tap Connect'));
+      await tester.pump();
 
       await tester.pumpWidget(const SizedBox());
       await tester.runAsync(() async => await bloc.close());
@@ -170,7 +265,7 @@ void main() {
           home: Scaffold(
             body: BlocProvider.value(
               value: bloc,
-              child: LanSyncDialog(),
+              child: const LanSyncDialog(),
             ),
           ),
         ),
@@ -210,7 +305,7 @@ void main() {
           home: Scaffold(
             body: BlocProvider.value(
               value: bloc,
-              child: LanSyncDialog(),
+              child: const LanSyncDialog(),
             ),
           ),
         ),

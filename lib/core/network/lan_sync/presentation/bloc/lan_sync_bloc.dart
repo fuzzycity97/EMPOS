@@ -19,7 +19,8 @@ class LanSyncBloc extends Bloc<LanSyncEvent, LanSyncState> {
     _nodesSubscription = lanSyncRepository.connectedNodesStream.listen((nodes) {
       if (lanSyncRepository.isConnected) {
         add(const RefreshLanSyncStatusEvent());
-      } else if (state is! LanSyncDisconnected && state is! LanSyncInitial) {
+      } else if (state is LanSyncConnected) {
+        // Was connected, but connection dropped
         add(const RefreshLanSyncStatusEvent());
       }
     });
@@ -109,7 +110,15 @@ class LanSyncBloc extends Bloc<LanSyncEvent, LanSyncState> {
         ),
       );
     } catch (e) {
-      emit(LanSyncError('Failed to connect to host "${event.hostIp}": $e'));
+      String msg = e.toString();
+      if (msg.startsWith('SocketException: ')) {
+        msg = msg.substring('SocketException: '.length);
+      } else if (msg.startsWith('FormatException: ')) {
+        msg = msg.substring('FormatException: '.length);
+      } else if (msg.startsWith('TimeoutException: ')) {
+        msg = msg.substring('TimeoutException: '.length);
+      }
+      emit(LanSyncError(msg, failedIp: event.hostIp));
     }
   }
 
@@ -144,7 +153,7 @@ class LanSyncBloc extends Bloc<LanSyncEvent, LanSyncState> {
           localStationRole: localRole,
         ),
       );
-    } else {
+    } else if (state is! LanSyncError && state is! LanSyncConnecting) {
       emit(const LanSyncDisconnected());
     }
   }

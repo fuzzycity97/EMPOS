@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -10,6 +13,7 @@ import '../../domain/entities/connected_node.dart';
 import '../../domain/entities/sync_envelope.dart';
 import '../../domain/repositories/lan_sync_repository.dart';
 import '../message_routes.dart';
+import '../services/lan_discovery_service.dart';
 
 class LanSyncRepositoryImpl implements LanSyncRepository {
   static const String offlineQueueBoxName = 'empos_offline_sync_queue';
@@ -19,14 +23,23 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   WebSocketChannel? _clientChannel;
   StreamSubscription? _clientSubscription;
   Timer? _reconnectTimer;
+  Timer? _hostHeartbeatTimer;
+  Timer? _clientWatchdogTimer;
   final List<Timer> _pendingTimers = [];
+
+  final LanDiscoveryService _discoveryService = LanDiscoveryService();
 
   String? _targetHostIp;
   int _targetPort = 9090;
   bool _shouldAutoReconnect = false;
+  bool _isReconnecting = false;
+  int _reconnectAttempts = 0;
 
   final Set<WebSocketChannel> _activeChannels = {};
   final Map<WebSocketChannel, ConnectedNode> _nodeMap = {};
+  final Map<WebSocketChannel, DateTime> _channelLastSeen = {};
+  DateTime? _lastHostContact;
+
   ConnectedNode? _hostNode;
   List<ConnectedNode> _clientNetworkNodes = [];
 
@@ -44,6 +57,19 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   @override
   Stream<List<ConnectedNode>> get connectedNodesStream =>
       _connectedNodesController.stream;
+
+  @override
+  Stream<List<DiscoveredHost>> get discoveredHostsStream =>
+      _discoveryService.discoveredHostsStream;
+
+  @override
+  List<DiscoveredHost> get discoveredHosts => _discoveryService.discoveredHosts;
+
+  @override
+  void startDiscoveryScanner() => _discoveryService.startListening();
+
+  @override
+  void stopDiscoveryScanner() => _discoveryService.stopListening();
 
   @override
   List<ConnectedNode> get connectedNodes {
@@ -84,7 +110,6 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   static String? _instanceIdOverride;
   static String? _localRoleOverride;
   static String? _localAppNameOverride;
-
   static String? _primaryLocalIpOverride;
 
   static void setInstanceIdOverride(String? id) => _instanceIdOverride = id;
@@ -132,7 +157,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
       final interfaces = await NetworkInterface.list(
         type: InternetAddressType.IPv4,
         includeLoopback: false,
-      ).timeout(const Duration(milliseconds: 500), onTimeout: () => []);
+      ).timeout(const Duration(milliseconds: 600), onTimeout: () => []);
       for (final interface in interfaces) {
         for (final addr in interface.addresses) {
           if (!addr.isLoopback && !addr.isLinkLocal) {
@@ -142,6 +167,58 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
       }
     } catch (_) {}
     return '127.0.0.1';
+  }
+
+  /// Validates IPv4 syntax with descriptive exceptions
+  static void validateIpSyntax(String hostIp) {
+    final clean = hostIp.trim();
+    if (clean.isEmpty) {
+      throw const FormatException('Host IP address cannot be empty.');
+    }
+    if (clean.toLowerCase() == 'localhost' || clean == '127.0.0.1') {
+      return;
+    }
+    final parsed = InternetAddress.tryParse(clean);
+    if (parsed == null || parsed.type != InternetAddressType.IPv4) {
+      throw FormatException('Invalid IP format "$clean". Please enter a valid IPv4 address (e.g. 192.168.1.50).');
+    }
+  }
+
+  /// Fast TCP pre-flight check to provide instantaneous diagnostic feedback
+  static Future<void> preflightCheck(String hostIp, int port) async {
+    validateIpSyntax(hostIp);
+    final clean = hostIp.trim();
+
+    // Fast-path bypass for unit test environments
+    if (Platform.environment.containsKey('FLUTTER_TEST') && (clean == '127.0.0.1' || clean == 'localhost')) {
+      return;
+    }
+
+    try {
+      final socket = await Socket.connect(clean, port, timeout: const Duration(milliseconds: 2500));
+      await socket.close();
+    } on SocketException catch (e) {
+      final code = e.osError?.errorCode ?? 0;
+      final msg = e.message.toLowerCase();
+      if (code == 1225 || code == 111 || msg.contains('connection refused') || msg.contains('refused')) {
+        throw SocketException(
+          'No EMPOS Host Server is running at $clean:$port.\n'
+          'Verify that the Host Server is started on that PC.',
+        );
+      } else if (code == 10051 || code == 113 || msg.contains('unreachable') || msg.contains('no route')) {
+        throw SocketException(
+          'Host $clean is unreachable.\n'
+          'Ensure both this station and the Host PC are on the same Wi-Fi / LAN network.',
+        );
+      } else {
+        throw SocketException('Cannot connect to $clean:$port: ${e.message}');
+      }
+    } on TimeoutException {
+      throw TimeoutException(
+        'Connection to $clean:$port timed out.\n'
+        'Check the IP address or verify that Windows Firewall is not blocking port $port.',
+      );
+    }
   }
 
   Future<Box<dynamic>?> _getOfflineQueueBox() async {
@@ -176,19 +253,26 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
           final rawStr = raw.toString();
           if (_isHost) {
             for (final ch in _activeChannels) {
-              try {
-                ch.sink.add(rawStr);
-              } catch (_) {}
+              _safeSend(ch, rawStr);
             }
           } else if (_clientChannel != null && _isConnected) {
-            try {
-              _clientChannel!.sink.add(rawStr);
-            } catch (_) {}
+            _safeSend(_clientChannel, rawStr);
           }
           await box.delete(key);
         }
       }
     } catch (_) {}
+  }
+
+  bool _safeSend(WebSocketChannel? channel, String rawData) {
+    if (channel == null) return false;
+    try {
+      channel.sink.add(rawData);
+      return true;
+    } catch (e) {
+      debugPrint('LanSync safeSend suppressed: $e');
+      return false;
+    }
   }
 
   @override
@@ -205,7 +289,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
       ipAddress: localIp,
     );
 
-    final handler = webSocketHandler((WebSocketChannel channel) {
+    final wsHandler = webSocketHandler((WebSocketChannel channel) {
       final nodeId = 'station-${DateTime.now().millisecondsSinceEpoch}-${_activeChannels.length + 1}';
       final placeholderNode = ConnectedNode(
         id: nodeId,
@@ -215,6 +299,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
 
       _activeChannels.add(channel);
       _nodeMap[channel] = placeholderNode;
+      _channelLastSeen[channel] = DateTime.now();
 
       if (!_connectedNodesController.isClosed) {
         _connectedNodesController.add(connectedNodes);
@@ -226,8 +311,25 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
       channel.stream.listen(
         (data) {
           try {
+            _channelLastSeen[channel] = DateTime.now();
             final raw = data.toString();
             final envelope = SyncEnvelope.fromRawJson(raw);
+
+            // Handle Heartbeat Pong
+            if (envelope.type == MessageRoutes.pong) {
+              return;
+            }
+
+            // Handle Heartbeat Ping (reply with pong)
+            if (envelope.type == MessageRoutes.ping) {
+              final pong = SyncEnvelope.create(
+                type: MessageRoutes.pong,
+                senderId: _hostNode?.id ?? 'host-server',
+                senderRole: _hostNode?.role ?? 'Hub Host Server',
+              );
+              _safeSend(channel, pong.toRawJson());
+              return;
+            }
 
             // Handle Node Joined Handshake
             if (envelope.type == MessageRoutes.nodeJoined) {
@@ -246,6 +348,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
               for (final stale in staleChannels) {
                 _activeChannels.remove(stale);
                 _nodeMap.remove(stale);
+                _channelLastSeen.remove(stale);
                 try {
                   stale.sink.close();
                 } catch (_) {}
@@ -269,6 +372,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
             } else if (envelope.type == MessageRoutes.nodeLeft) {
               _activeChannels.remove(channel);
               _nodeMap.remove(channel);
+              _channelLastSeen.remove(channel);
               if (!_connectedNodesController.isClosed) {
                 _connectedNodesController.add(connectedNodes);
               }
@@ -282,9 +386,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
             // Relay to all other connected clients (Hub topology)
             for (final other in _activeChannels) {
               if (other != channel) {
-                try {
-                  other.sink.add(raw);
-                } catch (_) {}
+                _safeSend(other, raw);
               }
             }
           } catch (_) {}
@@ -292,6 +394,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
         onDone: () {
           _activeChannels.remove(channel);
           _nodeMap.remove(channel);
+          _channelLastSeen.remove(channel);
           if (!_connectedNodesController.isClosed) {
             _connectedNodesController.add(connectedNodes);
           }
@@ -300,6 +403,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
         onError: (err) {
           _activeChannels.remove(channel);
           _nodeMap.remove(channel);
+          _channelLastSeen.remove(channel);
           if (!_connectedNodesController.isClosed) {
             _connectedNodesController.add(connectedNodes);
           }
@@ -309,9 +413,85 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
       );
     });
 
-    _server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port, shared: true);
+    // Shelf cascade handler: serves HTTP /health and /status, passes WebSocket upgrades through
+    final cascade = shelf.Cascade().add((shelf.Request request) {
+      final isUpgrade = request.headers['upgrade']?.toLowerCase() == 'websocket';
+      if (!isUpgrade &&
+          request.method == 'GET' &&
+          (request.url.path == 'health' || request.url.path == 'status')) {
+        return shelf.Response.ok(
+          jsonEncode({
+            'status': 'active',
+            'app': 'EMPOS',
+            'isHost': true,
+            'hostId': _hostNode?.id ?? 'host-server',
+            'port': port,
+            'connectedStations': _activeChannels.length,
+            'timestamp': DateTime.now().toIso8601String(),
+          }),
+          headers: {
+            'content-type': 'application/json',
+            'access-control-allow-origin': '*',
+          },
+        );
+      }
+      return wsHandler(request);
+    });
+
+    _server = await shelf_io.serve(cascade.handler, InternetAddress.anyIPv4, port, shared: false);
     _isHost = true;
     _isConnected = true;
+
+    // Start UDP Host Beacon for Zero-Config Client Auto-Discovery
+    _discoveryService.startHostBeacon(
+      hostId: localId,
+      hostRole: localRole,
+      hostIp: localIp,
+      port: port,
+    );
+
+    // Start 6-Second Bidirectional Ping-Pong Heartbeat
+    _hostHeartbeatTimer?.cancel();
+    _hostHeartbeatTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!_isHost || _server == null) return;
+
+      final now = DateTime.now();
+      final deadChannels = <WebSocketChannel>[];
+
+      // Prune inactive channels that missed 2 consecutive pings (16s)
+      _channelLastSeen.forEach((channel, lastSeen) {
+        if (now.difference(lastSeen).inSeconds > 16) {
+          deadChannels.add(channel);
+        }
+      });
+
+      for (final dead in deadChannels) {
+        _activeChannels.remove(dead);
+        _nodeMap.remove(dead);
+        _channelLastSeen.remove(dead);
+        try {
+          dead.sink.close();
+        } catch (_) {}
+      }
+
+      if (deadChannels.isNotEmpty) {
+        if (!_connectedNodesController.isClosed) {
+          _connectedNodesController.add(connectedNodes);
+        }
+        _broadcastPeerListToClients();
+      }
+
+      // Send Ping envelope to all surviving stations
+      final ping = SyncEnvelope.create(
+        type: MessageRoutes.ping,
+        senderId: _hostNode?.id ?? 'host-server',
+        senderRole: _hostNode?.role ?? 'Hub Host Server',
+      );
+      final raw = ping.toRawJson();
+      for (final ch in _activeChannels) {
+        _safeSend(ch, raw);
+      }
+    });
 
     // Persist Host profile for auto-reconnection on next boot
     try {
@@ -342,9 +522,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
 
     final raw = peerListEnvelope.toRawJson();
     for (final channel in _activeChannels) {
-      try {
-        channel.sink.add(raw);
-      } catch (_) {}
+      _safeSend(channel, raw);
     }
   }
 
@@ -353,37 +531,46 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
     await disconnect();
 
     _shouldAutoReconnect = true;
-    _targetHostIp = hostIp;
+    _targetHostIp = hostIp.trim();
     _targetPort = port;
+    _reconnectAttempts = 0;
 
     // Persist Client profile for auto-reconnection on next boot
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_lanProfileStorageKey, jsonEncode({
         'role': 'client',
-        'hostIp': hostIp,
+        'hostIp': _targetHostIp,
         'port': port,
         'timestamp': DateTime.now().toIso8601String(),
       }));
     } catch (_) {}
 
-    await _establishClientConnection(hostIp, port);
+    await _establishClientConnection(_targetHostIp!, port, isRetry: false);
   }
 
-  Future<void> _establishClientConnection(String hostIp, int port) async {
+  Future<void> _establishClientConnection(String hostIp, int port, {bool isRetry = false}) async {
+    // Run instant pre-flight diagnostic check on first attempt
+    if (!isRetry) {
+      await preflightCheck(hostIp, port);
+    }
+
     try {
       final uri = Uri.parse('ws://$hostIp:$port');
       final channel = WebSocketChannel.connect(uri);
 
-      // Await real connection establishment to prevent false-positive optimistic connection
+      // Await connection handshake with a 3.5-second timeout
       await channel.ready.timeout(
-        const Duration(seconds: 4),
-        onTimeout: () => throw TimeoutException('Connection to $hostIp:$port timed out'),
+        const Duration(milliseconds: 3500),
+        onTimeout: () => throw TimeoutException('Connection to $hostIp:$port timed out.'),
       );
 
       _clientChannel = channel;
       _isHost = false;
       _isConnected = true;
+      _reconnectAttempts = 0;
+      _isReconnecting = false;
+      _lastHostContact = DateTime.now();
 
       final localIp = await getPrimaryLocalIp();
       final localId = getLocalInstanceId();
@@ -395,7 +582,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
         ipAddress: localIp,
       );
 
-      // Initialize mesh nodes with self and host
+      // Initialize network nodes with self and host
       _clientNetworkNodes = [
         ConnectedNode(id: 'host-server', role: 'Hub Host', ipAddress: hostIp),
         clientSelfNode,
@@ -408,8 +595,20 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
       _clientSubscription = channel.stream.listen(
         (data) {
           try {
+            _lastHostContact = DateTime.now();
             final raw = data.toString();
             final envelope = SyncEnvelope.fromRawJson(raw);
+
+            // Respond to Host Ping with Pong
+            if (envelope.type == MessageRoutes.ping) {
+              final pong = SyncEnvelope.create(
+                type: MessageRoutes.pong,
+                senderId: localId,
+                senderRole: localRole,
+              );
+              _safeSend(_clientChannel, pong.toRawJson());
+              return;
+            }
 
             // Handle Peer List Update from Host
             if (envelope.type == MessageRoutes.peerListUpdate ||
@@ -440,6 +639,17 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
         cancelOnError: true,
       );
 
+      // Setup Client Watchdog Timer: Checks host liveness every 5 seconds
+      _clientWatchdogTimer?.cancel();
+      _clientWatchdogTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+        if (!_isConnected || _clientChannel == null) return;
+        if (_lastHostContact != null &&
+            DateTime.now().difference(_lastHostContact!).inSeconds > 16) {
+          debugPrint('LanSync: Host heartbeat lost (>16s). Initiating auto-reconnect...');
+          _handleClientDisconnect();
+        }
+      });
+
       // Send node joined handshake with real instance ID and role
       final joinEnvelope = SyncEnvelope.create(
         type: MessageRoutes.nodeJoined,
@@ -448,6 +658,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
         payload: {
           'ip': localIp,
           'hostname': Platform.localHostname,
+          if (_localAppNameOverride != null) 'appName': _localAppNameOverride,
         },
       );
       await broadcast(joinEnvelope);
@@ -467,13 +678,8 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
         }
       }
 
-      // Ping 1 at 1 second
       _pendingTimers.add(Timer(const Duration(milliseconds: 1000), sendStateRequest));
-
-      // Ping 2 at 3 seconds
       _pendingTimers.add(Timer(const Duration(seconds: 3), sendStateRequest));
-
-      // Ping 3 at 6 seconds
       _pendingTimers.add(Timer(const Duration(seconds: 6), sendStateRequest));
     } catch (e) {
       _handleClientDisconnect();
@@ -487,6 +693,8 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
     _clientSubscription = null;
     _clientChannel = null;
     _clientNetworkNodes = [];
+    _clientWatchdogTimer?.cancel();
+    _clientWatchdogTimer = null;
 
     _cancelPendingTimers();
 
@@ -507,17 +715,34 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   }
 
   void _scheduleReconnect() {
+    if (!_shouldAutoReconnect || _isConnected || _isHost || _targetHostIp == null) {
+      return;
+    }
+    if (_isReconnecting) return;
+
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(const Duration(seconds: 3), () async {
-      if (_shouldAutoReconnect && !_isConnected && !_isHost && _targetHostIp != null) {
-        try {
-          await _establishClientConnection(_targetHostIp!, _targetPort);
-        } catch (_) {
-          // If attempt fails, schedule next retry loop
-          if (_shouldAutoReconnect && !_isConnected && !_isHost) {
-            _scheduleReconnect();
-          }
+
+    // Exponential backoff: 2s, 4s, 8s, max 16s + jitter
+    final baseSeconds = math.min(16, 2 * math.pow(2, math.min(3, _reconnectAttempts)).toInt());
+    final jitterMs = math.Random().nextInt(600);
+    final delay = Duration(milliseconds: (baseSeconds * 1000) + jitterMs);
+
+    _reconnectTimer = Timer(delay, () async {
+      if (!_shouldAutoReconnect || _isConnected || _isHost || _targetHostIp == null) {
+        return;
+      }
+      _isReconnecting = true;
+      try {
+        await _establishClientConnection(_targetHostIp!, _targetPort, isRetry: true);
+        _reconnectAttempts = 0;
+      } catch (_) {
+        _reconnectAttempts++;
+        if (_shouldAutoReconnect && !_isConnected && !_isHost) {
+          _isReconnecting = false;
+          _scheduleReconnect();
         }
+      } finally {
+        _isReconnecting = false;
       }
     });
   }
@@ -538,9 +763,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
       if (_activeChannels.isNotEmpty) {
         // Broadcast to all connected clients
         for (final channel in _activeChannels) {
-          try {
-            channel.sink.add(raw);
-          } catch (_) {}
+          _safeSend(channel, raw);
         }
       } else if (!isTransient) {
         // Host has no connected peers - queue envelope in outbox
@@ -552,12 +775,9 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
       }
     } else {
       if (_clientChannel != null && _isConnected) {
-        try {
-          _clientChannel!.sink.add(raw);
-        } catch (_) {
-          if (!isTransient) {
-            await _enqueueOffline(raw);
-          }
+        final sent = _safeSend(_clientChannel, raw);
+        if (!sent && !isTransient) {
+          await _enqueueOffline(raw);
         }
       } else if (!isTransient) {
         // Client is offline - queue envelope in outbox
@@ -569,11 +789,19 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   @override
   Future<void> disconnect({bool clearPersistedRole = true}) async {
     _shouldAutoReconnect = false;
+    _isReconnecting = false;
+    _reconnectAttempts = 0;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _hostHeartbeatTimer?.cancel();
+    _hostHeartbeatTimer = null;
+    _clientWatchdogTimer?.cancel();
+    _clientWatchdogTimer = null;
     _cancelPendingTimers();
 
-    // If client, notify host gracefully if possible
+    await _discoveryService.stopHostBeacon();
+
+    // If client, notify host gracefully
     if (!_isHost && _clientChannel != null && _isConnected) {
       try {
         final leaveEnvelope = SyncEnvelope.create(
@@ -581,7 +809,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
           senderId: getLocalInstanceId(),
           senderRole: getLocalStationRole(isHost: false),
         );
-        _clientChannel!.sink.add(leaveEnvelope.toRawJson());
+        _safeSend(_clientChannel, leaveEnvelope.toRawJson());
       } catch (_) {}
     }
 
@@ -595,6 +823,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
     final channelsToClose = _activeChannels.toList();
     _activeChannels.clear();
     _nodeMap.clear();
+    _channelLastSeen.clear();
     _hostNode = null;
     _clientNetworkNodes = [];
 
@@ -682,6 +911,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
 
   void dispose() {
     disconnect();
+    _discoveryService.dispose();
     if (!_incomingEventsController.isClosed) {
       _incomingEventsController.close();
     }
