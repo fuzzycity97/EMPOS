@@ -115,6 +115,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   static void setInstanceIdOverride(String? id) => _instanceIdOverride = id;
   static void setLocalRoleOverride(String? role) => _localRoleOverride = role;
   static void setLocalAppNameOverride(String? app) => _localAppNameOverride = app;
+  static String? get localAppNameOverride => _localAppNameOverride;
   static void setPrimaryLocalIpOverride(String? ip) => _primaryLocalIpOverride = ip;
 
   static String getLocalInstanceId() {
@@ -219,6 +220,60 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
         'Check the IP address or verify that Windows Firewall is not blocking port $port.',
       );
     }
+  }
+
+  static Future<String?> discoverHostServer({int port = 9090}) async {
+    // 1. Probe localhost first (e.g. multi-instance on same desktop)
+    try {
+      final socket = await Socket.connect('127.0.0.1', port, timeout: const Duration(milliseconds: 150));
+      socket.destroy();
+      return '127.0.0.1';
+    } catch (_) {}
+
+    // 2. Probe last saved IP from SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedIp = prefs.getString('empos_last_connected_host_ip');
+      if (savedIp != null && savedIp.isNotEmpty && savedIp != '127.0.0.1') {
+        final socket = await Socket.connect(savedIp, port, timeout: const Duration(milliseconds: 300));
+        socket.destroy();
+        return savedIp;
+      }
+    } catch (_) {}
+
+    // 3. Scan local network subnet
+    try {
+      final localIp = await getPrimaryLocalIp();
+      if (localIp != '127.0.0.1' && localIp.contains('.')) {
+        final subnet = localIp.substring(0, localIp.lastIndexOf('.') + 1);
+        final completer = Completer<String?>();
+        var pending = 0;
+        for (var i = 1; i <= 254; i++) {
+          final ip = '$subnet$i';
+          if (ip == localIp) continue;
+          pending++;
+          Socket.connect(ip, port, timeout: const Duration(milliseconds: 500)).then((s) {
+            s.destroy();
+            if (!completer.isCompleted) {
+              completer.complete(ip);
+            }
+          }).catchError((_) {
+            pending--;
+            if (pending <= 0 && !completer.isCompleted) {
+              completer.complete(null);
+            }
+          });
+        }
+
+        final discovered = await completer.future.timeout(
+          const Duration(milliseconds: 800),
+          onTimeout: () => null,
+        );
+        if (discovered != null) return discovered;
+      }
+    } catch (_) {}
+
+    return null;
   }
 
   Future<Box<dynamic>?> _getOfflineQueueBox() async {
@@ -544,6 +599,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
         'port': port,
         'timestamp': DateTime.now().toIso8601String(),
       }));
+      await prefs.setString('empos_last_connected_host_ip', hostIp);
     } catch (_) {}
 
     await _establishClientConnection(_targetHostIp!, port, isRetry: false);

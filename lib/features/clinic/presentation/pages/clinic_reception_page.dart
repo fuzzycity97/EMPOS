@@ -208,7 +208,7 @@ class ClinicReceptionPage extends StatelessWidget {
                 },
                 child: Row(
                   children: [
-                    Icon(Icons.settings_ethernet, size: 14, color: isDark ? Colors.white60 : Colors.black54),
+                    Icon(LucideIcons.network, size: 14, color: isDark ? Colors.white60 : Colors.black54),
                     const SizedBox(width: 4),
                     Text(
                       'LAN Settings',
@@ -246,7 +246,7 @@ class ClinicReceptionPage extends StatelessWidget {
             'Estimated Patient Wait',
             '$waitMinutes mins',
             '5-Visit Rolling Mean',
-            Icons.timer_outlined,
+            LucideIcons.clock,
             Colors.amber,
             isDark,
           ),
@@ -254,7 +254,7 @@ class ClinicReceptionPage extends StatelessWidget {
             'Waiting in Lobby',
             '$waitingCount',
             'Ready for consultation',
-            Icons.hourglass_top,
+            LucideIcons.hourglass,
             Colors.blue,
             isDark,
           ),
@@ -262,7 +262,7 @@ class ClinicReceptionPage extends StatelessWidget {
             'In Examination',
             '$inExamCount',
             'With Medical Staff',
-            Icons.medical_services_outlined,
+            LucideIcons.stethoscope,
             Colors.purple,
             isDark,
           ),
@@ -270,7 +270,7 @@ class ClinicReceptionPage extends StatelessWidget {
             'Awaiting Checkout',
             '$completedCount',
             'Ready for Copay & Billing',
-            Icons.receipt_long,
+            LucideIcons.receipt,
             Colors.teal,
             isDark,
           ),
@@ -337,7 +337,7 @@ class ClinicReceptionPage extends StatelessWidget {
                 ),
                 ElevatedButton.icon(
                   onPressed: () => _showCheckInDialog(context, patients),
-                  icon: const Icon(Icons.person_add_alt_1),
+                  icon: const Icon(LucideIcons.userPlus, size: 16),
                   label: const Text('Patient Intake & Check-In'),
                 ),
               ],
@@ -455,8 +455,9 @@ class ClinicReceptionPage extends StatelessWidget {
             leading: CircleAvatar(
               backgroundColor: isInRoom ? Colors.amber.withValues(alpha: 0.2) : Colors.blue.withValues(alpha: 0.2),
               child: Icon(
-                isInRoom ? Icons.meeting_room : Icons.person_outline,
+                isInRoom ? LucideIcons.doorOpen : LucideIcons.user,
                 color: isInRoom ? Colors.amber[800] : Colors.blue,
+                size: 20,
               ),
             ),
             title: Text(visit.patientName, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -465,7 +466,7 @@ class ClinicReceptionPage extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.folder_shared_outlined, color: Colors.blue),
+                  icon: const Icon(LucideIcons.folderOpen, color: Colors.blue, size: 18),
                   tooltip: 'View Patient File',
                   onPressed: () => _showPatientFileDialog(context, visit, patients),
                 ),
@@ -484,7 +485,7 @@ class ClinicReceptionPage extends StatelessWidget {
                   ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                  icon: const Icon(LucideIcons.circleX, color: Colors.red, size: 18),
                   onPressed: () {
                     bloc.add(
                       UpdateVisitStatusEvent(
@@ -831,7 +832,7 @@ class ClinicReceptionPage extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.folder_shared, color: Colors.blue),
+            const Icon(LucideIcons.folderOpen, color: Colors.blue, size: 20),
             const SizedBox(width: 8),
             Expanded(child: Text('Patient File: ${visit.patientName}', overflow: TextOverflow.ellipsis)),
           ],
@@ -884,7 +885,7 @@ class ClinicReceptionPage extends StatelessWidget {
               },
             ),
           OutlinedButton.icon(
-            icon: const Icon(Icons.edit_note, size: 16),
+            icon: const Icon(LucideIcons.filePenLine, size: 16),
             label: const Text('Edit Medical History'),
             onPressed: () {
               Navigator.of(ctx).pop();

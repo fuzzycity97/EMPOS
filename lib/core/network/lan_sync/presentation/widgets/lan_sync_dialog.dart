@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../constants/app_colors.dart';
 import '../../../../constants/app_dimensions.dart';
+import '../../data/repositories/lan_sync_repository_impl.dart';
 import '../../data/services/lan_discovery_service.dart';
 import '../../domain/entities/connected_node.dart';
 import '../../domain/repositories/lan_sync_repository.dart';
@@ -29,6 +30,8 @@ class _LanSyncDialogState extends State<LanSyncDialog> {
   late final TextEditingController _portController;
   String? _ipValidationError;
   LanSyncRepository? _repository;
+  bool _isAutoConnecting = false;
+  String? _autoStatusText;
 
   @override
   void initState() {
@@ -90,6 +93,47 @@ class _LanSyncDialogState extends State<LanSyncDialog> {
     context.read<LanSyncBloc>().add(ConnectToHostEvent(hostIp: ip, port: port));
   }
 
+  Future<void> _handleAutoConnect() async {
+    setState(() {
+      _isAutoConnecting = true;
+      _autoStatusText = 'جاري البحث عن السيرفر في الشبكة المحلية...';
+    });
+
+    // 1. Check UDP discovered hosts first
+    final udpHosts = _repository?.discoveredHosts ?? [];
+    if (udpHosts.isNotEmpty) {
+      final target = udpHosts.first;
+      if (mounted) {
+        _ipController.text = target.ip;
+        _portController.text = target.port.toString();
+        setState(() {
+          _isAutoConnecting = false;
+          _autoStatusText = 'تم العثور على السيرفر: ${target.ip} عبر البث المباشر!';
+        });
+        context.read<LanSyncBloc>().add(ConnectToHostEvent(hostIp: target.ip, port: target.port));
+      }
+      return;
+    }
+
+    // 2. Fallback to TCP subnet & localhost probe
+    final discoveredIp = await LanSyncRepositoryImpl.discoverHostServer(port: 9090);
+    if (!mounted) return;
+
+    if (discoveredIp != null) {
+      _ipController.text = discoveredIp;
+      setState(() {
+        _isAutoConnecting = false;
+        _autoStatusText = 'تم العثور على السيرفر: $discoveredIp';
+      });
+      context.read<LanSyncBloc>().add(ConnectToHostEvent(hostIp: discoveredIp, port: 9090));
+    } else {
+      setState(() {
+        _isAutoConnecting = false;
+        _autoStatusText = 'لم يتم العثور على سيرفر تلقائياً. يرجى إدخال عنوان الـ IP يدوياً.';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -100,7 +144,7 @@ class _LanSyncDialogState extends State<LanSyncDialog> {
       ),
       child: Container(
         width: 640,
-        constraints: const BoxConstraints(maxHeight: 700),
+        constraints: const BoxConstraints(maxHeight: 720),
         padding: const EdgeInsets.all(AppDimensions.space24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,7 +185,7 @@ class _LanSyncDialogState extends State<LanSyncDialog> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: AppColors.textSecondaryDark),
+                  icon: const Icon(LucideIcons.x, color: AppColors.textSecondaryDark),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -229,24 +273,49 @@ class _LanSyncDialogState extends State<LanSyncDialog> {
                                  state.message.contains('Port')))
                               Padding(
                                 padding: const EdgeInsets.only(top: 8),
-                                child: OutlinedButton.icon(
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.info,
-                                    side: const BorderSide(color: AppColors.info),
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                  ),
-                                  icon: const Icon(LucideIcons.link, size: 12),
-                                  label: const Text(
-                                    'Connect as Client to Local Host (127.0.0.1:9090)',
-                                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                                  ),
-                                  onPressed: () {
-                                    _ipController.text = '127.0.0.1';
-                                    _portController.text = '9090';
-                                    context.read<LanSyncBloc>().add(
-                                      const ConnectToHostEvent(hostIp: '127.0.0.1', port: 9090),
-                                    );
-                                  },
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.info,
+                                        side: const BorderSide(color: AppColors.info),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      ),
+                                      icon: const Icon(LucideIcons.link, size: 12),
+                                      label: const Text(
+                                        'Connect as Client to Local Host (127.0.0.1:9090)',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                      onPressed: () {
+                                        _ipController.text = '127.0.0.1';
+                                        _portController.text = '9090';
+                                        context.read<LanSyncBloc>().add(
+                                          const ConnectToHostEvent(hostIp: '127.0.0.1', port: 9090),
+                                        );
+                                      },
+                                    ),
+                                    OutlinedButton.icon(
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.info,
+                                        side: const BorderSide(color: AppColors.info),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      ),
+                                      icon: _isAutoConnecting
+                                          ? const SizedBox(
+                                              width: 12,
+                                              height: 12,
+                                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.info),
+                                            )
+                                          : const Icon(LucideIcons.search, size: 13),
+                                      label: const Text(
+                                        'بحث واتصال تلقائي بالسيرفر',
+                                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                      ),
+                                      onPressed: _isAutoConnecting ? null : _handleAutoConnect,
+                                    ),
+                                  ],
                                 ),
                               ),
                           ],
@@ -475,7 +544,7 @@ class _LanSyncDialogState extends State<LanSyncDialog> {
                         ),
                         const SizedBox(height: AppDimensions.space16),
 
-                        // OPTION 2: Auto-Discovery Scanner
+                        // OPTION 2: Auto-Discovery Scanner & Auto-Connect
                         StreamBuilder<List<DiscoveredHost>>(
                           stream: repo.discoveredHostsStream,
                           initialData: repo.discoveredHosts,
@@ -540,12 +609,42 @@ class _LanSyncDialogState extends State<LanSyncDialog> {
                                     ],
                                   ),
                                   const SizedBox(height: 8),
-                                  if (discovered.isEmpty)
+                                  if (discovered.isEmpty) ...[
                                     const Text(
                                       'Listening on Wi-Fi broadcast port 9091. When an EMPOS Host Server is active on this network, it will appear here automatically for 1-tap connection.',
                                       style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 11),
-                                    )
-                                  else ...[
+                                    ),
+                                    const SizedBox(height: 10),
+                                    // 1-Click Auto-Discovery & Auto-Connect Button
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.primary,
+                                        minimumSize: const Size(double.infinity, 38),
+                                        elevation: 1,
+                                      ),
+                                      icon: _isAutoConnecting
+                                          ? const SizedBox(
+                                              width: 14,
+                                              height: 14,
+                                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                            )
+                                          : const Icon(LucideIcons.zap, size: 16, color: Colors.white),
+                                      label: Text(
+                                        _isAutoConnecting
+                                            ? 'جاري فحص الشبكة والاتصال تلقائياً...'
+                                            : '⚡ اتصال تلقائي بالسيرفر المتاح (Auto-Connect)',
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                      ),
+                                      onPressed: _isAutoConnecting ? null : _handleAutoConnect,
+                                    ),
+                                    if (_autoStatusText != null) ...[
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        _autoStatusText!,
+                                        style: const TextStyle(color: AppColors.info, fontSize: 11),
+                                      ),
+                                    ],
+                                  ] else ...[
                                     const Text(
                                       'Found EMPOS Host Server on local network:',
                                       style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 11),
