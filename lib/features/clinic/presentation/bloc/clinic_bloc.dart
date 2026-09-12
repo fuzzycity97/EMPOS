@@ -7,6 +7,7 @@ import '../../../../core/network/lan_sync/domain/repositories/lan_sync_repositor
 import '../../../customers/data/models/customer_ledger_entry_model.dart';
 import '../../../customers/data/models/customer_model.dart';
 import '../../../customers/domain/entities/customer.dart';
+import '../../../customers/domain/entities/customer_ledger_entry.dart';
 import '../../../customers/domain/repositories/customer_repository.dart';
 import '../../../pos/domain/entities/payment_detail.dart';
 import '../../data/models/clinic_visit_model.dart';
@@ -889,15 +890,30 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
       );
 
       final totalFee = visit.totalFee;
-      final copayRatio = patient?.defaultCopayPercentage ?? 1.0;
-      final expectedPatientShare = visit.patientCopay > 0 ? visit.patientCopay : (totalFee * copayRatio);
+      final hasInsurance = patient?.insuranceProvider != null && (patient?.insuranceProvider?.trim().isNotEmpty ?? false);
+      final copayRatio = hasInsurance ? (patient?.defaultCopayPercentage ?? 1.0) : 1.0;
+
+      final double expectedPatientShare;
+      if (hasInsurance) {
+        if (visit.patientCopay > 0 && visit.patientCopay < totalFee) {
+          expectedPatientShare = visit.patientCopay;
+        } else {
+          expectedPatientShare = double.parse((totalFee * copayRatio).toStringAsFixed(2));
+        }
+      } else {
+        expectedPatientShare = visit.patientCopay > 0 ? visit.patientCopay : totalFee;
+      }
 
       final actualPaid = event.amountPaid ?? expectedPatientShare;
       final remainingDebt = (expectedPatientShare - actualPaid).clamp(0.0, double.infinity);
+      final insuranceShare = hasInsurance
+          ? (visit.insurancePaid > 0 ? visit.insurancePaid : double.parse((totalFee - expectedPatientShare).clamp(0.0, double.infinity).toStringAsFixed(2)))
+          : 0.0;
 
       final updatedVisit = visit.copyWith(
         isPaid: true,
         patientCopay: actualPaid,
+        insurancePaid: insuranceShare,
       );
       await _saveVisitLocally(updatedVisit);
 
@@ -926,12 +942,12 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
             await customerRepository!.saveCustomer(newCust);
           }
 
-          // 1. Record consultation charge in ledger if copay was due
+          // 1. Record consultation charge in ledger if copay was due (ONLY the patient copay share!)
           if (expectedPatientShare > 0) {
             await customerRepository!.chargeCustomerDebt(
               customerId: targetCustId,
               amount: expectedPatientShare,
-              notes: 'Clinic Consultation Fee (Visit #${visit.id})',
+              notes: 'Clinic Consultation Copay (Visit #${visit.id})',
             );
           }
 
@@ -944,6 +960,31 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
               notes: 'Copay Settlement at Reception (Visit #${visit.id})',
             );
           }
+
+          // 3. Self-healing audit reconciliation:
+          // Check for any legacy erroneous ledger entries that charged the full totalFee instead of expectedPatientShare
+          try {
+            final ledgerRes = await customerRepository!.getCustomerLedger(targetCustId);
+            final entries = ledgerRes.getOrElse(() => []);
+            for (final entry in entries) {
+              if (entry.type == CustomerLedgerType.debtCharge &&
+                  (entry.notes?.contains('Visit #${visit.id}') ?? false) &&
+                  entry.amount > expectedPatientShare + 0.01) {
+                final alreadyAdjusted = entries.any((e) =>
+                    e.type == CustomerLedgerType.debtPayment &&
+                    (e.notes?.contains('Adjustment for Visit #${visit.id}') ?? false));
+                if (!alreadyAdjusted) {
+                  final excess = entry.amount - expectedPatientShare;
+                  await customerRepository!.processDebtPayment(
+                    customerId: targetCustId,
+                    amount: excess,
+                    paymentTender: TenderType.customerAccount,
+                    notes: 'Insurance Carrier Settlement Credit (Adjustment for Visit #${visit.id})',
+                  );
+                }
+              }
+            }
+          } catch (_) {}
 
           final updatedCustRes = await customerRepository!.getCustomerById(targetCustId);
           final ledgerRes = await customerRepository!.getCustomerLedger(targetCustId);

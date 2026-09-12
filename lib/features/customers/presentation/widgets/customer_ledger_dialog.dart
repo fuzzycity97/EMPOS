@@ -3,11 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/date_formatter.dart';
 import '../../domain/entities/customer.dart';
 import '../../domain/entities/customer_ledger_entry.dart';
 import '../bloc/customer_bloc.dart';
+import '../bloc/customer_event.dart';
 import '../bloc/customer_state.dart';
 import 'charge_customer_debt_dialog.dart';
 import 'debt_payment_dialog.dart';
@@ -19,7 +21,20 @@ class CustomerLedgerDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
+    CustomerBloc? bloc;
+    try {
+      bloc = context.read<CustomerBloc>();
+    } catch (_) {
+      try {
+        bloc = sl<CustomerBloc>();
+      } catch (_) {}
+    }
+
+    if (bloc != null) {
+      bloc.add(SelectCustomerEvent(customer.id));
+    }
+
+    final content = Dialog(
       backgroundColor: AppColors.surfaceDark,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
@@ -435,5 +450,13 @@ class CustomerLedgerDialog extends StatelessWidget {
         ),
       ),
     );
+
+    if (bloc != null) {
+      return BlocProvider<CustomerBloc>.value(
+        value: bloc,
+        child: content,
+      );
+    }
+    return content;
   }
 }

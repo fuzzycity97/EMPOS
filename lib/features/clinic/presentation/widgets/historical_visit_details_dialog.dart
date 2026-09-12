@@ -1,11 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../customers/domain/entities/customer.dart';
+import '../../../customers/presentation/bloc/customer_bloc.dart';
 import '../../../customers/presentation/widgets/customer_ledger_dialog.dart';
 import '../../domain/entities/clinic_visit.dart';
 import '../../domain/entities/patient_profile.dart';
@@ -420,7 +423,14 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
     final hasCustomer = customer != null;
     final customerDebt = hasCustomer ? customer!.totalDebt : null;
     final isPaid = visit.isPaid || visit.totalFee <= 0.001;
-    final patientDue = isPaid ? 0.0 : visit.patientCopay;
+
+    final effectiveInsurance = visit.insurancePaid > 0.001
+        ? visit.insurancePaid
+        : ((visit.totalFee - visit.patientCopay).clamp(0.0, double.infinity));
+    final effectiveCopay = visit.patientCopay > 0.001
+        ? visit.patientCopay
+        : (visit.totalFee - effectiveInsurance);
+    final patientDue = isPaid ? 0.0 : effectiveCopay;
 
     final String statusText;
     final Color statusColor;
@@ -450,8 +460,8 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _financeStat('Total Fee', '${visit.totalFee.toStringAsFixed(2)} EGP', AppColors.textPrimaryDark),
-              _financeStat('Patient Copay', '${visit.patientCopay.toStringAsFixed(2)} EGP', AppColors.warning),
-              _financeStat('Insurance Covered', '${visit.insurancePaid.toStringAsFixed(2)} EGP', AppColors.primaryLight),
+              _financeStat('Patient Copay', '${effectiveCopay.toStringAsFixed(2)} EGP', AppColors.warning),
+              _financeStat('Insurance Covered', '${effectiveInsurance.toStringAsFixed(2)} EGP', AppColors.primaryLight),
               _financeStat(
                 'Payment Status',
                 statusText,
@@ -475,11 +485,13 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                       style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54),
                     ),
                     Text(
-                      '${customerDebt!.toStringAsFixed(2)} EGP Due',
+                      customerDebt != null && customerDebt > 0.001
+                          ? '${customerDebt.toStringAsFixed(2)} EGP Due'
+                          : '0.00 EGP (Settled)',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: customerDebt > 0 ? AppColors.warning : AppColors.success,
+                        color: customerDebt != null && customerDebt > 0.001 ? AppColors.warning : AppColors.success,
                       ),
                     ),
                   ],
@@ -490,9 +502,23 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                     side: BorderSide(color: isDark ? Colors.white24 : Colors.black26),
                   ),
                   onPressed: () {
+                    CustomerBloc? bloc;
+                    try {
+                      bloc = context.read<CustomerBloc>();
+                    } catch (_) {
+                      try {
+                        bloc = sl<CustomerBloc>();
+                      } catch (_) {}
+                    }
                     showDialog(
                       context: context,
-                      builder: (lCtx) => CustomerLedgerDialog(customer: customer!),
+                      builder: (lCtx) {
+                        final dialog = CustomerLedgerDialog(customer: customer!);
+                        if (bloc != null) {
+                          return BlocProvider<CustomerBloc>.value(value: bloc, child: dialog);
+                        }
+                        return dialog;
+                      },
                     );
                   },
                   icon: const Icon(LucideIcons.fileSpreadsheet, size: 14),

@@ -253,6 +253,69 @@ void main() {
       });
     });
 
+    test('Consultation completion preserves custom copay and calculates insurance coverage correctly (5000 EGP fee with 40% patient copay)', () async {
+      final visit = ClinicVisit(
+        id: 'vis_insurance_copay',
+        patientId: 'pat_koko',
+        patientName: 'koko',
+        doctorName: 'Dr. Sarah Connor',
+        queueNumber: 1,
+        checkInTime: DateTime.now(),
+        totalFee: 5000.0,
+        patientCopay: 2000.0,
+        insurancePaid: 3000.0,
+        appliedProcedures: const [
+          ProcedureItem(
+            id: 'proc_custom',
+            code: 'D0120',
+            name: 'Periodic Oral Evaluation & Odontogram',
+            standardFee: 5000.0,
+            insuranceCoveragePercentage: 0.60,
+          ),
+        ],
+      );
+
+      final result = await clinicRepository.completeVisit(visit);
+      expect(result.isRight(), true);
+      result.fold((l) => fail(l.message), (completed) {
+        expect(completed.totalFee, 5000.0);
+        expect(completed.patientCopay, 2000.0);
+        expect(completed.insurancePaid, 3000.0);
+      });
+    });
+
+    test('Consultation completion preserves doctor explicit fee (800 EGP) without being forced/overwritten by pin fee (500 EGP)', () async {
+      final visit = ClinicVisit(
+        id: 'vis_doctor_fee_800',
+        patientId: 'pat_samir',
+        patientName: 'Mohamed Samir',
+        doctorName: 'Dr. Specialist',
+        queueNumber: 2,
+        checkInTime: DateTime.now(),
+        totalFee: 800.0,
+        patientCopay: 800.0,
+        insurancePaid: 0.0,
+        appliedProcedures: const [
+          ProcedureItem(
+            id: 'proc_custom_pin_500',
+            code: 'OBS-01',
+            name: '3D Pin Note Procedure Finding',
+            standardFee: 500.0,
+            insuranceCoveragePercentage: 0.0,
+          ),
+        ],
+      );
+
+      final result = await clinicRepository.completeVisit(visit);
+      expect(result.isRight(), true);
+      result.fold((l) => fail(l.message), (completed) {
+        // Must preserve the doctor's explicit 800 EGP and NOT force the 500 EGP from the pin
+        expect(completed.totalFee, 800.0);
+        expect(completed.patientCopay, 800.0);
+        expect(completed.insurancePaid, 0.0);
+      });
+    });
+
     test('Rolling Mean Wait Time calculates queue wait from last 5 completed consultations', () async {
       const doctor = 'Dr. Hesham Medical';
 

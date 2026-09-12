@@ -551,9 +551,23 @@ class ClinicReceptionPage extends StatelessWidget {
                   );
 
               final totalFee = visit.totalFee;
-              final copayRatio = patient?.defaultCopayPercentage ?? 1.0;
-              final patientShare = visit.patientCopay > 0 ? visit.patientCopay : (totalFee * copayRatio);
-              final insuranceShare = visit.insurancePaid > 0 ? visit.insurancePaid : (totalFee - patientShare);
+              final hasInsurance = patient?.insuranceProvider != null && (patient?.insuranceProvider?.trim().isNotEmpty ?? false);
+              final copayRatio = hasInsurance ? (patient?.defaultCopayPercentage ?? 1.0) : 1.0;
+
+              final double patientShare;
+              final double insuranceShare;
+              if (hasInsurance) {
+                if (visit.patientCopay > 0 && visit.patientCopay < totalFee) {
+                  patientShare = visit.patientCopay;
+                  insuranceShare = visit.insurancePaid > 0 ? visit.insurancePaid : double.parse((totalFee - patientShare).toStringAsFixed(2));
+                } else {
+                  patientShare = double.parse((totalFee * copayRatio).toStringAsFixed(2));
+                  insuranceShare = double.parse((totalFee - patientShare).toStringAsFixed(2));
+                }
+              } else {
+                patientShare = visit.patientCopay > 0 ? visit.patientCopay : totalFee;
+                insuranceShare = 0.0;
+              }
 
               return Card(
                 key: ValueKey('billing_visit_${visit.id}'),

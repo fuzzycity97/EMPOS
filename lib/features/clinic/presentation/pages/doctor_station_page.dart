@@ -16,9 +16,12 @@ import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_event.dart'
 import '../../../../core/network/lan_sync/presentation/bloc/lan_sync_state.dart';
 import '../../../../core/network/lan_sync/presentation/widgets/lan_sync_dialog.dart';
 import '../../../customers/domain/entities/customer.dart';
+import '../../../customers/domain/entities/customer_ledger_entry.dart';
 import '../../../customers/presentation/bloc/customer_bloc.dart';
+import '../../../customers/presentation/bloc/customer_event.dart';
 import '../../../customers/presentation/bloc/customer_state.dart';
 import '../../../customers/presentation/widgets/customer_ledger_dialog.dart';
+import '../../../pos/domain/entities/payment_detail.dart';
 import '../../../bookings/domain/entities/booking_item.dart';
 import '../../../bookings/presentation/bloc/booking_bloc.dart';
 import '../../../bookings/presentation/bloc/booking_state.dart';
@@ -256,6 +259,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
               labResultsController.clear();
               doctorAttachmentsNotifier.value = [];
               _appliedProcedures.clear();
+              _partStatusesNotifier.value = {};
             }
 
             final activePatient = activeVisit != null
@@ -750,9 +754,10 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                 ? prescriptionController.text.trim().split(',')
                                                 : <String>[];
 
-                                            final copayRatio = activePatient?.defaultCopayPercentage ?? 1.0;
-                                            final patientCopay = totalFee * copayRatio;
-                                            final insurancePaid = totalFee - patientCopay;
+                                            final hasInsurance = activePatient?.insuranceProvider != null && (activePatient?.insuranceProvider?.trim().isNotEmpty ?? false);
+                                            final copayRatio = hasInsurance ? (activePatient?.defaultCopayPercentage ?? 1.0) : 1.0;
+                                            final patientCopay = hasInsurance ? double.parse((totalFee * copayRatio).toStringAsFixed(2)) : totalFee;
+                                            final insurancePaid = hasInsurance ? double.parse((totalFee - patientCopay).clamp(0.0, double.infinity).toStringAsFixed(2)) : 0.0;
 
                                             final currentToothSnapshot = loadedState.activeToothChart ?? [];
                                             final attList = doctorAttachmentsNotifier.value;
@@ -767,13 +772,19 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                               prescriptions: meds,
                                               toothChart: currentToothSnapshot,
                                               appliedProcedures: _appliedProcedures.isNotEmpty
-                                                  ? List.from(_appliedProcedures)
+                                                  ? _appliedProcedures.map((proc) {
+                                                      if (hasInsurance && proc.insuranceCoveragePercentage <= 0.0001) {
+                                                        return proc.copyWith(insuranceCoveragePercentage: (1.0 - copayRatio));
+                                                      }
+                                                      return proc;
+                                                    }).toList()
                                                   : [
                                                       ProcedureItem(
                                                         id: 'proc_${DateTime.now().millisecondsSinceEpoch}',
                                                         code: blueprint.isDental ? 'D0120' : '99213',
                                                         name: blueprint.isDental ? 'Periodic Oral Evaluation & Odontogram' : 'Clinical Examination',
                                                         standardFee: totalFee,
+                                                        insuranceCoveragePercentage: hasInsurance ? (1.0 - copayRatio) : 0.0,
                                                       ),
                                                     ],
                                               totalFee: totalFee,
@@ -804,6 +815,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                             labResultsController.clear();
                                             doctorAttachmentsNotifier.value = [];
                                             _appliedProcedures.clear();
+                                            _partStatusesNotifier.value = {};
                                             if (blueprint.isDental) {
                                               bloc.add(const ResetToothChartEvent());
                                             }
@@ -1177,14 +1189,63 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
       }
     } catch (_) {}
 
-    double totalPaid = 0.0;
+    // Self-healing check: Reconcile any historical visits where customer ledger was overcharged
+    if (matchedCustomer != null && matchedCustomer.totalDebt > 0.001) {
+      try {
+        final custRepo = context.read<ClinicBloc>().customerRepository;
+        if (custRepo != null) {
+          custRepo.getCustomerLedger(matchedCustomer.id).then((ledgerRes) async {
+            final entries = ledgerRes.getOrElse(() => []);
+            double totalExcess = 0.0;
+            for (final v in historicalVisits) {
+              final effInsurance = v.insurancePaid > 0
+                  ? v.insurancePaid
+                  : (v.totalFee > v.patientCopay ? (v.totalFee - v.patientCopay) : 0.0);
+              final effCopay = v.patientCopay > 0 ? v.patientCopay : (v.totalFee - effInsurance);
+              for (final entry in entries) {
+                if (entry.type == CustomerLedgerType.debtCharge &&
+                    (entry.notes?.contains('Visit #${v.id}') ?? false) &&
+                    entry.amount > effCopay + 0.01) {
+                  final alreadyAdjusted = entries.any((e) =>
+                      e.type == CustomerLedgerType.debtPayment &&
+                      (e.notes?.contains('Adjustment for Visit #${v.id}') ?? false));
+                  if (!alreadyAdjusted) {
+                    final excess = entry.amount - effCopay;
+                    totalExcess += excess;
+                    await custRepo.processDebtPayment(
+                      customerId: matchedCustomer!.id,
+                      amount: excess,
+                      paymentTender: TenderType.customerAccount,
+                      notes: 'Insurance Carrier Settlement Credit (Adjustment for Visit #${v.id})',
+                    );
+                  }
+                }
+              }
+            }
+            if (totalExcess > 0 && context.mounted) {
+              context.read<CustomerBloc>().add(const LoadCustomersEvent());
+            }
+          });
+        }
+      } catch (_) {}
+    }
+
+    double totalPatientPaid = 0.0;
+    double totalInsurancePaid = 0.0;
     double totalPending = 0.0;
+
     for (final v in historicalVisits) {
+      final effectiveInsurance = v.insurancePaid > 0
+          ? v.insurancePaid
+          : (v.totalFee > v.patientCopay ? (v.totalFee - v.patientCopay) : 0.0);
+      final effectiveCopay = v.patientCopay > 0 ? v.patientCopay : (v.totalFee - effectiveInsurance);
+
       if (v.isPaid || v.totalFee <= 0.001) {
-        totalPaid += v.totalFee;
+        totalPatientPaid += effectiveCopay;
+        totalInsurancePaid += effectiveInsurance;
       } else {
-        totalPaid += v.insurancePaid;
-        totalPending += v.patientCopay;
+        totalInsurancePaid += effectiveInsurance;
+        totalPending += effectiveCopay;
       }
     }
 
@@ -1206,9 +1267,23 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
               TextButton.icon(
                 style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
                 onPressed: () {
+                  CustomerBloc? bloc;
+                  try {
+                    bloc = context.read<CustomerBloc>();
+                  } catch (_) {
+                    try {
+                      bloc = sl<CustomerBloc>();
+                    } catch (_) {}
+                  }
                   showDialog(
                     context: context,
-                    builder: (_) => CustomerLedgerDialog(customer: matchedCustomer!),
+                    builder: (_) {
+                      final dialog = CustomerLedgerDialog(customer: matchedCustomer!);
+                      if (bloc != null) {
+                        return BlocProvider<CustomerBloc>.value(value: bloc, child: dialog);
+                      }
+                      return dialog;
+                    },
                   );
                 },
                 icon: const Icon(LucideIcons.fileSpreadsheet, size: 14),
@@ -1243,11 +1318,22 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                     Container(height: 24, width: 1, color: Colors.white24),
                     Column(
                       children: [
-                        const Text('TOTAL SETTLED', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+                        Text(totalInsurancePaid > 0 ? 'PATIENT PAID' : 'TOTAL SETTLED',
+                            style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 2),
-                        Text('EGP ${totalPaid.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green)),
+                        Text('EGP ${totalPatientPaid.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green)),
                       ],
                     ),
+                    if (totalInsurancePaid > 0) ...[
+                      Container(height: 24, width: 1, color: Colors.white24),
+                      Column(
+                        children: [
+                          const Text('INSURANCE COVERED', style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 2),
+                          Text('EGP ${totalInsurancePaid.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.lightBlueAccent)),
+                        ],
+                      ),
+                    ],
                     Container(height: 24, width: 1, color: Colors.white24),
                     Column(
                       children: [
@@ -1303,13 +1389,19 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                           final dateStr = DateFormat('yyyy-MM-dd • hh:mm a').format(hVisit.checkInTime);
                           final treatedTeeth = hVisit.toothChart.where((t) => t.state != ToothState.healthy).toList();
                           final isFullySettled = hVisit.isPaid || hVisit.totalFee <= 0.001;
-                          final visitDue = isFullySettled ? 0.0 : hVisit.patientCopay;
-                          final isInsuranceCovered = !isFullySettled && hVisit.insurancePaid > 0.001;
-                          final insInfo = hVisit.insurancePaid > 0.001
-                              ? ' (Ins: EGP ${hVisit.insurancePaid.toStringAsFixed(2)})'
+                          final effectiveInsurance = hVisit.insurancePaid > 0.001
+                              ? hVisit.insurancePaid
+                              : ((hVisit.totalFee - hVisit.patientCopay).clamp(0.0, double.infinity));
+                          final effectiveCopay = hVisit.patientCopay > 0.001
+                              ? hVisit.patientCopay
+                              : (hVisit.totalFee - effectiveInsurance);
+                          final isInsuranceCovered = !isFullySettled && effectiveInsurance > 0.001;
+                          final visitDue = isFullySettled ? 0.0 : effectiveCopay;
+                          final insInfo = effectiveInsurance > 0.001
+                              ? ' (Carrier: EGP ${effectiveInsurance.toStringAsFixed(2)})'
                               : '';
                           final settlementInfo = isFullySettled
-                              ? 'Copay Settled: EGP ${hVisit.patientCopay.toStringAsFixed(2)}'
+                              ? 'Copay Settled: EGP ${effectiveCopay.toStringAsFixed(2)}$insInfo'
                               : 'Due: EGP ${visitDue.toStringAsFixed(2)}$insInfo';
 
                           return InkWell(

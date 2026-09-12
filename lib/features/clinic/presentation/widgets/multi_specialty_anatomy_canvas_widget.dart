@@ -872,6 +872,19 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                                           ),
                                         ),
                                       ),
+                                    // Custom pins placed on the active anatomical model / workbench
+                                    if (discipline != ClinicalSpecialtyDiscipline.ophthalmology)
+                                      ...activeStatuses.values.where((e) => e.isCustomPin).map((pin) {
+                                        final w = constraints.maxWidth > 0 ? constraints.maxWidth : 400.0;
+                                        final h = constraints.maxHeight > 0 ? constraints.maxHeight : 300.0;
+                                        final px = (pin.normalizedX ?? 0.5) * w;
+                                        final py = (pin.normalizedY ?? 0.5) * h;
+                                        return Positioned(
+                                          left: (px - 14).clamp(4.0, (w - 110.0).clamp(4.0, double.infinity)),
+                                          top: (py - 14).clamp(4.0, (h - 32.0).clamp(4.0, double.infinity)),
+                                          child: _buildCustomPinMarker(context, pin, isDark),
+                                        );
+                                      }),
                                   ],
                                 );
                               },
@@ -1762,8 +1775,8 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                                                       final px = (pin.normalizedX ?? 0.5) * w;
                                                       final py = (pin.normalizedY ?? 0.5) * h;
                                                       return Positioned(
-                                                        left: px - 12,
-                                                        top: py - 12,
+                                                        left: (px - 14).clamp(4.0, (w - 110.0).clamp(4.0, double.infinity)),
+                                                        top: (py - 14).clamp(4.0, (h - 32.0).clamp(4.0, double.infinity)),
                                                         child: _buildCustomPinMarker(context, pin, isDark),
                                                       );
                                                     }),
@@ -6406,47 +6419,81 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
 
   Widget _buildCustomPinMarker(BuildContext context, ClinicalAnatomyStatusEntry pin, bool isDark) {
     final color = pin.visualColor;
+    final fee = pin.status.suggestedProcedure.standardFee;
     return Tooltip(
       key: ValueKey('tooltip_${pin.partKey}'),
-      message: '${pin.partName}: ${pin.clinicalNote.isNotEmpty ? pin.clinicalNote : pin.status.title}',
-      child: InkWell(
-        key: ValueKey('pin_${pin.partKey}'),
-        onTap: () => _openStatusInspector(
-          context,
-          partKey: pin.partKey,
-          partName: pin.partName,
-          partNameAr: pin.partNameAr,
-          discipline: _activeDisciplineNotifier.value,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color, width: 1.8),
-            boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.7),
-                blurRadius: 10,
-                spreadRadius: 1,
-              ),
-            ],
+      message: '${pin.partName}: ${pin.clinicalNote.isNotEmpty ? pin.clinicalNote : pin.status.title}${fee > 0 ? " (${fee.toStringAsFixed(2)} EGP)" : ""}',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: ValueKey('pin_${pin.partKey}'),
+          onTap: () => _openStatusInspector(
+            context,
+            partKey: pin.partKey,
+            partName: pin.partName,
+            partNameAr: pin.partNameAr,
+            discipline: _activeDisciplineNotifier.value,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(LucideIcons.mapPin, size: 12, color: color),
-              const SizedBox(width: 4),
-              Text(
-                pin.partName,
-                style: const TextStyle(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color, width: 2.0),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.8),
+                  blurRadius: 10,
+                  spreadRadius: 2,
                 ),
-              ),
-            ],
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(2.5),
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(LucideIcons.mapPin, size: 10, color: Colors.white),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  pin.partName,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                if (fee > 0) ...[
+                  const SizedBox(width: 5),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '${fee.toStringAsFixed(0)} EGP',
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF34D399),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),

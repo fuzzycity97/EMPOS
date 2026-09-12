@@ -143,19 +143,41 @@ class ClinicRepositoryImpl implements ClinicRepository {
   @override
   Future<Either<Failure, ClinicVisit>> completeVisit(ClinicVisit visit) async {
     try {
-      double totalFee = 0.0;
-      double insurancePaid = 0.0;
+      double totalFee = visit.totalFee;
+      double insurancePaid = visit.insurancePaid;
+      double patientCopay = visit.patientCopay;
 
-      for (final proc in visit.appliedProcedures) {
-        totalFee += proc.standardFee;
-        insurancePaid += proc.insuranceShare;
+      if (visit.appliedProcedures.isNotEmpty) {
+        double procTotal = 0.0;
+        double procInsurance = 0.0;
+
+        for (final proc in visit.appliedProcedures) {
+          procTotal += proc.standardFee;
+          procInsurance += proc.insuranceShare;
+        }
+
+        // Only fallback to procedure total if totalFee was not explicitly set by the doctor
+        if (totalFee <= 0.0001 && procTotal > 0) {
+          totalFee = double.parse(procTotal.toStringAsFixed(2));
+        }
+        if (insurancePaid <= 0.0001 && procInsurance > 0) {
+          insurancePaid = double.parse(procInsurance.toStringAsFixed(2));
+        }
       }
 
       totalFee = double.parse(totalFee.toStringAsFixed(2));
       insurancePaid = double.parse(insurancePaid.toStringAsFixed(2));
-      final patientCopay = double.parse(
-        (totalFee - insurancePaid).clamp(0.0, double.infinity).toStringAsFixed(2),
-      );
+
+      if (patientCopay <= 0.0001 || (patientCopay >= totalFee && insurancePaid > 0)) {
+        patientCopay = double.parse(
+          (totalFee - insurancePaid).clamp(0.0, double.infinity).toStringAsFixed(2),
+        );
+      } else {
+        patientCopay = double.parse(patientCopay.toStringAsFixed(2));
+        if (insurancePaid <= 0.0001 && totalFee > patientCopay) {
+          insurancePaid = double.parse((totalFee - patientCopay).clamp(0.0, double.infinity).toStringAsFixed(2));
+        }
+      }
 
       final completedVisit = visit.copyWith(
         status: ClinicVisitStatus.completed,
