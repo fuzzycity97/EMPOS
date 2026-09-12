@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'app.dart';
 import 'core/di/injection_container.dart' as di;
+import 'core/localization/app_language.dart';
 import 'features/sync/domain/services/sync_connection_manager.dart';
 
 Future<void> main() async {
@@ -37,6 +38,7 @@ Future<void> main() async {
 
   // Initialize Clean Architecture Service Locator (GetIt)
   await di.initServiceLocator();
+  await AppLanguage.init();
 
   // Bootstrap Auto-Reconnection & Persistent Node Role (Host vs Client)
   final syncConnectionManager = SyncConnectionManager();

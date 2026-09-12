@@ -12,6 +12,8 @@ import '../../../auth/domain/entities/user_role.dart';
 import '../bloc/customer_bloc.dart';
 import '../bloc/customer_event.dart';
 import '../bloc/customer_state.dart';
+import '../../../../core/config/presentation/bloc/config_bloc.dart';
+import '../../../../core/config/presentation/bloc/config_state.dart';
 import '../widgets/customer_form_dialog.dart';
 import '../widgets/customer_ledger_dialog.dart';
 import '../widgets/debt_payment_dialog.dart';
@@ -63,7 +65,16 @@ class _CustomersView extends StatelessWidget {
           }
         },
         builder: (context, state) {
-          if (state is CustomerLoading) {
+          ConfigBloc? configBloc;
+          try {
+            configBloc = context.watch<ConfigBloc>();
+          } catch (_) {}
+          final configState = configBloc?.state;
+          final bp = configState is ConfigLoaded ? configState.blueprint : null;
+          final isDebtEnabled = bp?.isEnabled('sw.customer_debt_tracking', defaultValue: true) ?? true;
+          final isLoyaltyEnabled = bp?.isEnabled('sw.loyalty_points', defaultValue: true) ?? true;
+
+          if (state is CustomerInitial || state is CustomerLoading) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.primary),
             );
@@ -103,7 +114,7 @@ class _CustomersView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // KPI Metric Cards
-                  _buildMetricsRow(context, state),
+                  _buildMetricsRow(context, state, isDebtEnabled),
                   const SizedBox(height: AppDimensions.space16),
 
                   // Search Bar & Add Customer Button
@@ -114,7 +125,12 @@ class _CustomersView extends StatelessWidget {
                   Expanded(
                     child: state.displayedCustomers.isEmpty
                         ? _buildEmptyState(state)
-                        : _buildCustomersTable(context, state),
+                        : _buildCustomersTable(
+                            context, 
+                            state,
+                            isDebtEnabled: isDebtEnabled,
+                            isLoyaltyEnabled: isLoyaltyEnabled,
+                          ),
                   ),
                 ],
               ),
@@ -127,7 +143,7 @@ class _CustomersView extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricsRow(BuildContext context, CustomersLoaded state) {
+  Widget _buildMetricsRow(BuildContext context, CustomersLoaded state, bool isDebtEnabled) {
     UserRole? role;
     try {
       final authState = context.read<AuthBloc>().state;
@@ -148,20 +164,22 @@ class _CustomersView extends StatelessWidget {
           icon: LucideIcons.users,
           color: AppColors.primary,
         ),
-        const SizedBox(width: AppDimensions.space12),
-        _metricCard(
-          title: 'Active Debtors',
-          value: isPrivileged ? '${state.totalDebtorCount}' : '***',
-          icon: LucideIcons.userX,
-          color: AppColors.warning,
-        ),
-        const SizedBox(width: AppDimensions.space12),
-        _metricCard(
-          title: 'Total Outstanding Debt',
-          value: isPrivileged ? CurrencyFormatter.format(state.totalOutstandingDebt) : 'Restricted',
-          icon: LucideIcons.badgeAlert,
-          color: AppColors.danger,
-        ),
+        if (isDebtEnabled) ...[
+          const SizedBox(width: AppDimensions.space12),
+          _metricCard(
+            title: 'Active Debtors',
+            value: isPrivileged ? '${state.totalDebtorCount}' : '***',
+            icon: LucideIcons.userX,
+            color: AppColors.warning,
+          ),
+          const SizedBox(width: AppDimensions.space12),
+          _metricCard(
+            title: 'Total Outstanding Debt',
+            value: isPrivileged ? CurrencyFormatter.format(state.totalOutstandingDebt) : 'Restricted',
+            icon: LucideIcons.badgeAlert,
+            color: AppColors.danger,
+          ),
+        ],
       ],
     );
   }
@@ -310,7 +328,12 @@ class _CustomersView extends StatelessWidget {
     );
   }
 
-  Widget _buildCustomersTable(BuildContext context, CustomersLoaded state) {
+  Widget _buildCustomersTable(
+    BuildContext context,
+    CustomersLoaded state, {
+    required bool isDebtEnabled,
+    required bool isLoyaltyEnabled,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surfaceDark,
@@ -330,7 +353,7 @@ class _CustomersView extends StatelessWidget {
             final hasDebt = customer.totalDebt > 0.001;
 
             return InkWell(
-              onTap: () => _openCustomerLedger(context, customer),
+              onTap: isDebtEnabled ? () => _openCustomerLedger(context, customer) : null,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
@@ -406,84 +429,89 @@ class _CustomersView extends StatelessWidget {
                     const SizedBox(width: 12),
 
                     // Loyalty Points
-                    SizedBox(
-                      width: 110,
-                      child: Row(
-                        children: [
-                          const Icon(LucideIcons.star, size: 14, color: AppColors.warning),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${customer.loyaltyPoints} Pts',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textSecondaryDark,
+                    if (isLoyaltyEnabled) ...[
+                      SizedBox(
+                        width: 110,
+                        child: Row(
+                          children: [
+                            const Icon(LucideIcons.star, size: 14, color: AppColors.warning),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${customer.loyaltyPoints} Pts',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textSecondaryDark,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
+                      const SizedBox(width: 12),
+                    ],
 
                     // Outstanding Debt Badge
-                    SizedBox(
-                      width: 140,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: hasDebt
-                              ? const Color(0xFFF59E0B).withValues(alpha: 0.15) // Amber
-                              : const Color(0xFF10B981).withValues(alpha: 0.15), // Green
-                          borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                          border: Border.all(
-                            color: hasDebt ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
-                            width: 1,
+                    if (isDebtEnabled)
+                      SizedBox(
+                        width: 140,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: hasDebt
+                                ? const Color(0xFFF59E0B).withValues(alpha: 0.15) // Amber
+                                : const Color(0xFF10B981).withValues(alpha: 0.15), // Green
+                            borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                            border: Border.all(
+                              color: hasDebt ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+                              width: 1,
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          hasDebt
-                              ? 'DEBT (${CurrencyFormatter.format(customer.totalDebt)})'
-                              : 'CLEARED (0.00)',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w900,
-                            color: hasDebt ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
-                            fontFamily: 'monospace',
+                          child: Text(
+                            hasDebt
+                                ? 'DEBT (${CurrencyFormatter.format(customer.totalDebt)})'
+                                : 'CLEARED (0.00)',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w900,
+                              color: hasDebt ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+                              fontFamily: 'monospace',
+                            ),
                           ),
                         ),
                       ),
-                    ),
                     const SizedBox(width: 16),
 
                     // Quick Actions
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // View Ledger History
-                        IconButton(
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(LucideIcons.fileSpreadsheet, size: 16),
-                          tooltip: 'View Account Ledger',
-                          onPressed: () => _openCustomerLedger(context, customer),
-                        ),
-
-                        // Settle Debt
-                        if (hasDebt)
+                        if (isDebtEnabled) ...[
+                          // View Ledger History
                           IconButton(
                             visualDensity: VisualDensity.compact,
-                            icon: const Icon(LucideIcons.handCoins, size: 16, color: AppColors.success),
-                            tooltip: 'Settle Debt / Pay Balance',
-                            onPressed: () {
-                              showDialog(
-                                context: context,
-                                builder: (ctx) => BlocProvider.value(
-                                  value: context.read<CustomerBloc>(),
-                                  child: DebtPaymentDialog(customer: customer),
-                                ),
-                              );
-                            },
+                            icon: const Icon(LucideIcons.fileSpreadsheet, size: 16),
+                            tooltip: 'View Account Ledger',
+                            onPressed: () => _openCustomerLedger(context, customer),
                           ),
+
+                          // Settle Debt
+                          if (hasDebt)
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(LucideIcons.handCoins, size: 16, color: AppColors.success),
+                              tooltip: 'Settle Debt / Pay Balance',
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => BlocProvider.value(
+                                    value: context.read<CustomerBloc>(),
+                                    child: DebtPaymentDialog(customer: customer),
+                                  ),
+                                );
+                              },
+                            ),
+                        ],
 
                         // Edit Profile
                         IconButton(

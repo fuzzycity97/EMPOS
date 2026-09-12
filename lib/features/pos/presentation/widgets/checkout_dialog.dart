@@ -8,6 +8,8 @@ import '../../../customers/domain/entities/customer.dart';
 import '../../../customers/presentation/bloc/customer_bloc.dart';
 import '../../../customers/presentation/bloc/customer_event.dart';
 import '../../../customers/presentation/bloc/customer_state.dart';
+import '../../../../core/config/presentation/bloc/config_bloc.dart';
+import '../../../../core/config/presentation/bloc/config_state.dart';
 import '../../domain/entities/cart.dart';
 import '../../domain/entities/payment_detail.dart';
 import '../bloc/pos_bloc.dart';
@@ -155,6 +157,13 @@ class CheckoutDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    bool isDebtTrackingEnabled = true;
+    try {
+      final cfg = context.watch<ConfigBloc>().state;
+      if (cfg is ConfigLoaded) {
+        isDebtTrackingEnabled = cfg.blueprint.isEnabled('sw.customer_debt_tracking', defaultValue: true);
+      }
+    } catch (_) {}
 
     return Dialog(
       backgroundColor: AppColors.surfaceDark,
@@ -163,6 +172,7 @@ class CheckoutDialog extends StatelessWidget {
         side: const BorderSide(color: AppColors.borderDark),
       ),
       child: Container(
+        width: 640,
         padding: const EdgeInsets.all(AppDimensions.space24),
         constraints: const BoxConstraints(maxWidth: 640),
         child: SingleChildScrollView(
@@ -282,6 +292,10 @@ class CheckoutDialog extends StatelessWidget {
               ValueListenableBuilder<TenderType>(
                 valueListenable: selectedTenderNotifier,
                 builder: (context, currentTender, _) {
+                  final effectiveTender = (!isDebtTrackingEnabled && currentTender == TenderType.customerAccount)
+                      ? TenderType.cash
+                      : currentTender;
+
                   return ValueListenableBuilder<List<PaymentDetail>>(
                     valueListenable: splitPaymentsNotifier,
                     builder: (context, splitList, _) {
@@ -297,7 +311,7 @@ class CheckoutDialog extends StatelessWidget {
                                 _TenderChip(
                                   label: 'Cash',
                                   icon: LucideIcons.banknote,
-                                  isSelected: currentTender == TenderType.cash && !isSplitActive,
+                                  isSelected: effectiveTender == TenderType.cash && !isSplitActive,
                                   color: AppColors.tenderCash,
                                   onTap: () {
                                     splitPaymentsNotifier.value = [];
@@ -308,7 +322,7 @@ class CheckoutDialog extends StatelessWidget {
                                 _TenderChip(
                                   label: 'Card',
                                   icon: LucideIcons.creditCard,
-                                  isSelected: currentTender == TenderType.card && !isSplitActive,
+                                  isSelected: effectiveTender == TenderType.card && !isSplitActive,
                                   color: AppColors.tenderCard,
                                   onTap: () {
                                     splitPaymentsNotifier.value = [];
@@ -319,7 +333,7 @@ class CheckoutDialog extends StatelessWidget {
                                 _TenderChip(
                                   label: 'Instapay',
                                   icon: LucideIcons.qrCode,
-                                  isSelected: currentTender == TenderType.instapay && !isSplitActive,
+                                  isSelected: effectiveTender == TenderType.instapay && !isSplitActive,
                                   color: AppColors.tenderInstapay,
                                   onTap: () {
                                     splitPaymentsNotifier.value = [];
@@ -330,24 +344,26 @@ class CheckoutDialog extends StatelessWidget {
                                 _TenderChip(
                                   label: 'Vodafone Cash',
                                   icon: LucideIcons.smartphone,
-                                  isSelected: currentTender == TenderType.vodafoneCash && !isSplitActive,
+                                  isSelected: effectiveTender == TenderType.vodafoneCash && !isSplitActive,
                                   color: AppColors.tenderVodafone,
                                   onTap: () {
                                     splitPaymentsNotifier.value = [];
                                     selectedTenderNotifier.value = TenderType.vodafoneCash;
                                   },
                                 ),
-                                const SizedBox(width: 8),
-                                _TenderChip(
-                                  label: 'Customer Account / Tab',
-                                  icon: LucideIcons.bookUser,
-                                  isSelected: currentTender == TenderType.customerAccount && !isSplitActive,
-                                  color: AppColors.warning,
-                                  onTap: () {
-                                    splitPaymentsNotifier.value = [];
-                                    selectedTenderNotifier.value = TenderType.customerAccount;
-                                  },
-                                ),
+                                if (isDebtTrackingEnabled) ...[
+                                  const SizedBox(width: 8),
+                                  _TenderChip(
+                                    label: 'Customer Account / Tab',
+                                    icon: LucideIcons.bookUser,
+                                    isSelected: effectiveTender == TenderType.customerAccount && !isSplitActive,
+                                    color: AppColors.warning,
+                                    onTap: () {
+                                      splitPaymentsNotifier.value = [];
+                                      selectedTenderNotifier.value = TenderType.customerAccount;
+                                    },
+                                  ),
+                                ],
                                 const SizedBox(width: 8),
                                 _TenderChip(
                                   label: 'Split Tender',
@@ -372,12 +388,12 @@ class CheckoutDialog extends StatelessWidget {
                           // 3. Conditional Tender Pane
                           if (isSplitActive)
                             _buildSplitTenderPane(context, splitList)
-                          else if (currentTender == TenderType.cash)
+                          else if (effectiveTender == TenderType.cash)
                             _buildCashPane(context)
-                          else if (currentTender == TenderType.customerAccount)
+                          else if (effectiveTender == TenderType.customerAccount && isDebtTrackingEnabled)
                             _buildCustomerAccountPane(context)
                           else
-                            _buildDigitalTenderPane(context, currentTender),
+                            _buildDigitalTenderPane(context, effectiveTender),
                         ],
                       );
                     },
@@ -648,20 +664,27 @@ class CheckoutDialog extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Row(
-                        children: [
-                          Icon(LucideIcons.checkCircle2, size: 16, color: AppColors.success),
-                          SizedBox(width: 6),
-                          Text(
-                            'Payment Status: Fully Paid',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.success,
+                      const Expanded(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.checkCircle2, size: 16, color: AppColors.success),
+                            SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'Payment Status: Fully Paid',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.success,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
                         'Change Due: ${CurrencyFormatter.format(diff)}',
                         style: const TextStyle(
@@ -686,22 +709,29 @@ class CheckoutDialog extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Row(
-                        children: [
-                          Icon(LucideIcons.alertCircle, size: 16, color: AppColors.warning),
-                          SizedBox(width: 6),
-                          Text(
-                            'Payment Status: Partially Paid',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.warning,
+                      const Expanded(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.alertCircle, size: 16, color: AppColors.warning),
+                            SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'Payment Status: Partially Paid',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.warning,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
-                        'Remaining Balance: ${CurrencyFormatter.format(remaining)}',
+                        'Remaining: ${CurrencyFormatter.format(remaining)}',
                         style: const TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w900,

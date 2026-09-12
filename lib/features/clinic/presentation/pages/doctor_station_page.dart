@@ -1,9 +1,13 @@
+import '../../../../core/di/injection_container.dart';
+import '../../../../core/localization/app_language.dart';
+import '../../../catalog/domain/repositories/catalog_repository.dart';
 import 'clinic_reception_page.dart';
 import '../widgets/patient_medical_history_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
 import '../../../../core/config/presentation/bloc/config_bloc.dart';
 import '../../../../core/config/presentation/bloc/config_state.dart';
@@ -22,15 +26,16 @@ import '../../domain/entities/clinic_visit.dart';
 import '../../domain/entities/patient_profile.dart';
 import '../../domain/entities/procedure_item.dart';
 import '../../domain/entities/tooth_chart_entry.dart';
+import '../../domain/entities/clinical_anatomy_status_entry.dart';
 import '../bloc/clinic_bloc.dart';
 import '../bloc/clinic_event.dart';
 import '../bloc/clinic_state.dart';
-import '../widgets/dental_tooth_matrix_widget.dart';
+import '../widgets/multi_specialty_anatomy_canvas_widget.dart';
 import '../widgets/doctor_attachments_lightbox.dart';
 import '../widgets/historical_visit_details_dialog.dart';
 import '../widgets/vitals_input_dialog.dart';
 
-class DoctorStationPage extends StatelessWidget {
+class DoctorStationPage extends StatefulWidget {
   final ClinicBloc bloc;
   final StoreBlueprint blueprint;
 
@@ -64,7 +69,74 @@ class DoctorStationPage extends StatelessWidget {
   }
 
   @override
+  State<DoctorStationPage> createState() => _DoctorStationPageState();
+}
+
+class _DoctorStationPageState extends State<DoctorStationPage> {
+  ClinicBloc get bloc => widget.bloc;
+  StoreBlueprint get blueprint => widget.blueprint;
+
+  List<ToothChartEntry> _getEffectiveToothChart(List<ToothChartEntry>? chart, bool isPediatric) =>
+      DoctorStationPage._getEffectiveToothChart(chart, isPediatric);
+
+  late final ValueNotifier<String?> _selectedVisitNotifier;
+  late final ValueNotifier<String?> _loadedVisitIdNotifier;
+  late final TextEditingController _clinicalNotesController;
+  late final TextEditingController _prescriptionController;
+  late final TextEditingController _totalFeeController;
+  late final TextEditingController _labResultsController;
+  late final ValueNotifier<List<MedicalAttachment>> _doctorAttachmentsNotifier;
+  late final ValueNotifier<ClinicalSpecialtyDiscipline> _activeDisciplineNotifier;
+  late final ValueNotifier<double> _eyeCdRatioOdNotifier;
+  late final ValueNotifier<double> _eyeCdRatioOsNotifier;
+  late final ValueNotifier<Map<String, ClinicalAnatomyStatusEntry>> _partStatusesNotifier;
+  final List<ProcedureItem> _appliedProcedures = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedVisitNotifier = ValueNotifier<String?>(null);
+    _loadedVisitIdNotifier = ValueNotifier<String?>(null);
+    _clinicalNotesController = TextEditingController();
+    _prescriptionController = TextEditingController();
+    _totalFeeController = TextEditingController();
+    _labResultsController = TextEditingController();
+    _doctorAttachmentsNotifier = ValueNotifier<List<MedicalAttachment>>([]);
+    _activeDisciplineNotifier = ValueNotifier<ClinicalSpecialtyDiscipline>(
+      MultiSpecialtyAnatomyCanvasWidget.inferDiscipline(widget.blueprint),
+    );
+    _eyeCdRatioOdNotifier = ValueNotifier<double>(0.40);
+    _eyeCdRatioOsNotifier = ValueNotifier<double>(0.40);
+    _partStatusesNotifier = ValueNotifier<Map<String, ClinicalAnatomyStatusEntry>>({});
+  }
+
+  @override
+  void dispose() {
+    _selectedVisitNotifier.dispose();
+    _loadedVisitIdNotifier.dispose();
+    _clinicalNotesController.dispose();
+    _prescriptionController.dispose();
+    _totalFeeController.dispose();
+    _labResultsController.dispose();
+    _doctorAttachmentsNotifier.dispose();
+    _activeDisciplineNotifier.dispose();
+    _eyeCdRatioOdNotifier.dispose();
+    _eyeCdRatioOsNotifier.dispose();
+    _partStatusesNotifier.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<Locale>(
+      valueListenable: AppLanguage.currentLocale,
+      builder: (context, currentLocale, _) {
+        return _buildDoctorStationContent(context);
+      },
+    );
+  }
+
+  Widget _buildDoctorStationContent(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -76,13 +148,22 @@ class DoctorStationPage extends StatelessWidget {
       }
     } catch (_) {}
 
-    final selectedVisitNotifier = ValueNotifier<String?>(null);
-    final loadedVisitIdNotifier = ValueNotifier<String?>(null);
-    final clinicalNotesController = TextEditingController();
-    final prescriptionController = TextEditingController();
-    final totalFeeController = TextEditingController();
-    final labResultsController = TextEditingController();
-    final doctorAttachmentsNotifier = ValueNotifier<List<MedicalAttachment>>([]);
+    final inferredDiscipline = MultiSpecialtyAnatomyCanvasWidget.inferDiscipline(currentBlueprint);
+    if (_activeDisciplineNotifier.value != inferredDiscipline) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _activeDisciplineNotifier.value != inferredDiscipline) {
+          _activeDisciplineNotifier.value = inferredDiscipline;
+        }
+      });
+    }
+
+    final selectedVisitNotifier = _selectedVisitNotifier;
+    final loadedVisitIdNotifier = _loadedVisitIdNotifier;
+    final clinicalNotesController = _clinicalNotesController;
+    final prescriptionController = _prescriptionController;
+    final totalFeeController = _totalFeeController;
+    final labResultsController = _labResultsController;
+    final doctorAttachmentsNotifier = _doctorAttachmentsNotifier;
 
     return BlocBuilder<ClinicBloc, ClinicState>(
       bloc: bloc,
@@ -119,10 +200,13 @@ class DoctorStationPage extends StatelessWidget {
         return ValueListenableBuilder<String?>(
           valueListenable: selectedVisitNotifier,
           builder: (context, selectedVisitId, _) {
-            final activeVisit = activeQueue.cast<ClinicVisit?>().firstWhere(
-                  (v) => v?.id == selectedVisitId,
-                  orElse: () => activeQueue.isNotEmpty ? activeQueue.first : null,
-                );
+            final effectiveVisitId = selectedVisitId ?? loadedState.activeVisitId;
+            final activeVisit = effectiveVisitId != null
+                ? activeQueue.cast<ClinicVisit?>().firstWhere(
+                    (v) => v?.id == effectiveVisitId,
+                    orElse: () => null,
+                  )
+                : null;
 
             // Reset inputs & auto-load tooth chart when active visit changes (taking in a patient)
             if (activeVisit != null && activeVisit.id != loadedVisitIdNotifier.value) {
@@ -131,6 +215,8 @@ class DoctorStationPage extends StatelessWidget {
               prescriptionController.text = activeVisit.prescriptions.join(', ');
               totalFeeController.text = activeVisit.totalFee > 0 ? activeVisit.totalFee.toStringAsFixed(2) : '';
               labResultsController.text = activeVisit.labResults ?? '';
+              _appliedProcedures.clear();
+              _appliedProcedures.addAll(activeVisit.appliedProcedures);
 
               final existingAttachments = <MedicalAttachment>[];
               for (int i = 0; i < activeVisit.attachmentPaths.length; i++) {
@@ -148,7 +234,7 @@ class DoctorStationPage extends StatelessWidget {
               }
               doctorAttachmentsNotifier.value = existingAttachments;
 
-              final isDentalEnabled = blueprint.isDental || blueprint.isEnabled('sw.dental_tooth_chart_editor');
+              final isDentalEnabled = currentBlueprint.isEnabled('sw.dental_tooth_chart_editor', defaultValue: currentBlueprint.isDental);
               if (isDentalEnabled) {
                 final patientForAge = loadedState.patients.cast<PatientProfile?>().firstWhere(
                   (p) => p?.id == activeVisit.patientId,
@@ -169,6 +255,7 @@ class DoctorStationPage extends StatelessWidget {
               totalFeeController.clear();
               labResultsController.clear();
               doctorAttachmentsNotifier.value = [];
+              _appliedProcedures.clear();
             }
 
             final activePatient = activeVisit != null
@@ -221,13 +308,14 @@ class DoctorStationPage extends StatelessWidget {
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
-                                            'Patient Queue (${activeQueue.length})',
+                                            '${AppLanguage.tr('Patient Queue', 'قائمة الانتظار')} (${activeQueue.length})',
                                             style: theme.textTheme.titleMedium?.copyWith(
                                               fontWeight: FontWeight.bold,
                                             ),
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
+                                        const LanguageToggleSwitch(compact: true),
                                       ],
                                     ),
                                     const SizedBox(height: 10),
@@ -242,8 +330,8 @@ class DoctorStationPage extends StatelessWidget {
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
                                             ),
                                             icon: const Icon(Icons.person_search, size: 15),
-                                            label: const Text(
-                                              'Archive',
+                                            label: Text(
+                                              AppLanguage.tr('Archive', 'الأرشيف'),
                                               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                             ),
                                             onPressed: () => _showAllPatientsArchiveDialog(
@@ -263,14 +351,35 @@ class DoctorStationPage extends StatelessWidget {
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
                                             ),
                                             icon: const Icon(LucideIcons.calendarDays, size: 14),
-                                            label: const Text(
-                                              'مواعيدي اليوم',
+                                            label: Text(
+                                              AppLanguage.tr("Today's Appts", 'مواعيدي اليوم'),
                                               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                             ),
                                             onPressed: () => _showDoctorAppointmentsDialog(context, isDark),
                                           ),
                                         ),
                                       ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton.icon(
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: isDark ? const Color(0xFF38BDF8) : const Color(0xFF0284C7),
+                                          side: BorderSide(
+                                            color: isDark
+                                                ? const Color(0xFF38BDF8).withValues(alpha: 0.5)
+                                                : const Color(0xFF0284C7).withValues(alpha: 0.5),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
+                                        ),
+                                        icon: const Icon(LucideIcons.boxes, size: 14),
+                                        label: Text(
+                                          AppLanguage.tr('Consumables & Stock', 'مخزون المستهلكات والمواد'),
+                                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                        ),
+                                        onPressed: () => _showDoctorConsumablesStockDialog(context, isDark),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -285,37 +394,30 @@ class DoctorStationPage extends StatelessWidget {
                                           child: Column(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
+                                              Icon(
+                                                LucideIcons.users,
+                                                size: 38,
+                                                color: isDark ? Colors.white24 : Colors.black26,
+                                              ),
+                                              const SizedBox(height: 12),
                                               Text(
-                                                'No patients in waiting queue',
+                                                AppLanguage.tr('No patients in waiting queue', 'لا يوجد مرضى في قائمة الانتظار'),
                                                 textAlign: TextAlign.center,
                                                 style: TextStyle(
-                                                  color: isDark ? Colors.white38 : Colors.black38,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 13,
+                                                  color: isDark ? Colors.white70 : Colors.black87,
                                                 ),
                                               ),
-                                              const SizedBox(height: 14),
-                                              ElevatedButton.icon(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: theme.colorScheme.primary,
-                                                  foregroundColor: Colors.white,
-                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                              const SizedBox(height: 8),
+                                              Text(
+                                                AppLanguage.tr('Patients are registered and checked in at the Reception Desk.\nTransferred patients will automatically appear here.', 'يتم تسجيل واستقبال المرضى من قسم الاستقبال.\nالمرضى المحولون سيظهرون تلقائياً هنا.'),
+                                                textAlign: TextAlign.center,
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  height: 1.4,
+                                                  color: isDark ? Colors.white38 : Colors.black38,
                                                 ),
-                                                icon: const Icon(Icons.person_add_outlined, size: 14),
-                                                label: const Text(
-                                                  'Add Demo Test Patient',
-                                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                                                ),
-                                                onPressed: () {
-                                                  final pid = 'demo_patient_${DateTime.now().millisecondsSinceEpoch % 10000}';
-                                                  bloc.add(
-                                                    CheckInPatientEvent(
-                                                      patientId: pid,
-                                                      patientName: 'Demo Patient (Test Consultation)',
-                                                      doctorName: 'Dr. Specialist',
-                                                      chiefComplaint: 'Tooth pain & 3D Chart evaluation',
-                                                      triageLevel: 'Routine',
-                                                    ),
-                                                  );
-                                                },
                                               ),
                                             ],
                                           ),
@@ -358,7 +460,7 @@ class DoctorStationPage extends StatelessWidget {
                                                   ));
                                                 }
                                                 doctorAttachmentsNotifier.value = exAtts;
-                                                final isDental = blueprint.isDental || blueprint.isEnabled('sw.dental_tooth_chart_editor');
+                                                final isDental = currentBlueprint.isEnabled('sw.dental_tooth_chart_editor', defaultValue: currentBlueprint.isDental);
                                                 if (isDental) {
                                                   final isPed = (patient?.calculatedAge != null && patient!.calculatedAge! < 12);
                                                   if (visit.toothChart.isNotEmpty) {
@@ -453,69 +555,89 @@ class DoctorStationPage extends StatelessWidget {
                         // CENTRAL WORKSPACE
                         Expanded(
                           child: activeVisit == null
-                              ? ((currentBlueprint.isDental || currentBlueprint.isEnabled('sw.dental_tooth_chart_editor'))
-                                  ? SingleChildScrollView(
-                                      padding: const EdgeInsets.all(24),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(14),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.primary.withValues(alpha: 0.12),
-                                              borderRadius: BorderRadius.circular(12),
-                                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                const Icon(Icons.view_in_ar, color: AppColors.primary, size: 24),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      const Text(
-                                                        '3D Dental Odontogram • Interactive Exploration Mode',
-                                                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
-                                                      ),
-                                                      const SizedBox(height: 2),
-                                                      Text(
-                                                        'Select a patient from the waiting queue on the left to tie clinical findings to their permanent record, or interact with and test the 3D tooth matrix below directly.',
-                                                        style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black87),
-                                                      ),
-                                                    ],
+                              ? Center(
+                                  child: Container(
+                                    constraints: const BoxConstraints(maxWidth: 480),
+                                    padding: const EdgeInsets.all(32),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isDark ? Colors.white10 : Colors.black12,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+                                          blurRadius: 18,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(20),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            LucideIcons.stethoscope,
+                                            size: 42,
+                                            color: theme.colorScheme.primary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        Text(
+                                          AppLanguage.tr('Waiting for patient selection from the queue', 'في انتظار اختيار مريض من قائمة الانتظار'),
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark ? Colors.white : Colors.black87,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          AppLanguage.tr('Select a patient from the queue to start consultation, view 3D anatomical models, record clinical findings, and manage treatment fees.', 'اختر مريضاً من القائمة على اليسار لبدء الكشف الطبي، فتح نموذج التشريح التفاعلي ثلاثي الأبعاد (3D)، تدوين التشخيص والإجراءات، وتسجيل المستحقات المالية.'),
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            height: 1.5,
+                                            color: isDark ? Colors.white60 : Colors.black54,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 18),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF1F5F9),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(LucideIcons.info, size: 15, color: theme.colorScheme.primary),
+                                              const SizedBox(width: 8),
+                                              Flexible(
+                                                child: Text(
+                                                  AppLanguage.tr('Patients are admitted via the Reception Desk', 'يتم تسجيل واستقبال المرضى من شاشة قسم الاستقبال'),
+                                                  style: TextStyle(
+                                                    fontSize: 11.5,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: isDark ? Colors.white70 : Colors.black87,
                                                   ),
                                                 ),
-                                              ],
-                                            ),
+                                              ),
+                                            ],
                                           ),
-                                          const SizedBox(height: 16),
-                                          DentalToothMatrixWidget(
-                                            toothChart: _getEffectiveToothChart(loadedState.activeToothChart, false),
-                                            isPediatric: false,
-                                            doctorName: 'Dr. Specialist',
-                                            onToothUpdated: (updatedEntry) {
-                                              bloc.add(
-                                                UpdateToothChartEntryEvent(
-                                                  patientId: 'sandbox_test_patient',
-                                                  entry: updatedEntry,
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    )
-                                  : Center(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.medical_information_outlined, size: 64, color: isDark ? Colors.white24 : Colors.black26),
-                                          const SizedBox(height: 16),
-                                          const Text('Select a patient from the queue to begin clinical consultation'),
-                                        ],
-                                      ),
-                                    ))
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
                               : SingleChildScrollView(
                                   padding: const EdgeInsets.all(24),
                                   child: Column(
@@ -525,23 +647,43 @@ class DoctorStationPage extends StatelessWidget {
                                       _buildPatientVitalsCard(context, activeVisit, activePatient, loadedState.queue, loadedState.activeToothChart, isDark),
                                       const SizedBox(height: 20),
 
-                                      // Dental vs General Workspace
-                                      if (currentBlueprint.isDental || currentBlueprint.isEnabled('sw.dental_tooth_chart_editor')) ...[
-                                        DentalToothMatrixWidget(
-                                          toothChart: _getEffectiveToothChart(loadedState.activeToothChart, isPediatric),
-                                          isPediatric: isPediatric,
-                                          doctorName: activeVisit.doctorName,
-                                          onToothUpdated: (updatedEntry) {
-                                            bloc.add(
-                                              UpdateToothChartEntryEvent(
-                                                patientId: activeVisit.patientId,
-                                                entry: updatedEntry,
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                        const SizedBox(height: 20),
-                                      ],
+                                      // Multi-Specialty 3D Anatomical Workspace (Dental, Ophthalmology, Orthopedics, Physio, Gastro, Cardio, Derma)
+                                      MultiSpecialtyAnatomyCanvasWidget(
+                                        blueprint: currentBlueprint,
+                                        disciplineNotifier: _activeDisciplineNotifier,
+                                        partStatusesNotifier: _partStatusesNotifier,
+                                        eyeCdRatioOdNotifier: _eyeCdRatioOdNotifier,
+                                        eyeCdRatioOsNotifier: _eyeCdRatioOsNotifier,
+                                        doctorName: activeVisit.doctorName,
+                                        toothChart: _getEffectiveToothChart(loadedState.activeToothChart, isPediatric),
+                                        isPediatric: isPediatric,
+                                        onToothUpdated: (updatedEntry) {
+                                          bloc.add(
+                                            UpdateToothChartEntryEvent(
+                                              patientId: activeVisit.patientId,
+                                              entry: updatedEntry,
+                                            ),
+                                          );
+                                        },
+                                        onProcedureApplied: (proc, note) {
+                                          _appliedProcedures.add(proc);
+                                          final currentFee = double.tryParse(totalFeeController.text.trim()) ?? 0.0;
+                                          totalFeeController.text = (currentFee + proc.standardFee).toStringAsFixed(2);
+                                          if (clinicalNotesController.text.trim().isEmpty) {
+                                            clinicalNotesController.text = note;
+                                          } else {
+                                            clinicalNotesController.text = '${clinicalNotesController.text}\n$note';
+                                          }
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Added ${proc.name} (EGP ${proc.standardFee.toStringAsFixed(2)}) to consultation'),
+                                              backgroundColor: Colors.teal,
+                                              duration: const Duration(seconds: 2),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                      const SizedBox(height: 20),
 
                                       // General Clinical Form (Notes, Prescriptions, Fee)
                                       _buildClinicalForm(
@@ -586,14 +728,16 @@ class DoctorStationPage extends StatelessWidget {
                                               diagnosis: notes,
                                               prescriptions: meds,
                                               toothChart: currentToothSnapshot,
-                                              appliedProcedures: [
-                                                ProcedureItem(
-                                                  id: 'proc_${DateTime.now().millisecondsSinceEpoch}',
-                                                  code: blueprint.isDental ? 'D0120' : '99213',
-                                                  name: blueprint.isDental ? 'Periodic Oral Evaluation & Odontogram' : 'Clinical Examination',
-                                                  standardFee: totalFee,
-                                                ),
-                                              ],
+                                              appliedProcedures: _appliedProcedures.isNotEmpty
+                                                  ? List.from(_appliedProcedures)
+                                                  : [
+                                                      ProcedureItem(
+                                                        id: 'proc_${DateTime.now().millisecondsSinceEpoch}',
+                                                        code: blueprint.isDental ? 'D0120' : '99213',
+                                                        name: blueprint.isDental ? 'Periodic Oral Evaluation & Odontogram' : 'Clinical Examination',
+                                                        standardFee: totalFee,
+                                                      ),
+                                                    ],
                                               totalFee: totalFee,
                                               patientCopay: patientCopay,
                                               insurancePaid: insurancePaid,
@@ -614,12 +758,14 @@ class DoctorStationPage extends StatelessWidget {
                                             }
 
                                             // Clear form inputs after completion
+                                            selectedVisitNotifier.value = null;
                                             loadedVisitIdNotifier.value = null;
                                             clinicalNotesController.clear();
                                             prescriptionController.clear();
                                             totalFeeController.clear();
                                             labResultsController.clear();
                                             doctorAttachmentsNotifier.value = [];
+                                            _appliedProcedures.clear();
                                             if (blueprint.isDental) {
                                               bloc.add(const ResetToothChartEvent());
                                             }
@@ -1644,12 +1790,12 @@ class DoctorStationPage extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'مواعيد اليوم المجدولة',
+                              Text(
+                                AppLanguage.tr("Today's Scheduled Appointments", 'مواعيد اليوم المجدولة'),
                                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                               ),
                               Text(
-                                'Scheduled Appointments for Today (${todayBookings.length})',
+                                AppLanguage.tr('Scheduled Appointments for Today (${todayBookings.length})', 'المواعيد المحجوزة لليوم (${todayBookings.length})'),
                                 style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black54),
                               ),
                             ],
@@ -1671,7 +1817,7 @@ class DoctorStationPage extends StatelessWidget {
                                   Icon(Icons.calendar_today, size: 40, color: isDark ? Colors.white24 : Colors.black26),
                                   const SizedBox(height: 10),
                                   Text(
-                                    'لا توجد مواعيد محجوزة اليوم',
+                                    AppLanguage.tr('No appointments scheduled for today', 'لا توجد مواعيد محجوزة اليوم'),
                                     style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 13),
                                   ),
                                 ],
@@ -1750,6 +1896,242 @@ class DoctorStationPage extends StatelessWidget {
                                 );
                               },
                             ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  static void _showDoctorConsumablesStockDialog(BuildContext context, bool isDark) async {
+    final catalogRepo = sl<CatalogRepository>();
+    final result = await catalogRepo.getProducts();
+    final allProducts = result.getOrElse(() => []);
+
+    // Filter items with trackQty: true or belonging to clinical consumables
+    final consumables = allProducts
+        .where((p) =>
+            p.trackQty ||
+            p.categoryId.toLowerCase().contains('consum') ||
+            p.categoryId.toLowerCase().contains('suppl') ||
+            p.categoryId == 'cat-med-consumables')
+        .toList();
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        String searchQuery = '';
+        return StatefulBuilder(
+          builder: (dialogCtx, setStateDialog) {
+            final filtered = consumables.where((p) {
+              if (searchQuery.trim().isEmpty) return true;
+              final q = searchQuery.toLowerCase();
+              return p.nameEn.toLowerCase().contains(q) ||
+                  (p.nameAr != null && p.nameAr!.toLowerCase().contains(q)) ||
+                  p.barcode.toLowerCase().contains(q);
+            }).toList();
+
+            return Dialog(
+              backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Container(
+                width: 620,
+                height: 540,
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(LucideIcons.boxes, color: Colors.blue, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                AppLanguage.tr('Medical Consumables & Stock', 'مخزون المستهلكات والمواد الطبية'),
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              Text(
+                                'Clinic Consumables & Tracked Quantities',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark ? Colors.white60 : Colors.black54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.of(ctx).pop(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      onChanged: (val) => setStateDialog(() => searchQuery = val),
+                      decoration: InputDecoration(
+                        hintText: AppLanguage.tr('Search consumables or barcode...', 'بحث في المستهلكات أو الباركود...'),
+                        prefixIcon: const Icon(Icons.search, size: 18),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        filled: true,
+                        fillColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Text(
+                                AppLanguage.tr('No registered consumables or materials currently', 'لا توجد مستهلكات أو مواد مسجلة حالياً'),
+                                style: TextStyle(color: isDark ? Colors.white54 : Colors.black45),
+                              ),
+                            )
+                          : ListView.separated(
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, _) => const SizedBox(height: 8),
+                              itemBuilder: (c, idx) {
+                                final prod = filtered[idx];
+                                final isLow = prod.isLowStock;
+                                final isOut = prod.isOutOfStock;
+                                final Color badgeColor = isOut
+                                    ? Colors.red
+                                    : (isLow ? Colors.amber : Colors.teal);
+                                final String statusText = isOut
+                                    ? AppLanguage.tr('Out of Stock', 'نفذ المخزون')
+                                    : (isLow ? AppLanguage.tr('Low Stock', 'مخزون منخفض') : AppLanguage.tr('In Stock', 'متوفر'));
+
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: isOut
+                                          ? Colors.red.withValues(alpha: 0.4)
+                                          : (isDark ? Colors.white10 : const Color(0xFFE2E8F0)),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              prod.displayName,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Row(
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.06),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: Text(
+                                                    prod.barcode,
+                                                    style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
+                                                  ),
+                                                ),
+                                                if (prod.nameAr != null && prod.nameEn != prod.nameAr) ...[
+                                                  const SizedBox(width: 8),
+                                                  Flexible(
+                                                    child: Text(
+                                                      prod.nameEn,
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: isDark ? Colors.white54 : Colors.black45,
+                                                      ),
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          Text(
+                                            '${prod.stock} ${AppLanguage.tr('units / pack', 'وحدة / علبة')}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                              color: badgeColor,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: badgeColor.withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              statusText,
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: badgeColor,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(LucideIcons.info, size: 14, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              AppLanguage.tr('Session consumables are automatically deducted upon procedure confirmation by the physician.', 'يتم خصم مستهلكات الجلسات الطبية تلقائياً عند اعتماد الطبيب للإجراءات السريرية.'),
+                              style: const TextStyle(fontSize: 11, color: Colors.blue),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),

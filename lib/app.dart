@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'core/config/presentation/bloc/config_bloc.dart';
@@ -11,6 +12,7 @@ import 'core/constants/app_colors.dart';
 import 'core/constants/app_dimensions.dart';
 import 'core/di/injection_container.dart';
 import 'core/theme/app_theme.dart';
+import 'core/localization/app_language.dart';
 import 'core/widgets/main_shell.dart';
 import 'features/sync/domain/services/sync_connection_manager.dart';
 import 'features/sync/presentation/first_run_sync_wizard_page.dart';
@@ -37,55 +39,88 @@ class _EmposAppView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ConfigBloc, ConfigState>(
-      builder: (context, state) {
-        if (state is ConfigLoading || state is ConfigInitial) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.darkTheme,
-            home: const _BootstrapSplashScreen(),
-          );
-        }
+    return ValueListenableBuilder<Locale>(
+      valueListenable: AppLanguage.currentLocale,
+      builder: (context, locale, _) {
+        final isAr = locale.languageCode == 'ar';
+        return BlocBuilder<ConfigBloc, ConfigState>(
+          builder: (context, state) {
+            if (state is ConfigLoading || state is ConfigInitial) {
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                locale: locale,
+                supportedLocales: const [Locale('en'), Locale('ar')],
+                localizationsDelegates: const [
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                theme: AppTheme.darkTheme,
+                home: const _BootstrapSplashScreen(),
+              );
+            }
 
-        if (state is ConfigError) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.darkTheme,
-            home: const StoreBuilderWizardPage(),
-          );
-        }
+            if (state is ConfigError) {
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                locale: locale,
+                supportedLocales: const [Locale('en'), Locale('ar')],
+                localizationsDelegates: const [
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                theme: AppTheme.darkTheme,
+                home: const StoreBuilderWizardPage(),
+              );
+            }
 
-        if (state is ConfigLoaded) {
-          final blueprint = state.blueprint;
-          final primaryColor = AppTheme.parseHexColor(blueprint.themeColorHex);
-          final syncManager = sl.isRegistered<SyncConnectionManager>()
-              ? sl<SyncConnectionManager>()
-              : SyncConnectionManager();
+            if (state is ConfigLoaded) {
+              final blueprint = state.blueprint;
+              final primaryColor = AppTheme.parseHexColor(blueprint.themeColorHex);
+              final syncManager = sl.isRegistered<SyncConnectionManager>()
+                  ? sl<SyncConnectionManager>()
+                  : SyncConnectionManager();
 
-          return MaterialApp(
-            title: '${blueprint.storeName} — Enterprise POS & ERP',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.dynamicDarkTheme(primaryColor),
-            darkTheme: AppTheme.dynamicDarkTheme(primaryColor),
-            themeMode: blueprint.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-            onGenerateRoute: SuperAdminSecurityGuard.onGenerateRoute,
-            home: ListenableBuilder(
-              listenable: syncManager,
-              builder: (context, _) {
-                final isConfigured = syncManager.cachedProfile != null &&
-                    syncManager.cachedProfile!.role != AppNodeRole.unconfigured;
-                if (!isConfigured) {
-                  return FirstRunSyncWizardPage(
-                    connectionManager: syncManager,
+              return MaterialApp(
+                title: '${blueprint.storeName} — Enterprise POS & ERP',
+                debugShowCheckedModeBanner: false,
+                locale: locale,
+                supportedLocales: const [Locale('en'), Locale('ar')],
+                localizationsDelegates: const [
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                theme: AppTheme.dynamicDarkTheme(primaryColor),
+                darkTheme: AppTheme.dynamicDarkTheme(primaryColor),
+                themeMode: blueprint.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+                onGenerateRoute: SuperAdminSecurityGuard.onGenerateRoute,
+                builder: (context, child) {
+                  return Directionality(
+                    textDirection: isAr ? TextDirection.rtl : TextDirection.ltr,
+                    child: child ?? const SizedBox.shrink(),
                   );
-                }
-                return MainShell();
-              },
-            ),
-          );
-        }
+                },
+                home: ListenableBuilder(
+                  listenable: syncManager,
+                  builder: (context, _) {
+                    final isConfigured = syncManager.cachedProfile != null &&
+                        syncManager.cachedProfile!.role != AppNodeRole.unconfigured;
+                    if (!isConfigured) {
+                      return FirstRunSyncWizardPage(
+                        connectionManager: syncManager,
+                      );
+                    }
+                    return MainShell();
+                  },
+                ),
+              );
+            }
 
-        return const SizedBox.shrink();
+            return const SizedBox.shrink();
+          },
+        );
       },
     );
   }

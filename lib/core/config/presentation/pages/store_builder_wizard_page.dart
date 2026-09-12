@@ -379,7 +379,92 @@ class StoreBuilderWizardPage extends StatelessWidget {
                       StoreBlueprint basePreset;
                       switch (specific) {
                         case SpecificIndustry.dentalClinic:
+                        case SpecificIndustry.endodonticsDental:
                           basePreset = StoreBlueprintModel.defaultDentalBlueprint();
+                          break;
+                        case SpecificIndustry.optometryClinic:
+                        case SpecificIndustry.ophthalmologyClinic:
+                          basePreset = StoreBlueprintModel.defaultOphthalmologyBlueprint();
+                          break;
+                        case SpecificIndustry.orthopedicClinic:
+                        case SpecificIndustry.orthopedicSportsTrauma:
+                          basePreset = StoreBlueprintModel.defaultOrthopedicsBlueprint();
+                          break;
+                        case SpecificIndustry.physiotherapyRehab:
+                        case SpecificIndustry.physiotherapyChiropractic:
+                          basePreset = StoreBlueprintModel.defaultPhysiotherapyBlueprint();
+                          break;
+                        case SpecificIndustry.gastroClinic:
+                          basePreset = StoreBlueprintModel.defaultGastroenterologyBlueprint();
+                          break;
+                        case SpecificIndustry.cardiologyClinic:
+                        case SpecificIndustry.veinVascularPhlebology:
+                          basePreset = StoreBlueprintModel.defaultCardiologyBlueprint();
+                          break;
+                        case SpecificIndustry.dermatologyClinic:
+                          basePreset = StoreBlueprintModel.defaultDermatologyBlueprint();
+                          break;
+                        case SpecificIndustry.dermatologyHairRestoration:
+                          basePreset = StoreBlueprintModel.defaultDermatologyHairRestorationBlueprint();
+                          break;
+                        case SpecificIndustry.medicalAestheticsInjectors:
+                          basePreset = StoreBlueprintModel.defaultMedicalAestheticsBlueprint();
+                          break;
+                        case SpecificIndustry.plasticSurgeryCosmetic:
+                          basePreset = StoreBlueprintModel.defaultPlasticSurgeryBlueprint();
+                          break;
+                        case SpecificIndustry.veterinaryClinic:
+                          basePreset = StoreBlueprintModel.defaultVeterinaryBlueprint();
+                          break;
+                        case SpecificIndustry.diagnosticLab:
+                          basePreset = StoreBlueprintModel.defaultDiagnosticLabBlueprint();
+                          break;
+                        case SpecificIndustry.mentalHealthCounseling:
+                          basePreset = StoreBlueprintModel.defaultMentalHealthBlueprint();
+                          break;
+                        case SpecificIndustry.pediatricClinic:
+                          basePreset = StoreBlueprintModel.defaultPediatricsBlueprint();
+                          break;
+                        case SpecificIndustry.neurologyClinic:
+                        case SpecificIndustry.neurologyNeurosurgery:
+                          basePreset = StoreBlueprintModel.defaultNeurologyBlueprint();
+                          break;
+                        case SpecificIndustry.neuroOtologyBalance:
+                          basePreset = StoreBlueprintModel.defaultNeuroOtologyBlueprint();
+                          break;
+                        case SpecificIndustry.neuroPsychiatryTms:
+                          basePreset = StoreBlueprintModel.defaultNeuroPsychiatryBlueprint();
+                          break;
+                        case SpecificIndustry.entClinic:
+                        case SpecificIndustry.rhinologySinusEnt:
+                          basePreset = StoreBlueprintModel.defaultEntRhinologyBlueprint();
+                          break;
+                        case SpecificIndustry.veinVascularPhlebology:
+                          basePreset = StoreBlueprintModel.defaultVascularVeinBlueprint();
+                          break;
+                        case SpecificIndustry.pulmonologyRespiratory:
+                          basePreset = StoreBlueprintModel.defaultPulmonologyBlueprint();
+                          break;
+                        case SpecificIndustry.endocrinologyClinic:
+                          basePreset = StoreBlueprintModel.defaultEndocrinologyBlueprint();
+                          break;
+                        case SpecificIndustry.urologyMensHealth:
+                          basePreset = StoreBlueprintModel.defaultUrologyBlueprint();
+                          break;
+                        case SpecificIndustry.obgynFertilityRei:
+                          basePreset = StoreBlueprintModel.defaultObGynBlueprint();
+                          break;
+                        case SpecificIndustry.podiatryOrthotics:
+                          basePreset = StoreBlueprintModel.defaultPodiatryBlueprint();
+                          break;
+                        case SpecificIndustry.interventionalPainManagement:
+                          basePreset = StoreBlueprintModel.defaultPainManagementBlueprint();
+                          break;
+                        case SpecificIndustry.acupunctureEasternMedicine:
+                          basePreset = StoreBlueprintModel.defaultAcupunctureBlueprint();
+                          break;
+                        case SpecificIndustry.speechLanguagePathology:
+                          basePreset = StoreBlueprintModel.defaultSpeechPathologyBlueprint();
                           break;
                         case SpecificIndustry.clinic:
                           basePreset = StoreBlueprintModel.defaultClinicBlueprint();
@@ -412,7 +497,11 @@ class StoreBuilderWizardPage extends StatelessWidget {
                           basePreset = StoreBlueprintModel.defaultSupermarketBlueprint();
                           break;
                         default:
-                          basePreset = StoreBlueprintModel.defaultRetailBlueprint();
+                          if (vertical == IndustryVertical.medical) {
+                            basePreset = StoreBlueprintModel.defaultClinicBlueprint();
+                          } else {
+                            basePreset = StoreBlueprintModel.defaultRetailBlueprint();
+                          }
                       }
 
                       final blueprint = basePreset.copyWith(

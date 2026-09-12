@@ -17,6 +17,8 @@ import '../bloc/clinic_event.dart';
 import '../bloc/clinic_state.dart';
 import '../widgets/patient_intake_dialog.dart';
 import '../widgets/payment_checkout_dialog.dart';
+import '../widgets/clinic_receipt_generator.dart';
+import '../widgets/clinic_receipt_dialog.dart';
 
 class ClinicReceptionPage extends StatelessWidget {
   final ClinicBloc bloc;
@@ -89,7 +91,7 @@ class ClinicReceptionPage extends StatelessWidget {
 
                         return selectedTab == 0
                             ? _buildQueueTab(context, waitingList, inExaminationList, state.patients, isDark)
-                            : _buildBillingTab(context, completedList, state.patients, isDark);
+                            : _buildBillingTab(context, completedList, state.patients, isDark, state.queue);
                       }
 
                       return const Center(child: CircularProgressIndicator());
@@ -504,104 +506,283 @@ class ClinicReceptionPage extends StatelessWidget {
     BuildContext context,
     List<ClinicVisit> completed,
     List<PatientProfile> patients,
-    bool isDark,
-  ) {
-    if (completed.isEmpty) {
-      return const Center(child: Text('No visits awaiting billing settlement.'));
+    bool isDark, [
+    List<ClinicVisit> allVisits = const [],
+  ]) {
+    final paidVisits = allVisits.where((v) => v.isPaid).toList();
+    paidVisits.sort((a, b) {
+      final timeA = a.completionTime ?? a.checkInTime;
+      final timeB = b.completionTime ?? b.checkInTime;
+      return timeB.compareTo(timeA);
+    });
+
+    if (completed.isEmpty && paidVisits.isEmpty) {
+      return const Center(child: Text('No visits awaiting billing settlement or receipts.'));
     }
 
-    return ListView.builder(
-      itemCount: completed.length,
-      itemBuilder: (context, index) {
-        final visit = completed[index];
-        final patient = patients.cast<PatientProfile?>().firstWhere(
-              (p) => p?.id == visit.patientId,
-              orElse: () => null,
-            );
-
-        final totalFee = visit.totalFee;
-        final copayRatio = patient?.defaultCopayPercentage ?? 1.0;
-        final patientShare = visit.patientCopay > 0 ? visit.patientCopay : (totalFee * copayRatio);
-        final insuranceShare = visit.insurancePaid > 0 ? visit.insurancePaid : (totalFee - patientShare);
-
-        return Card(
-          key: ValueKey('billing_visit_${visit.id}'),
-          margin: const EdgeInsets.only(bottom: 12),
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        visit.patientName,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text('Doctor: ${formatDoctorName(visit.doctorName)} • Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}'),
-                      const SizedBox(height: 6),
-                      if (patient?.insuranceProvider != null)
-                        Text(
-                          'Insurance: ${patient!.insuranceProvider} • Copay Split: ${(copayRatio * 100).toInt()}% Patient / ${((1 - copayRatio) * 100).toInt()}% Carrier',
-                          style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
-                        ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      'Patient Copay: ${patientShare.toStringAsFixed(2)} EGP',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal),
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── SECTION 1: AWAITING PAYMENT & BILLING ──
+          if (completed.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(LucideIcons.clock, size: 16, color: Colors.teal),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Awaiting Settlement (${completed.length})',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
                     ),
-                    if (insuranceShare > 0)
-                      Text(
-                        'Carrier Claim: ${insuranceShare.toStringAsFixed(2)} EGP',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            ...completed.map((visit) {
+              final patient = patients.cast<PatientProfile?>().firstWhere(
+                    (p) => p?.id == visit.patientId,
+                    orElse: () => null,
+                  );
+
+              final totalFee = visit.totalFee;
+              final copayRatio = patient?.defaultCopayPercentage ?? 1.0;
+              final patientShare = visit.patientCopay > 0 ? visit.patientCopay : (totalFee * copayRatio);
+              final insuranceShare = visit.insurancePaid > 0 ? visit.insurancePaid : (totalFee - patientShare);
+
+              return Card(
+                key: ValueKey('billing_visit_${visit.id}'),
+                margin: const EdgeInsets.only(bottom: 12),
+                color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              visit.patientName,
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text('Doctor: ${formatDoctorName(visit.doctorName)} • Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}'),
+                            const SizedBox(height: 6),
+                            if (patient?.insuranceProvider != null)
+                              Text(
+                                'Insurance: ${patient!.insuranceProvider} • Copay Split: ${(copayRatio * 100).toInt()}% Patient / ${((1 - copayRatio) * 100).toInt()}% Carrier',
+                                style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
+                              ),
+                          ],
+                        ),
                       ),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (ctx) => PaymentCheckoutDialog(
-                            visit: visit,
-                            patient: patient,
-                            totalFee: totalFee,
-                            patientShare: patientShare,
-                            insuranceShare: insuranceShare,
-                            onSubmit: (amountPaid) {
-                              bloc.add(ProcessVisitPaymentEvent(visit.id, amountPaid: amountPaid));
-                              try {
-                                context.read<CustomerBloc>().add(const LoadCustomersEvent());
-                              } catch (_) {}
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Payment processed: ${amountPaid.toStringAsFixed(2)} EGP collected. Printing 80mm receipt...',
-                                  ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Patient Copay: ${patientShare.toStringAsFixed(2)} ${blueprint.currency}',
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal),
+                          ),
+                          if (insuranceShare > 0)
+                            Text(
+                              'Carrier Claim: ${insuranceShare.toStringAsFixed(2)} ${blueprint.currency}',
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (ctx) => PaymentCheckoutDialog(
+                                  visit: visit,
+                                  patient: patient,
+                                  totalFee: totalFee,
+                                  patientShare: patientShare,
+                                  insuranceShare: insuranceShare,
+                                  onSubmit: (amountPaid) async {
+                                    bloc.add(ProcessVisitPaymentEvent(visit.id, amountPaid: amountPaid));
+                                    try {
+                                      context.read<CustomerBloc>().add(const LoadCustomersEvent());
+                                    } catch (_) {}
+
+                                    // 1. Dispatch actual print job via Printing package
+                                    await ClinicReceiptGenerator.printReceipt(
+                                      visit: visit,
+                                      patient: patient,
+                                      amountPaid: amountPaid,
+                                      blueprint: blueprint,
+                                    );
+
+                                    // 2. Open on-screen thermal receipt dialog
+                                    if (context.mounted) {
+                                      showDialog(
+                                        context: context,
+                                        builder: (_) => ClinicReceiptDialog(
+                                          visit: visit,
+                                          patient: patient,
+                                          amountPaid: amountPaid,
+                                          blueprint: blueprint,
+                                        ),
+                                      );
+                                    }
+                                  },
                                 ),
                               );
                             },
+                            icon: const Icon(LucideIcons.printer, size: 16),
+                            label: const Text('Pay & Print Receipt'),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
                           ),
-                        );
-                      },
-                      icon: const Icon(Icons.print, size: 16),
-                      label: const Text('Pay & Print Receipt'),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              );
+            }),
+          ] else ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.teal.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.teal.withValues(alpha: 0.2)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(LucideIcons.checkCheck, color: Colors.teal, size: 18),
+                  SizedBox(width: 8),
+                  Text('All completed visits are settled and paid in full.', style: TextStyle(fontSize: 13, color: Colors.teal, fontWeight: FontWeight.w600)),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          ],
+
+          // ── SECTION 2: PAID ENCOUNTERS & RECEIPT REPRINT ──
+          if (paidVisits.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(LucideIcons.receipt, size: 16, color: Colors.teal),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Paid Encounters & Receipts (${paidVisits.length})',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ...paidVisits.map((visit) {
+              final patient = patients.cast<PatientProfile?>().firstWhere(
+                    (p) => p?.id == visit.patientId,
+                    orElse: () => null,
+                  );
+
+              final paidAmount = visit.patientCopay > 0 ? visit.patientCopay : visit.totalFee;
+
+              return Card(
+                key: ValueKey('paid_visit_${visit.id}'),
+                margin: const EdgeInsets.only(bottom: 10),
+                color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.teal.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(LucideIcons.checkCircle2, size: 20, color: Colors.teal),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  visit.patientName,
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.teal.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text('PAID', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.teal)),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 3),
+                            Text('Doctor: ${formatDoctorName(visit.doctorName)} • Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Paid: ${paidAmount.toStringAsFixed(2)} ${blueprint.currency}',
+                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: Colors.teal),
+                          ),
+                          const SizedBox(height: 6),
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              await ClinicReceiptGenerator.printReceipt(
+                                visit: visit,
+                                patient: patient,
+                                amountPaid: paidAmount,
+                                blueprint: blueprint,
+                              );
+                              if (context.mounted) {
+                                showDialog(
+                                  context: context,
+                                  builder: (_) => ClinicReceiptDialog(
+                                    visit: visit,
+                                    patient: patient,
+                                    amountPaid: paidAmount,
+                                    blueprint: blueprint,
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(LucideIcons.printer, size: 14),
+                            label: const Text('Print Receipt'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F172A),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
     );
   }
 
@@ -677,6 +858,31 @@ class ClinicReceptionPage extends StatelessWidget {
           ),
         ),
         actions: [
+          if (visit.isPaid || visit.status == ClinicVisitStatus.completed)
+            ElevatedButton.icon(
+              icon: const Icon(LucideIcons.printer, size: 14),
+              label: const Text('Print Receipt'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+              onPressed: () async {
+                await ClinicReceiptGenerator.printReceipt(
+                  visit: visit,
+                  patient: patient,
+                  amountPaid: visit.patientCopay > 0 ? visit.patientCopay : visit.totalFee,
+                  blueprint: blueprint,
+                );
+                if (context.mounted) {
+                  showDialog(
+                    context: context,
+                    builder: (_) => ClinicReceiptDialog(
+                      visit: visit,
+                      patient: patient,
+                      amountPaid: visit.patientCopay > 0 ? visit.patientCopay : visit.totalFee,
+                      blueprint: blueprint,
+                    ),
+                  );
+                }
+              },
+            ),
           OutlinedButton.icon(
             icon: const Icon(Icons.edit_note, size: 16),
             label: const Text('Edit Medical History'),

@@ -108,7 +108,113 @@ class StoreBlueprint extends Equatable {
 
   // Specific industry helpers
   bool get isDental => specificIndustry == SpecificIndustry.dentalClinic;
+  bool get isOphthalmology =>
+      specificIndustry == SpecificIndustry.optometryClinic ||
+      specificIndustry.id.contains('eye') ||
+      specificIndustry.id.contains('ophthalm') ||
+      specificIndustry.id.contains('optom');
+  bool get isOrthopedics =>
+      specificIndustry == SpecificIndustry.orthopedicClinic ||
+      specificIndustry.id.contains('ortho') ||
+      specificIndustry.id.contains('bone') ||
+      specificIndustry.id.contains('skelet');
+  bool get isPhysiotherapy =>
+      specificIndustry == SpecificIndustry.physiotherapyRehab ||
+      specificIndustry.id.contains('physio') ||
+      specificIndustry.id.contains('muscle') ||
+      specificIndustry.id.contains('rehab');
+  bool get isGastroenterology =>
+      specificIndustry == SpecificIndustry.gastroClinic ||
+      specificIndustry.id.contains('gastro') ||
+      specificIndustry.id.contains('digest') ||
+      specificIndustry.id.contains('intestin') ||
+      specificIndustry.id.contains('colon');
+  bool get isCardiology =>
+      specificIndustry == SpecificIndustry.cardiologyClinic ||
+      specificIndustry.id.contains('cardio') ||
+      specificIndustry.id.contains('heart');
+  bool get isDermatology =>
+      specificIndustry == SpecificIndustry.dermatologyClinic ||
+      specificIndustry.id.contains('dermat') ||
+      specificIndustry.id.contains('skin');
+  bool get isENT =>
+      specificIndustry == SpecificIndustry.entClinic ||
+      specificIndustry.id == 'ent' ||
+      specificIndustry.id.startsWith('ent_') ||
+      specificIndustry.id.contains('_ent') ||
+      specificIndustry.id.contains('ear');
+  bool get isNeurology =>
+      specificIndustry == SpecificIndustry.neurologyClinic ||
+      specificIndustry == SpecificIndustry.neurologyNeurosurgery ||
+      specificIndustry.id.contains('neuro') ||
+      specificIndustry.id.contains('brain');
+  bool get isNeuroOtology =>
+      specificIndustry == SpecificIndustry.neuroOtologyBalance ||
+      specificIndustry.id.contains('otology') ||
+      specificIndustry.id.contains('vestibul');
+  bool get isNeuroPsychiatry =>
+      specificIndustry == SpecificIndustry.neuroPsychiatryTms ||
+      specificIndustry.id.contains('psychiatry') ||
+      specificIndustry.id.contains('tms');
+  bool get isRhinologySinus =>
+      specificIndustry == SpecificIndustry.rhinologySinusEnt ||
+      specificIndustry.id.contains('rhino') ||
+      specificIndustry.id.contains('sinus');
+  bool get isVascularVein =>
+      specificIndustry == SpecificIndustry.veinVascularPhlebology ||
+      specificIndustry.id.contains('vein') ||
+      specificIndustry.id.contains('phleb');
+  bool get isPulmonology =>
+      specificIndustry == SpecificIndustry.pulmonologyRespiratory ||
+      specificIndustry.id.contains('pulmon') ||
+      specificIndustry.id.contains('respir');
+  bool get isEndocrinology =>
+      specificIndustry == SpecificIndustry.endocrinologyClinic ||
+      specificIndustry.id.contains('endocrin') ||
+      specificIndustry.id.contains('thyroid');
+  bool get isUrology =>
+      specificIndustry == SpecificIndustry.urologyMensHealth ||
+      specificIndustry.id.contains('uro');
+  bool get isObGyn =>
+      specificIndustry == SpecificIndustry.obgynFertilityRei ||
+      specificIndustry.id.contains('obgyn') ||
+      specificIndustry.id.contains('gyne') ||
+      specificIndustry.id.contains('obstet');
+  bool get isPodiatry =>
+      specificIndustry == SpecificIndustry.podiatryOrthotics ||
+      specificIndustry.id.contains('podiat') ||
+      specificIndustry.id.contains('foot');
+  bool get isPlasticSurgery =>
+      specificIndustry == SpecificIndustry.plasticSurgeryCosmetic ||
+      specificIndustry.id.contains('plastic');
+  bool get isMedicalAesthetics =>
+      specificIndustry == SpecificIndustry.medicalAestheticsInjectors ||
+      specificIndustry.id.contains('aesthetic') ||
+      specificIndustry.id.contains('injector');
+  bool get isPainManagement =>
+      specificIndustry == SpecificIndustry.interventionalPainManagement ||
+      specificIndustry.id.contains('pain');
+  bool get isAcupuncture =>
+      specificIndustry == SpecificIndustry.acupunctureEasternMedicine ||
+      specificIndustry.id.contains('acupunct');
+  bool get isSpeechPathology =>
+      specificIndustry == SpecificIndustry.speechLanguagePathology ||
+      specificIndustry.id.contains('speech') ||
+      specificIndustry.id.contains('slp');
+  bool get isPediatric =>
+      specificIndustry == SpecificIndustry.pediatricClinic ||
+      specificIndustry.id.contains('pediatric') ||
+      specificIndustry.id.contains('child');
   bool get isGeneralClinic => specificIndustry == SpecificIndustry.clinic;
+  bool get isVeterinary =>
+      specificIndustry == SpecificIndustry.veterinaryClinic ||
+      specificIndustry.id.contains('vet');
+  bool get isMentalHealth =>
+      specificIndustry == SpecificIndustry.mentalHealthCounseling ||
+      specificIndustry.id.contains('mental');
+  bool get isDiagnosticLab =>
+      specificIndustry == SpecificIndustry.diagnosticLab ||
+      specificIndustry.id.contains('lab');
   bool get isPharmacy =>
       specificIndustry == SpecificIndustry.pharmacy || industryType == IndustryType.pharmacy;
   bool get isSupermarket =>
@@ -117,6 +223,18 @@ class StoreBlueprint extends Equatable {
   bool get isRestaurant =>
       specificIndustry == SpecificIndustry.restaurantDinein ||
       industryType == IndustryType.foodAndBeverage;
+  bool get isTattooStudio =>
+      specificIndustry == SpecificIndustry.tattooPiercingStudio ||
+      specificIndustry.id.contains('tattoo') ||
+      specificIndustry.id.contains('piercing');
+  bool get isClothingBoutique =>
+      specificIndustry == SpecificIndustry.clothingBoutique ||
+      specificIndustry.id.contains('clothing') ||
+      specificIndustry.id.contains('boutique');
+  bool get isElectronicsPhoneShop =>
+      specificIndustry == SpecificIndustry.electronicsPhoneShop ||
+      specificIndustry.id.contains('electronic') ||
+      specificIndustry.id.contains('phone');
 
   StoreBlueprint copyWith({
     String? storeName,

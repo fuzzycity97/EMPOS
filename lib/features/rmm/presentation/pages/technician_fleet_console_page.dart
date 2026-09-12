@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/data/models/store_blueprint_model.dart';
+import '../../../../core/config/domain/entities/industry_type.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
 import '../../../../core/config/presentation/bloc/config_bloc.dart';
 import '../../../../core/config/presentation/bloc/config_event.dart';
@@ -27,6 +28,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
   final LanSyncRepository lanSyncRepository;
   final ValueNotifier<ConnectedNode?> selectedTargetNodeNotifier;
   final ValueNotifier<Map<String, bool>> targetTogglesNotifier;
+  final ValueNotifier<SpecificIndustry?> targetProfessionNotifier;
   final ValueNotifier<String> searchFilterNotifier;
   final ValueNotifier<String?> deploymentSuccessNotifier;
   final TextEditingController serverIpController;
@@ -36,6 +38,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
     required this.lanSyncRepository,
     required this.selectedTargetNodeNotifier,
     required this.targetTogglesNotifier,
+    required this.targetProfessionNotifier,
     required this.searchFilterNotifier,
     required this.deploymentSuccessNotifier,
     required this.serverIpController,
@@ -44,6 +47,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
   factory TechnicianFleetConsolePage({
     Key? key,
     LanSyncRepository? customRepository,
+    ValueNotifier<SpecificIndustry?>? customTargetProfessionNotifier,
   }) {
     final repo = customRepository ?? sl<LanSyncRepository>();
     LanSyncRepositoryImpl.setInstanceIdOverride('god-mode-hub');
@@ -56,6 +60,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
     );
     final selectedNode = ValueNotifier<ConnectedNode?>(defaultGodHubNode);
     final targetToggles = ValueNotifier<Map<String, bool>>({});
+    final targetProfession = customTargetProfessionNotifier ?? ValueNotifier<SpecificIndustry?>(null);
     final search = ValueNotifier<String>('');
     final deploySuccess = ValueNotifier<String?>(null);
     final ipCtrl = TextEditingController(text: '127.0.0.1');
@@ -65,6 +70,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
       lanSyncRepository: repo,
       selectedTargetNodeNotifier: selectedNode,
       targetTogglesNotifier: targetToggles,
+      targetProfessionNotifier: targetProfession,
       searchFilterNotifier: search,
       deploymentSuccessNotifier: deploySuccess,
       serverIpController: ipCtrl,
@@ -592,6 +598,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
                         return InkWell(
                           onTap: () {
                             selectedTargetNodeNotifier.value = node;
+                            targetProfessionNotifier.value = _determineNodeProfession(node, currentBlueprint);
                             deploymentSuccessNotifier.value = null;
                             final toggles = Map<String, bool>.from(currentBlueprint.toggles);
                             _ensureAllToggles(toggles, currentBlueprint);
@@ -658,13 +665,20 @@ class TechnicianFleetConsolePage extends StatelessWidget {
                                   ],
                                 ),
                                 const SizedBox(height: 8),
-                                Text(
-                                  'App Running: ${node.appName}',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.accent,
-                                  ),
+                                Builder(
+                                  builder: (context) {
+                                    final nodeProf = _determineNodeProfession(node, currentBlueprint);
+                                    return Text(
+                                      isGodHub
+                                          ? 'App Running: ${node.appName}'
+                                          : 'App Running: ${node.appName} • ${nodeProf.label}',
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.accent,
+                                      ),
+                                    );
+                                  },
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
@@ -708,212 +722,281 @@ class TechnicianFleetConsolePage extends StatelessWidget {
 
         final isMasterHub = selectedNode.id == 'god-mode-hub';
 
-        return Container(
-          color: AppColors.backgroundDark,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Target Device Header Bar
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceDark,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(_getNodeIcon(selectedNode.role), size: 22, color: AppColors.primary),
+        return ValueListenableBuilder<SpecificIndustry?>(
+          valueListenable: targetProfessionNotifier,
+          builder: (context, explicitProfession, _) {
+            final activeProfession = explicitProfession ?? _determineNodeProfession(selectedNode, currentBlueprint);
+
+            return Container(
+              color: AppColors.backgroundDark,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Target Device Header Bar
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceDark,
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Wrap(
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: [
-                              Text(
-                                isMasterHub
-                                    ? 'GLOBAL FLEET BLUEPRINT (MASTER TEMPLATE)'
-                                    : 'CONFIGURING TARGET: ${selectedNode.role.toUpperCase()}',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                  letterSpacing: 0.5,
-                                ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppColors.accent.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  isMasterHub ? 'FLEET TEMPLATE (NOT FOR GOD HUB)' : selectedNode.appName,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.accent,
+                              child: Icon(_getNodeIcon(selectedNode.role), size: 22, color: AppColors.primary),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Wrap(
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    spacing: 8,
+                                    runSpacing: 4,
+                                    children: [
+                                      Text(
+                                        isMasterHub
+                                            ? 'GLOBAL FLEET BLUEPRINT (MASTER TEMPLATE)'
+                                            : 'CONFIGURING TARGET: ${selectedNode.role.toUpperCase()}',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.accent.withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          isMasterHub ? 'FLEET TEMPLATE (NOT FOR GOD HUB)' : selectedNode.appName,
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.accent,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    isMasterHub
+                                        ? 'Master system engine template • Broadcasts to all connected client devices (Doctor, Reception, POS) • Does not apply to God Hub'
+                                        : 'Target IP: ${selectedNode.ipAddress} • Station ID: ${selectedNode.id}',
+                                    style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondaryDark),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            ElevatedButton.icon(
+                              onPressed: () => _deployConfigurationToTarget(context, selectedNode, currentBlueprint),
+                              icon: const Icon(LucideIcons.send, size: 14),
+                              label: const Text('Deploy & Save to Station'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.success,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // Station Profession / Specialty Selector Bar
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceElevatedDark,
+                            borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(LucideIcons.briefcase, size: 14, color: AppColors.primaryLight),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Station Profession / Specialty:',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white70),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: DropdownButtonHideUnderline(
+                                  child: Builder(
+                                    builder: (context) {
+                                      final professionOptions = SpecificIndustry.values.map((s) {
+                                        return DropdownMenuItem<SpecificIndustry>(
+                                          value: s,
+                                          child: Text(
+                                            s.label,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        );
+                                      }).toList();
+
+                                      final safeValue = professionOptions.any((it) => it.value == activeProfession)
+                                          ? activeProfession
+                                          : SpecificIndustry.clinic;
+
+                                      return DropdownButton<SpecificIndustry>(
+                                        value: safeValue,
+                                        isExpanded: true,
+                                        dropdownColor: AppColors.surfaceElevatedDark,
+                                        icon: const Icon(LucideIcons.chevronDown, size: 14, color: AppColors.accent),
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent),
+                                        onChanged: (newProf) {
+                                          if (newProf != null) {
+                                            targetProfessionNotifier.value = newProf;
+                                          }
+                                        },
+                                        items: professionOptions,
+                                      );
+                                    },
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            isMasterHub
-                                ? 'Master system engine template • Broadcasts to all connected client devices (Doctor, Reception, POS) • Does not apply to God Hub'
-                                : 'Target IP: ${selectedNode.ipAddress} • Station ID: ${selectedNode.id}',
-                            style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondaryDark),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Search Bar
+                  Container(
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceElevatedDark,
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                      border: Border.all(color: AppColors.borderDark),
+                    ),
+                    child: TextField(
+                      onChanged: (val) => searchFilterNotifier.value = val,
+                      style: const TextStyle(fontSize: 13, color: Colors.white),
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(LucideIcons.search, size: 16),
+                        hintText: 'Filter toggles (e.g., dental, 3d, pos, scale, reception, returns, erp)...',
+                        hintStyle: TextStyle(fontSize: 12, color: AppColors.textMutedDark),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  if (isMasterHub)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(LucideIcons.info, size: 16, color: AppColors.primaryLight),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'The God Mode Technician station is the central provisioning authority and does not run clinic/reception/POS workstations on itself. These toggles define the global template to push to connected client devices.',
+                              style: TextStyle(fontSize: 11.5, color: Colors.white70, height: 1.3),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    ElevatedButton.icon(
-                      onPressed: () => _deployConfigurationToTarget(context, selectedNode, currentBlueprint),
-                      icon: const Icon(LucideIcons.send, size: 14),
-                      label: const Text('Deploy & Save to Station'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.success,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
 
-              // Search Bar
-              Container(
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceElevatedDark,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                  border: Border.all(color: AppColors.borderDark),
-                ),
-                child: TextField(
-                  onChanged: (val) => searchFilterNotifier.value = val,
-                  style: const TextStyle(fontSize: 13, color: Colors.white),
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(LucideIcons.search, size: 16),
-                    hintText: 'Filter toggles (e.g., dental, 3d, pos, scale, reception, returns, erp)...',
-                    hintStyle: TextStyle(fontSize: 12, color: AppColors.textMutedDark),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
+                  // Toggles List
+                  Expanded(
+                    child: ValueListenableBuilder<String>(
+                      valueListenable: searchFilterNotifier,
+                      builder: (context, query, _) {
+                        return ValueListenableBuilder<Map<String, bool>>(
+                          valueListenable: targetTogglesNotifier,
+                          builder: (context, toggles, _) {
+                            final effectiveToggles = toggles.isNotEmpty
+                                ? toggles
+                                : (() {
+                                    final init = Map<String, bool>.from(currentBlueprint.toggles);
+                                    _ensureAllToggles(init, currentBlueprint);
+                                    return init;
+                                  })();
 
-              if (isMasterHub)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(LucideIcons.info, size: 16, color: AppColors.primaryLight),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'The God Mode Technician station is the central provisioning authority and does not run clinic/reception/POS workstations on itself. These toggles define the global template to push to connected client devices.',
-                          style: TextStyle(fontSize: 11.5, color: Colors.white70, height: 1.3),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                            final q = query.trim().toLowerCase();
+                            final filtered = effectiveToggles.entries.where((e) {
+                              if (q.isEmpty) return true;
+                              final label = _formatKeyLabel(e.key, activeProfession).toLowerCase();
+                              final rawKey = e.key.toLowerCase();
+                              final desc = _getDesc(e.key, activeProfession).toLowerCase();
+                              return label.contains(q) || rawKey.contains(q) || desc.contains(q);
+                            }).toList();
 
-              // Toggles List
-              Expanded(
-                child: ValueListenableBuilder<String>(
-                  valueListenable: searchFilterNotifier,
-                  builder: (context, query, _) {
-                    return ValueListenableBuilder<Map<String, bool>>(
-                      valueListenable: targetTogglesNotifier,
-                      builder: (context, toggles, _) {
-                        final effectiveToggles = toggles.isNotEmpty
-                            ? toggles
-                            : (() {
-                                final init = Map<String, bool>.from(currentBlueprint.toggles);
-                                _ensureAllToggles(init, currentBlueprint);
-                                return init;
-                              })();
+                            final clinicalToggles = filtered.where((e) =>
+                                e.key.contains('clinic') ||
+                                e.key.contains('dental') ||
+                                e.key.contains('prescription') ||
+                                e.key.contains('optical')).toList();
 
-                        final q = query.trim().toLowerCase();
-                        final filtered = effectiveToggles.entries.where((e) {
-                          if (q.isEmpty) return true;
-                          final label = e.key.toLowerCase();
-                          final desc = _getDesc(e.key).toLowerCase();
-                          return label.contains(q) || desc.contains(q);
-                        }).toList();
+                            final posToggles = filtered.where((e) =>
+                                e.key.contains('pos') ||
+                                e.key.contains('order') ||
+                                e.key.contains('customer') ||
+                                e.key.contains('loyalty') ||
+                                e.key.contains('tax') ||
+                                e.key.contains('table') ||
+                                e.key.contains('weight') ||
+                                e.key.contains('scale')).toList();
 
-                        final clinicalToggles = filtered.where((e) =>
-                            e.key.contains('clinic') ||
-                            e.key.contains('dental') ||
-                            e.key.contains('prescription') ||
-                            e.key.contains('optical')).toList();
+                            final otherToggles = filtered.where((e) =>
+                                !clinicalToggles.contains(e) && !posToggles.contains(e)).toList();
 
-                        final posToggles = filtered.where((e) =>
-                            e.key.contains('pos') ||
-                            e.key.contains('order') ||
-                            e.key.contains('customer') ||
-                            e.key.contains('loyalty') ||
-                            e.key.contains('tax') ||
-                            e.key.contains('table') ||
-                            e.key.contains('weight') ||
-                            e.key.contains('scale')).toList();
-
-                        final otherToggles = filtered.where((e) =>
-                            !clinicalToggles.contains(e) && !posToggles.contains(e)).toList();
-
-                        return ListView(
-                          children: [
-                            if (clinicalToggles.isNotEmpty) ...[
-                              _buildCategoryHeader('Clinical & Anatomical Toggles', LucideIcons.stethoscope, AppColors.info, clinicalToggles.length),
-                              const SizedBox(height: 6),
-                              ...clinicalToggles.map((e) => _buildToggleTile(e.key, e.value, AppColors.info, effectiveToggles)),
-                              const SizedBox(height: 16),
-                            ],
-                            if (posToggles.isNotEmpty) ...[
-                              _buildCategoryHeader('POS, Sales & Terminal Devices', LucideIcons.shoppingCart, AppColors.primary, posToggles.length),
-                              const SizedBox(height: 6),
-                              ...posToggles.map((e) => _buildToggleTile(e.key, e.value, AppColors.primary, effectiveToggles)),
-                              const SizedBox(height: 16),
-                            ],
-                            if (otherToggles.isNotEmpty) ...[
-                              _buildCategoryHeader('Inventory, ERP & Fleet Peripherals', LucideIcons.layers, AppColors.secondary, otherToggles.length),
-                              const SizedBox(height: 6),
-                              ...otherToggles.map((e) => _buildToggleTile(e.key, e.value, AppColors.secondary, effectiveToggles)),
-                            ],
-                          ],
+                            return ListView(
+                              children: [
+                                if (clinicalToggles.isNotEmpty) ...[
+                                  _buildCategoryHeader('Clinical & Anatomical Toggles', LucideIcons.stethoscope, AppColors.info, clinicalToggles.length),
+                                  const SizedBox(height: 6),
+                                  ...clinicalToggles.map((e) => _buildToggleTile(context, e.key, e.value, AppColors.info, effectiveToggles, currentBlueprint, selectedNode, activeProfession)),
+                                  const SizedBox(height: 16),
+                                ],
+                                if (posToggles.isNotEmpty) ...[
+                                  _buildCategoryHeader('POS, Sales & Terminal Devices', LucideIcons.shoppingCart, AppColors.primary, posToggles.length),
+                                  const SizedBox(height: 6),
+                                  ...posToggles.map((e) => _buildToggleTile(context, e.key, e.value, AppColors.primary, effectiveToggles, currentBlueprint, selectedNode, activeProfession)),
+                                  const SizedBox(height: 16),
+                                ],
+                                if (otherToggles.isNotEmpty) ...[
+                                  _buildCategoryHeader('Inventory, ERP & Fleet Peripherals', LucideIcons.layers, AppColors.secondary, otherToggles.length),
+                                  const SizedBox(height: 6),
+                                  ...otherToggles.map((e) => _buildToggleTile(context, e.key, e.value, AppColors.secondary, effectiveToggles, currentBlueprint, selectedNode, activeProfession)),
+                                ],
+                              ],
+                            );
+                          },
                         );
                       },
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -939,9 +1022,19 @@ class TechnicianFleetConsolePage extends StatelessWidget {
     );
   }
 
-  Widget _buildToggleTile(String key, bool isEnabled, Color color, Map<String, bool> currentToggles) {
+  Widget _buildToggleTile(
+    BuildContext context,
+    String key,
+    bool isEnabled,
+    Color color,
+    Map<String, bool> currentToggles,
+    StoreBlueprint currentBlueprint,
+    ConnectedNode? targetNode,
+    SpecificIndustry? activeProfession,
+  ) {
     final isDental3d = key == 'sw.dental_tooth_chart_editor';
     final isSpecialHighlight = isDental3d || key == 'sw.clinic_doctor_station' || key == 'sw.retail_pos';
+    final anatomyInfo = _getSpecialtyAnatomyInfo(activeProfession);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
@@ -966,7 +1059,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  _formatKeyLabel(key),
+                  _formatKeyLabel(key, activeProfession),
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.bold,
@@ -981,9 +1074,9 @@ class TechnicianFleetConsolePage extends StatelessWidget {
                     color: AppColors.accent.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Text(
-                    '3D ANATOMY',
-                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.accent),
+                  child: Text(
+                    anatomyInfo.badge,
+                    style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: AppColors.accent),
                   ),
                 ),
             ],
@@ -992,7 +1085,7 @@ class TechnicianFleetConsolePage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 2),
-              Text(_getDesc(key), style: const TextStyle(fontSize: 11, color: AppColors.textSecondaryDark)),
+              Text(_getDesc(key, activeProfession), style: const TextStyle(fontSize: 11, color: AppColors.textSecondaryDark)),
               const SizedBox(height: 2),
               Text(key, style: const TextStyle(fontSize: 9.5, fontFamily: 'monospace', color: AppColors.textMutedDark)),
             ],
@@ -1001,6 +1094,20 @@ class TechnicianFleetConsolePage extends StatelessWidget {
             final updated = Map<String, bool>.from(currentToggles);
             updated[key] = val;
             targetTogglesNotifier.value = updated;
+
+            // Immediately apply to local ConfigBloc when configuring Master Hub or local station
+            final isMasterOrLocal = targetNode == null ||
+                targetNode.id == 'god-mode-hub' ||
+                targetNode.id == 'local' ||
+                targetNode.id == LanSyncRepositoryImpl.getLocalInstanceId();
+            if (isMasterOrLocal) {
+              final newBp = currentBlueprint.copyWith(
+                toggles: updated,
+                specificIndustry: activeProfession,
+                vertical: activeProfession?.vertical,
+              );
+              context.read<ConfigBloc>().add(UpdateBlueprintEvent(newBp));
+            }
           },
         ),
       ),
@@ -1019,8 +1126,16 @@ class TechnicianFleetConsolePage extends StatelessWidget {
             _ensureAllToggles(init, currentBlueprint);
             return init;
           })();
+    final activeProfession = targetProfessionNotifier.value ?? _determineNodeProfession(targetNode, currentBlueprint);
     final updatedBlueprint = currentBlueprint.copyWith(
       toggles: Map<String, bool>.from(effectiveToggles),
+      specificIndustry: activeProfession,
+      vertical: activeProfession.vertical,
+      industryType: activeProfession.vertical == IndustryVertical.medical
+          ? IndustryType.medical
+          : (activeProfession.vertical == IndustryVertical.automotive
+              ? IndustryType.automotive
+              : currentBlueprint.industryType),
     );
 
     final isMasterHub = targetNode.id == 'god-mode-hub';
@@ -1043,28 +1158,16 @@ class TechnicianFleetConsolePage extends StatelessWidget {
       await lanSyncRepository.broadcast(envelope);
     } catch (_) {}
 
-    // 3. If target is master hub, current station or server, also update local ConfigBloc
-    final localId = LanSyncRepositoryImpl.getLocalInstanceId();
-    final isTargetLocal = isMasterHub ||
-        targetNode.id == 'god-mode-hub' ||
-        targetNode.id == localId ||
-        targetNode.id == 'local' ||
-        targetNode.id.contains('server') ||
-        targetNode.role.toLowerCase().contains('this station') ||
-        targetNode.role.toLowerCase().contains('local') ||
-        targetNode.role.toLowerCase().contains('master') ||
-        targetNode.role.toLowerCase().contains('blueprint');
-
-    if (context.mounted && isTargetLocal) {
+    // 3. Always update local ConfigBloc so this workstation has these settings saved & applied immediately
+    if (context.mounted) {
       context.read<ConfigBloc>().add(UpdateBlueprintEvent(updatedBlueprint));
     }
 
     // 4. Update UI banner
+    final anatomyLabel = _getSpecialtyAnatomyInfo(activeProfession).label;
     deploymentSuccessNotifier.value = isMasterHub
         ? 'Settings saved & refreshed successfully on this machine! Global Fleet Blueprint deployed to all remote stations (Doctor, Reception, POS) and saved permanently!'
-        : (isTargetLocal
-            ? 'Settings saved & refreshed successfully on this machine! All toggles (including 3D Dental Chart) are now active and permanently saved to the database.'
-            : 'Configuration deployed successfully to ${targetNode.role} (${targetNode.ipAddress})! Target device has refreshed and saved settings permanently to its local database.');
+        : 'Configuration deployed successfully to ${targetNode.role} (${targetNode.ipAddress}) with profession [${activeProfession.label}] and saved to this machine! All toggles (including $anatomyLabel) are now active and permanently saved.';
   }
 
   static IconData _getNodeIcon(String role) {
@@ -1078,15 +1181,615 @@ class TechnicianFleetConsolePage extends StatelessWidget {
     return LucideIcons.monitor;
   }
 
-  static String _formatKeyLabel(String key) {
+  static SpecificIndustry _determineNodeProfession(
+    ConnectedNode? node,
+    StoreBlueprint currentBlueprint,
+  ) {
+    if (node != null && node.profession != null && node.profession!.isNotEmpty) {
+      return SpecificIndustry.fromString(node.profession);
+    }
+    final combined = '${node?.role ?? ''} ${node?.appName ?? ''}'.toLowerCase();
+    if (combined.contains('ophthalm') || combined.contains('eye') || combined.contains('optom')) {
+      return SpecificIndustry.ophthalmologyClinic;
+    }
+    if (combined.contains('ortho') || combined.contains('bone') || combined.contains('joint') || combined.contains('skelet')) {
+      return SpecificIndustry.orthopedicClinic;
+    }
+    if (combined.contains('cardio') || combined.contains('heart')) {
+      return SpecificIndustry.cardiologyClinic;
+    }
+    if (combined.contains('derma') || combined.contains('skin') || combined.contains('hair')) {
+      return SpecificIndustry.dermatologyClinic;
+    }
+    if (combined.contains('physio') || combined.contains('rehab') || combined.contains('chiro')) {
+      return SpecificIndustry.physiotherapyRehab;
+    }
+    if (combined.contains('gastro') || combined.contains('digest') || combined.contains('endoscop')) {
+      return SpecificIndustry.gastroClinic;
+    }
+    if (combined.contains('neuro') || combined.contains('brain')) {
+      return SpecificIndustry.neurologyClinic;
+    }
+    if (combined.contains('ent') || combined.contains('sinus') || combined.contains('rhino')) {
+      return SpecificIndustry.rhinologySinusEnt;
+    }
+    if (combined.contains('pulmon') || combined.contains('respir') || combined.contains('lung')) {
+      return SpecificIndustry.pulmonologyRespiratory;
+    }
+    if (combined.contains('uro') || combined.contains('prostate')) {
+      return SpecificIndustry.urologyMensHealth;
+    }
+    if (combined.contains('obgyn') || combined.contains('gyne') || combined.contains('fertility')) {
+      return SpecificIndustry.obgynFertilityRei;
+    }
+    if (combined.contains('dental') || combined.contains('tooth') || combined.contains('dentist')) {
+      return SpecificIndustry.dentalClinic;
+    }
+    if (combined.contains('vet') || combined.contains('animal') || combined.contains('pet')) {
+      return SpecificIndustry.veterinaryClinic;
+    }
+    if (combined.contains('lab') || combined.contains('pathology') || combined.contains('dicom')) {
+      return SpecificIndustry.diagnosticLab;
+    }
+    if (combined.contains('psych') || combined.contains('mental') || combined.contains('counsel')) {
+      return SpecificIndustry.mentalHealthCounseling;
+    }
+    if (combined.contains('pharm') || combined.contains('rx') || combined.contains('drug')) {
+      return SpecificIndustry.pharmacy;
+    }
+    if (combined.contains('auto') || combined.contains('garage') || combined.contains('mechanic')) {
+      return SpecificIndustry.autoRepairGarage;
+    }
+    if (combined.contains('wash') || combined.contains('detail')) {
+      return SpecificIndustry.carWashDetailing;
+    }
+    if (combined.contains('tire') || combined.contains('wheel')) {
+      return SpecificIndustry.tireShop;
+    }
+    if (combined.contains('salon') || combined.contains('barber')) {
+      return SpecificIndustry.hairSalonBarbershop;
+    }
+    if (combined.contains('nail') || combined.contains('brow')) {
+      return SpecificIndustry.nailSalon;
+    }
+    if (combined.contains('spa') || combined.contains('wellness') || combined.contains('massage')) {
+      return SpecificIndustry.spaWellnessCenter;
+    }
+    if (combined.contains('tattoo') || combined.contains('piercing')) {
+      return SpecificIndustry.tattooPiercingStudio;
+    }
+    if (combined.contains('gym') || combined.contains('fitness')) {
+      return SpecificIndustry.gymFitnessCenter;
+    }
+    if (combined.contains('training') || combined.contains('trainer') || combined.contains('workout')) {
+      return SpecificIndustry.personalTraining1on1;
+    }
+    if (combined.contains('yoga') || combined.contains('pilates')) {
+      return SpecificIndustry.yogaPilatesStudio;
+    }
+    if (combined.contains('bake') || combined.contains('patisserie')) {
+      return SpecificIndustry.bakeryPatisserie;
+    }
+    if (combined.contains('bar') || combined.contains('pub') || combined.contains('lounge')) {
+      return SpecificIndustry.barPub;
+    }
+    if (combined.contains('cafe') || combined.contains('coffee') || combined.contains('barista')) {
+      return SpecificIndustry.cafeCoffeeshop;
+    }
+    if (combined.contains('cloud') || combined.contains('kitchen')) {
+      return SpecificIndustry.cloudKitchenDelivery;
+    }
+    if (combined.contains('dine') || combined.contains('restaurant')) {
+      return SpecificIndustry.restaurantDinein;
+    }
+    if (combined.contains('clean') || combined.contains('maid')) {
+      return SpecificIndustry.cleaningService;
+    }
+    if (combined.contains('hvac') || combined.contains('plumb') || combined.contains('electr')) {
+      return SpecificIndustry.fieldTradesHvac;
+    }
+    if (combined.contains('lawn') || combined.contains('landscape')) {
+      return SpecificIndustry.landscapingLawncare;
+    }
+    if (combined.contains('law') || combined.contains('legal') || combined.contains('attorney')) {
+      return SpecificIndustry.lawFirm;
+    }
+    if (combined.contains('account') || combined.contains('tax') || combined.contains('bookkeep')) {
+      return SpecificIndustry.accountingBookkeeping;
+    }
+    if (combined.contains('photo') || combined.contains('camera')) {
+      return SpecificIndustry.photographyStudio;
+    }
+    if (combined.contains('real_estate') || combined.contains('realtor') || combined.contains('property')) {
+      return SpecificIndustry.realEstateAgency;
+    }
+    if (combined.contains('grocer') || combined.contains('market') || combined.contains('supermarket')) {
+      return SpecificIndustry.grocerySupermarket;
+    }
+    if (combined.contains('kiosk') || combined.contains('convenience')) {
+      return SpecificIndustry.convenienceKiosk;
+    }
+    if (combined.contains('cloth') || combined.contains('boutique') || combined.contains('fashion')) {
+      return SpecificIndustry.clothingBoutique;
+    }
+    if (combined.contains('phone') || combined.contains('electronic')) {
+      return SpecificIndustry.electronicsPhoneShop;
+    }
+    if (combined.contains('book') || combined.contains('stationery')) {
+      return SpecificIndustry.bookstoreStationery;
+    }
+    if (currentBlueprint.specificIndustry != SpecificIndustry.cashierPos) {
+      return currentBlueprint.specificIndustry;
+    }
+    if (currentBlueprint.isMedical) {
+      return SpecificIndustry.dentalClinic;
+    }
+    return SpecificIndustry.cashierPos;
+  }
+
+  static ({String label, String description, String badge}) _getSpecialtyAnatomyInfo(
+    SpecificIndustry? profession,
+  ) {
+    if (profession == null) {
+      return (
+        label: 'Dental Tooth Chart Editor',
+        description: 'Activates 3D Interactive Odontogram, 32-tooth quadrant matrix, and procedure charting.',
+        badge: '3D ANATOMY',
+      );
+    }
+    switch (profession) {
+      // 1. Head, Brain & Neurological Specialties
+      case SpecificIndustry.neurologyClinic:
+        return (
+          label: 'Neurology 3D Intracranial Brain Visualizer',
+          description: 'Activates 3D intracranial brain layers, cranial nerves, and Circle of Willis mapping.',
+          badge: '3D NEURO',
+        );
+      case SpecificIndustry.neurologyNeurosurgery:
+        return (
+          label: 'Neurosurgery 3D Stereotactic Cranial Visualizer',
+          description: 'Activates 3D craniotomy boundary planning, stereotactic neuronavigation, and ventriculostomy.',
+          badge: '3D NEUROSURGERY',
+        );
+      case SpecificIndustry.neuroOtologyBalance:
+        return (
+          label: 'Neuro-Otology 3D Vestibular & Labyrinth Visualizer',
+          description: 'Activates 3D inner ear semicircular canals, otolith organs, and Dix-Hallpike nystagmus examination.',
+          badge: '3D VESTIBULAR',
+        );
+      case SpecificIndustry.neuroPsychiatryTms:
+        return (
+          label: 'Neuro-Psychiatry 3D TMS Brain Network Visualizer',
+          description: 'Activates 3D dorsolateral prefrontal cortex (dlPFC) coil targeting and psychiatric scoring.',
+          badge: '3D TMS BRAIN',
+        );
+
+      // 2. Eye, ENT, Dental & Face Clinics
+      case SpecificIndustry.ophthalmologyClinic:
+      case SpecificIndustry.optometryClinic:
+        return (
+          label: 'Ophthalmology 3D Ocular Visualizer',
+          description: 'Activates 3D Eye Globe, sliced ocular layers, and fundus C:D examination.',
+          badge: '3D OCULAR',
+        );
+      case SpecificIndustry.entClinic:
+        return (
+          label: 'ENT Ear, Nose & Throat 3D Airway Visualizer',
+          description: 'Activates 3D auditory canal, tympanic membrane, larynx, and vocal cords assessment.',
+          badge: '3D ENT',
+        );
+      case SpecificIndustry.rhinologySinusEnt:
+        return (
+          label: 'ENT & Rhinology 3D Sinus Visualizer',
+          description: 'Activates 3D paranasal sinuses, nasal septum, and airway visualizer.',
+          badge: '3D SINUS',
+        );
+      case SpecificIndustry.dentalClinic:
+        return (
+          label: 'Dental Tooth Chart Editor',
+          description: 'Activates 3D Interactive Odontogram, 32-tooth quadrant matrix, and procedure charting.',
+          badge: '3D ANATOMY',
+        );
+      case SpecificIndustry.endodonticsDental:
+        return (
+          label: 'Endodontics & Dental CBCT Visualizer',
+          description: 'Activates 3D root canal pulp chamber, CBCT volume slice, and periapical lesion tracking.',
+          badge: '3D CBCT',
+        );
+
+      // 3. Cardiovascular, Thoracic & Vein Clinics
+      case SpecificIndustry.cardiologyClinic:
+        return (
+          label: 'Cardiology 3D Heart & Vascular Visualizer',
+          description: 'Activates 3D cardiovascular heart anatomy, coronary arteries, and hemodynamic tracking.',
+          badge: '3D CARDIAC',
+        );
+      case SpecificIndustry.veinVascularPhlebology:
+        return (
+          label: 'Vascular & Vein Phlebology Visualizer',
+          description: 'Activates venous reflux mapping (CEAP C1-C6), saphenous vein duplex, and sclerotherapy pins.',
+          badge: '3D VASCULAR',
+        );
+      case SpecificIndustry.pulmonologyRespiratory:
+        return (
+          label: 'Pulmonology 3D Respiratory & Lung Visualizer',
+          description: 'Activates 3D bronchial tree, lung parenchyma, and EBUS biopsy mapping.',
+          badge: '3D PULMONARY',
+        );
+      case SpecificIndustry.endocrinologyClinic:
+        return (
+          label: 'Endocrinology 3D Glandular & Thyroid Visualizer',
+          description: 'Activates 3D thyroid TIRADS nodule scoring, adrenal glands, and HbA1c glycemic sensor logs.',
+          badge: '3D ENDOCRINE',
+        );
+
+      // 4. Abdominal, Pelvic & Endocrine Clinics
+      case SpecificIndustry.gastroClinic:
+        return (
+          label: 'Gastroenterology 3D Digestive & Endoscopy Visualizer',
+          description: 'Activates 3D gastrointestinal tract, endoscopy options, and digestive organ mapping.',
+          badge: '3D DIGESTIVE',
+        );
+      case SpecificIndustry.urologyMensHealth:
+        return (
+          label: 'Urology 3D Viscera & Men\'s Health Visualizer',
+          description: 'Activates 3D pelvic viscera, urinary bladder, and prostate peripheral zone mapping.',
+          badge: '3D UROLOGY',
+        );
+      case SpecificIndustry.obgynFertilityRei:
+        return (
+          label: 'OB/GYN 3D Reproductive & Pelvic Visualizer',
+          description: 'Activates 3D uterine cavity, ovaries, fallopian tubes, and pelvic floor anatomy.',
+          badge: '3D OB/GYN',
+        );
+
+      // 5. Musculoskeletal, Sports & Physical Rehab
+      case SpecificIndustry.orthopedicClinic:
+        return (
+          label: 'Orthopedics 3D Skeleton & Bone Explorer',
+          description: 'Activates 3D interactive skeletal bone explorer, goniometer, and joint motion tracking.',
+          badge: '3D SKELETAL',
+        );
+      case SpecificIndustry.orthopedicSportsTrauma:
+        return (
+          label: 'Orthopedic Trauma & Sports Joint Explorer',
+          description: 'Activates ligament tear grading (ACL/MCL), fracture classification, and post-op implant pins.',
+          badge: '3D TRAUMA',
+        );
+      case SpecificIndustry.physiotherapyRehab:
+        return (
+          label: 'Physiotherapy 3D Muscle & Musculoskeletal Viewer',
+          description: 'Activates 3D muscular anatomy, rehab motion vectors, and trigger point charting.',
+          badge: '3D MUSCULAR',
+        );
+      case SpecificIndustry.physiotherapyChiropractic:
+        return (
+          label: 'Chiropractic & Spine Alignment Visualizer',
+          description: 'Activates 3D spinal column vertebra subluxation map, posture grid, and Cobb angle tracker.',
+          badge: '3D SPINE',
+        );
+      case SpecificIndustry.podiatryOrthotics:
+        return (
+          label: 'Podiatry 3D Foot & Ankle Biomechanics Viewer',
+          description: 'Activates 3D tarsal/metatarsal anatomy, gait baropodometry, and orthotic insole pressure map.',
+          badge: '3D PODIATRY',
+        );
+
+      // 6. Plastic Surgery, Aesthetics & Dermatology
+      case SpecificIndustry.plasticSurgeryCosmetic:
+        return (
+          label: 'Cosmetic & Plastic Surgery 3D Face Visualizer',
+          description: 'Activates 3D facial vectors, rhinoplasty contouring, blepharoplasty, and breast implant sizing.',
+          badge: '3D PLASTIC',
+        );
+      case SpecificIndustry.medicalAestheticsInjectors:
+        return (
+          label: 'Aesthetics 3D Facial Injector & Botulinum Mapper',
+          description: 'Activates facial danger zones, dermal filler micro-droplets, and neurotoxin unit dosing.',
+          badge: '3D INJECTORS',
+        );
+      case SpecificIndustry.dermatologyClinic:
+        return (
+          label: 'Dermatology 3D Dermatome & Skin Viewer',
+          description: 'Activates 3D dermatome mapping, Fitzpatrick phototyping, and skin lesion tracking.',
+          badge: '3D DERMATOME',
+        );
+      case SpecificIndustry.dermatologyHairRestoration:
+        return (
+          label: 'Trichology & Hair Follicle Density Mapper',
+          description: 'Activates Norwood/Ludwig scalp hair restoration grid, FUE graft count, and follicle density.',
+          badge: '3D TRICHOLOGY',
+        );
+
+      // 7. Interventional Pain, Anesthesia & Allied Specialties
+      case SpecificIndustry.interventionalPainManagement:
+        return (
+          label: 'Pain Management 3D Nerve Block & Spine Visualizer',
+          description: 'Activates C-arm fluoroscopy needle trajectories, epidural/facet blocks, and pain dermatome map.',
+          badge: '3D PAIN BLOCK',
+        );
+      case SpecificIndustry.acupunctureEasternMedicine:
+        return (
+          label: 'Acupuncture 3D Meridian & Acupoint Visualizer',
+          description: 'Activates 3D twelve primary meridian channels, 361 acupoints, and pulse diagnosis notes.',
+          badge: '3D MERIDIAN',
+        );
+      case SpecificIndustry.speechLanguagePathology:
+        return (
+          label: 'Speech Pathology 3D Vocal Tract & Articulatory Visualizer',
+          description: 'Activates 3D pharyngeal/laryngeal articulation, swallowing videofluoroscopy (FEES), and phonetics.',
+          badge: '3D VOCAL TRACT',
+        );
+      case SpecificIndustry.pediatricClinic:
+        return (
+          label: 'Pediatrics 3D Child Anatomy & Growth Visualizer',
+          description: 'Activates WHO/CDC growth percentile curves, pediatric vaccine milestones, and child anatomy.',
+          badge: '3D PEDIATRIC',
+        );
+      case SpecificIndustry.diagnosticLab:
+        return (
+          label: 'Diagnostic Lab & DICOM Medical Imaging Station',
+          description: 'Activates automated clinical pathology analyzer feeds, DICOM PACS imaging, and lab worklists.',
+          badge: 'DICOM LAB',
+        );
+      case SpecificIndustry.mentalHealthCounseling:
+        return (
+          label: 'Mental Health & Psychotherapy Assessment Suite',
+          description: 'Activates DSM-5 diagnostic criteria, PHQ-9/GAD-7 psychometric scales, and therapy notes.',
+          badge: 'PSYCH SUITE',
+        );
+      case SpecificIndustry.pharmacy:
+        return (
+          label: 'Pharmacy Prescription & Molecule Dispensing Engine',
+          description: 'Activates e-Prescription drug interaction checks, pill blister packaging, and NDC barcode scanner.',
+          badge: 'PHARMACY RX',
+        );
+      case SpecificIndustry.veterinaryClinic:
+        return (
+          label: 'Veterinary 3D Canine & Feline Anatomical Visualizer',
+          description: 'Activates 3D canine/feline skeletal anatomy, veterinary dental charting, and microchip scanner.',
+          badge: '3D VETERINARY',
+        );
+      case SpecificIndustry.clinic:
+        return (
+          label: 'Multi-Specialty 3D Anatomical Visualizer',
+          description: 'Activates interactive 3D anatomical exploration, layers, and clinical pin observations.',
+          badge: '3D ANATOMY',
+        );
+
+      // Automotive
+      case SpecificIndustry.autoRepairGarage:
+        return (
+          label: 'Automotive 3D Vehicle & Bay Inspection Pipeline',
+          description: 'Activates 3D vehicle inspection points, bay lift scheduling, and VIN work orders.',
+          badge: '3D VEHICLE',
+        );
+      case SpecificIndustry.carWashDetailing:
+        return (
+          label: 'Car Wash & Auto Detailing Bay Workflow Manager',
+          description: 'Activates auto detailing bay queue, wash tier packages, and vehicle readiness tracker.',
+          badge: 'AUTO DETAILING',
+        );
+      case SpecificIndustry.tireShop:
+        return (
+          label: 'Tire Shop & 3D Wheel Alignment Diagnostic Engine',
+          description: 'Activates 3D wheel camber/toe alignment, tire tread depth analysis, and rim mounting.',
+          badge: '3D ALIGNMENT',
+        );
+
+      // Beauty & Personal Care
+      case SpecificIndustry.hairSalonBarbershop:
+        return (
+          label: 'Hair Salon & Barbershop Style & Chair Manager',
+          description: 'Activates barber chair queue, stylist appointment board, and cut/color formulas.',
+          badge: 'SALON CHAIR',
+        );
+      case SpecificIndustry.nailSalon:
+        return (
+          label: 'Nail Salon & Brow Bar Service Board',
+          description: 'Activates manicure/pedicure station tracking, polish color catalog, and technician tips.',
+          badge: 'NAIL & BROW',
+        );
+      case SpecificIndustry.spaWellnessCenter:
+        return (
+          label: 'Spa & Wellness Hydrotherapy & Room Manager',
+          description: 'Activates sauna/massage suite allocations, aromatherapy packages, and therapist scheduling.',
+          badge: 'SPA WELLNESS',
+        );
+      case SpecificIndustry.tattooPiercingStudio:
+        return (
+          label: 'Tattoo & Piercing 3D Body Art Placement Visualizer',
+          description: 'Activates 3D skin canvas stencil placement, needle gauge selection, and sterile consent forms.',
+          badge: '3D BODY ART',
+        );
+
+      // Education & Tutoring
+      case SpecificIndustry.drivingSchool:
+        return (
+          label: 'Driving School Dual-Control Fleet & Slot Manager',
+          description: 'Activates instructor dual-control vehicle fleet, road test simulations, and student permits.',
+          badge: 'DRIVING FLEET',
+        );
+      case SpecificIndustry.tutoringLearningCenter:
+        return (
+          label: 'Tutoring Center & Academy Classroom Board',
+          description: 'Activates classroom seating charts, curriculum progress tracking, and student gradebooks.',
+          badge: 'ACADEMY CLASS',
+        );
+
+      // Events & Hospitality
+      case SpecificIndustry.eventVenueBanquet:
+        return (
+          label: 'Event Venue 3D Floor & Banquet Seating Visualizer',
+          description: 'Activates 3D banquet hall floor layouts, table reservations, and catering timeline planner.',
+          badge: '3D BANQUET',
+        );
+      case SpecificIndustry.hotelGuesthouse:
+        return (
+          label: 'Hotel & Guesthouse Room & Reservation Grid',
+          description: 'Activates room occupancy grid, housekeeping status, check-in keycards, and folio billing.',
+          badge: 'ROOM GRID',
+        );
+
+      // Fitness & Sports
+      case SpecificIndustry.gymFitnessCenter:
+        return (
+          label: 'Gym & Fitness Member Turnstile & Class Scheduler',
+          description: 'Activates RFID turnstile access, gym membership tiers, and group fitness class bookings.',
+          badge: 'GYM PASS',
+        );
+      case SpecificIndustry.personalTraining1on1:
+        return (
+          label: 'Personal Training 3D Muscle & Workout Tracker',
+          description: 'Activates 3D body muscle targeting, 1-on-1 hypertrophy programs, and caliper body fat logs.',
+          badge: '3D WORKOUT',
+        );
+      case SpecificIndustry.yogaPilatesStudio:
+        return (
+          label: 'Yoga & Pilates Mat & Reformer Studio Manager',
+          description: 'Activates reformer apparatus booking, yoga mat alignment grids, and instructor roster.',
+          badge: 'YOGA STUDIO',
+        );
+
+      // Food & Beverage
+      case SpecificIndustry.bakeryPatisserie:
+        return (
+          label: 'Bakery & Artisan Patisserie Fresh Batch Tracker',
+          description: 'Activates baking oven timer schedules, pastry batch yields, and morning shelf-life rotation.',
+          badge: 'BAKERY BATCH',
+        );
+      case SpecificIndustry.barPub:
+        return (
+          label: 'Bar, Pub & Lounge Tab & Tap Line Monitor',
+          description: 'Activates draft beer keg levels, cocktail recipe cards, and split bar tab management.',
+          badge: 'BAR TAB',
+        );
+      case SpecificIndustry.cafeCoffeeshop:
+        return (
+          label: 'Cafe & Barista Quick-Order Speed Dispatch',
+          description: 'Activates espresso shot extraction metrics, milk steam presets, and barista queue display.',
+          badge: 'COFFEE BARISTA',
+        );
+      case SpecificIndustry.cloudKitchenDelivery:
+        return (
+          label: 'Cloud Kitchen Multi-Brand Order Aggregator',
+          description: 'Activates delivery platform webhook aggregator, packaging station, and courier handoff.',
+          badge: 'CLOUD KITCHEN',
+        );
+      case SpecificIndustry.restaurantDinein:
+        return (
+          label: 'Restaurant 3D Dining Table & Floor Layout Manager',
+          description: 'Activates 3D dining room floor plan, course firing triggers, and server section zoning.',
+          badge: '3D DINE-IN',
+        );
+
+      // General Services
+      case SpecificIndustry.generalServices:
+        return (
+          label: 'General Services & Business Flow Manager',
+          description: 'Activates multi-purpose service appointment tickets, customer check-in, and billing.',
+          badge: 'GENERAL SERVICES',
+        );
+
+      // Home & Trade Field Services
+      case SpecificIndustry.cleaningService:
+        return (
+          label: 'Residential & Commercial Cleaning Crew Dispatcher',
+          description: 'Activates cleaning team checklist, square-footage pricing calculator, and route dispatch.',
+          badge: 'CREW DISPATCH',
+        );
+      case SpecificIndustry.fieldTradesHvac:
+        return (
+          label: 'HVAC, Plumbing & Electrical Field Work Dispatcher',
+          description: 'Activates truck inventory tracking, emergency service dispatch, and job site work orders.',
+          badge: 'FIELD TRADE',
+        );
+      case SpecificIndustry.landscapingLawncare:
+        return (
+          label: 'Landscaping & Lawn Route Maintenance Planner',
+          description: 'Activates lawn mowing route optimizer, seasonal pruning schedule, and yard acreage quotes.',
+          badge: 'LANDSCAPE ROUTE',
+        );
+
+      // Professional Services
+      case SpecificIndustry.accountingBookkeeping:
+        return (
+          label: 'Accounting & Tax Preparation Ledger Console',
+          description: 'Activates double-entry general ledger, balance sheet audit trail, and VAT tax filings.',
+          badge: 'TAX ACCOUNTING',
+        );
+      case SpecificIndustry.lawFirm:
+        return (
+          label: 'Law Firm Case & Billable Hours Legal Manager',
+          description: 'Activates litigation docket calendar, billable timer increments, and client trust accounting.',
+          badge: 'LEGAL PRACTICE',
+        );
+      case SpecificIndustry.photographyStudio:
+        return (
+          label: 'Photography Studio Shoot & Equipment Scheduler',
+          description: 'Activates photo session timeline, camera/lens gear checkout, and proofing gallery delivery.',
+          badge: 'PHOTO STUDIO',
+        );
+      case SpecificIndustry.realEstateAgency:
+        return (
+          label: 'Real Estate Property Pipeline & Commission Board',
+          description: 'Activates MLS property listing catalog, buyer escrow milestones, and broker commission splits.',
+          badge: 'REAL ESTATE',
+        );
+
+      // Retail & Supermarkets
+      case SpecificIndustry.bookstoreStationery:
+        return (
+          label: 'Bookstore ISBN Catalog & Lending Tracker',
+          description: 'Activates 13-digit ISBN barcode scanner, author/genre taxonomy, and reserved book orders.',
+          badge: 'BOOKSTORE ISBN',
+        );
+      case SpecificIndustry.cashierPos:
+        return (
+          label: 'General Retail & Cashier POS Checkout Terminal',
+          description: 'Activates multi-lane POS barcode scanner, receipt thermal printer, and cash drawer kick.',
+          badge: 'RETAIL POS',
+        );
+      case SpecificIndustry.clothingBoutique:
+        return (
+          label: 'Fashion Boutique 3D Size-Color Matrix & Fitting',
+          description: 'Activates apparel SKU variant matrix (Size/Color), fitting room queue, and garment tags.',
+          badge: 'BOUTIQUE FITTING',
+        );
+      case SpecificIndustry.convenienceKiosk:
+        return (
+          label: 'Convenience Store & Kiosk Rapid Checkout Terminal',
+          description: 'Activates rapid-tap speed keys, grab-and-go barcode register, and lotto ticket accounting.',
+          badge: 'RAPID KIOSK',
+        );
+      case SpecificIndustry.electronicsPhoneShop:
+        return (
+          label: 'Electronics & Phone Repair Work Order Pipeline',
+          description: 'Activates IMEI device intake, cracked screen/battery repair status, and spare parts stock.',
+          badge: 'DEVICE REPAIR',
+        );
+      case SpecificIndustry.grocerySupermarket:
+        return (
+          label: 'Supermarket Dynamic Scale & Barcode Checkout',
+          description: 'Activates RS-232 deli scale integration, weighted produce PLU lookups, and conveyor belt lanes.',
+          badge: 'SUPERMARKET POS',
+        );
+    }
+  }
+
+  static String _formatKeyLabel(String key, [SpecificIndustry? profession]) {
+    if (key == 'sw.dental_tooth_chart_editor') {
+      return _getSpecialtyAnatomyInfo(profession).label;
+    }
     final clean = key.replaceFirst(RegExp(r'^(sw\.|hw\.)'), '');
     return clean.split('_').map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1)).join(' ');
   }
 
-  static String _getDesc(String key) {
+  static String _getDesc(String key, [SpecificIndustry? profession]) {
+    if (key == 'sw.dental_tooth_chart_editor') {
+      return _getSpecialtyAnatomyInfo(profession).description;
+    }
     switch (key) {
-      case 'sw.dental_tooth_chart_editor':
-        return 'Activates 3D Interactive Odontogram, 32-tooth quadrant matrix, and procedure charting.';
       case 'sw.clinic_doctor_station':
         return 'Activates Doctor Consultation Station, encounter history, clinical notes, and prescriptions.';
       case 'sw.clinic_reception':
@@ -1164,4 +1867,15 @@ class TechnicianFleetConsolePage extends StatelessWidget {
     toggles.putIfAbsent('hw.optical_prescription_scanner', () => false);
     toggles.putIfAbsent('hw.customer_display', () => false);
   }
+
+  @visibleForTesting
+  static SpecificIndustry determineNodeProfessionForTest(
+    ConnectedNode? node,
+    StoreBlueprint currentBlueprint,
+  ) => _determineNodeProfession(node, currentBlueprint);
+
+  @visibleForTesting
+  static ({String label, String description, String badge}) getSpecialtyAnatomyInfoForTest(
+    SpecificIndustry? profession,
+  ) => _getSpecialtyAnatomyInfo(profession);
 }

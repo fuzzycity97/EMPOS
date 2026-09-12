@@ -255,8 +255,10 @@ class DentalToothMatrixWidget extends StatelessWidget {
     bool isDark,
     ValueNotifier<bool> is3dMode,
   ) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      spacing: 8,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         // Pediatric / Adult Chip
         Container(

@@ -53,6 +53,7 @@ import '../../features/shift/presentation/widgets/open_shift_dialog.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_dimensions.dart';
 import '../di/injection_container.dart';
+import '../localization/app_language.dart';
 import '../utils/currency_formatter.dart';
 
 class _NavItem {
@@ -92,10 +93,17 @@ class MainShell extends StatelessWidget {
 
   bool _isTabEnabled(StoreBlueprint? blueprint, List<String> toggleKeys, {required bool defaultValue}) {
     if (blueprint == null) return defaultValue;
+    bool hasExplicitKey = false;
     for (final key in toggleKeys) {
       if (blueprint.toggles.containsKey(key)) {
-        return blueprint.toggles[key] == true;
+        hasExplicitKey = true;
+        if (blueprint.toggles[key] == true) {
+          return true;
+        }
       }
+    }
+    if (hasExplicitKey) {
+      return false;
     }
     return defaultValue;
   }
@@ -159,7 +167,35 @@ class MainShell extends StatelessWidget {
               // 2. Doctor / Specialist
               if (_isTabEnabled(
                 blueprint,
-                ['sw.clinic_doctor_station', 'sw.dental_tooth_chart_editor'],
+                [
+                  'sw.clinic_doctor_station',
+                  'sw.dental_tooth_chart_editor',
+                  'sw.eye_3d_layer_viewer',
+                  'sw.bone_3d_skeleton_viewer',
+                  'sw.muscle_3d_anatomy_viewer',
+                  'sw.intestines_3d_digestive_viewer',
+                  'sw.heart_3d_vascular_viewer',
+                  'sw.skin_3d_dermatome_viewer',
+                  'sw.neuro_3d_brain_viewer',
+                  'sw.neuro_otology_3d_vestibular_viewer',
+                  'sw.neuro_psychiatry_3d_tms_viewer',
+                  'sw.sinus_3d_rhinology_viewer',
+                  'sw.vein_3d_phlebology_viewer',
+                  'sw.lungs_3d_respiratory_viewer',
+                  'sw.thyroid_3d_endocrine_viewer',
+                  'sw.urology_3d_pelvic_viewer',
+                  'sw.obgyn_3d_pelvic_fetal_viewer',
+                  'sw.foot_3d_podiatry_viewer',
+                  'sw.face_3d_plastic_surgery_viewer',
+                  'sw.face_3d_injectors_mapper',
+                  'sw.pain_3d_spine_block_viewer',
+                  'sw.meridian_3d_acupoint_viewer',
+                  'sw.vocal_3d_articulatory_viewer',
+                  'sw.veterinary_3d_quadruped_viewer',
+                  'sw.lab_3d_specimen_viewer',
+                  'sw.mental_3d_brain_axis_viewer',
+                  'sw.pediatric_3d_growth_viewer',
+                ],
                 defaultValue: blueprint?.isMedical == true || blueprint?.isDental == true,
               )) {
                 allNavItems.add(
@@ -171,7 +207,7 @@ class MainShell extends StatelessWidget {
                       blueprint: blueprint ?? StoreBlueprintModel.defaultClinicBlueprint(),
                     ),
                     onSelect: () => context.read<ClinicBloc>().add(const LoadClinicQueueEvent()),
-                    allowedRoles: const [UserRole.admin, UserRole.doctor],
+                    allowedRoles: const [UserRole.admin, UserRole.doctor, UserRole.manager],
                   ),
                 );
               }
@@ -196,7 +232,7 @@ class MainShell extends StatelessWidget {
                   _NavItem(
                     label: 'Pipeline & Orders',
                     icon: LucideIcons.kanban,
-                    page: const WorkOrdersPipelinePage(),
+                    page: WorkOrdersPipelinePage(blueprint: blueprint),
                     onSelect: () => context.read<WorkOrderBloc>().add(const LoadWorkOrdersEvent()),
                     allowedRoles: const [UserRole.admin, UserRole.technician, UserRole.manager, UserRole.receptionist],
                   ),
@@ -242,7 +278,7 @@ class MainShell extends StatelessWidget {
                     label: 'POS Cashier',
                     icon: LucideIcons.shoppingCart,
                     page: PosPage(),
-                    allowedRoles: [UserRole.admin, UserRole.manager, UserRole.cashier],
+                    allowedRoles: [UserRole.admin, UserRole.manager, UserRole.cashier, UserRole.receptionist],
                   ),
                 );
               }
@@ -263,7 +299,7 @@ class MainShell extends StatelessWidget {
                     icon: LucideIcons.history,
                     page: const OrdersHistoryPage(),
                     onSelect: () => context.read<OrdersBloc>().add(const LoadOrdersEvent()),
-                    allowedRoles: const [UserRole.admin, UserRole.manager, UserRole.cashier],
+                    allowedRoles: const [UserRole.admin, UserRole.manager, UserRole.cashier, UserRole.receptionist],
                   ),
                 );
               }
@@ -634,6 +670,10 @@ class MainShell extends StatelessWidget {
                         );
                       },
                     ),
+
+                    // Global Language Toggle Switch (EN | عربي)
+                    const LanguageToggleSwitch(compact: true),
+                    const SizedBox(width: 8),
 
                     // Current Authenticated User Badge & Station Lock
                     Container(

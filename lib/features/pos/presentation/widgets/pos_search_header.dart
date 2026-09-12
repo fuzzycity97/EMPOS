@@ -104,9 +104,9 @@ class PosSearchHeader extends StatelessWidget {
                     // Live Scale indicator if Grocery/Scale enabled
                     _ConfigReactiveActionWrapper(
                       builder: (bp) {
-                        if (bp.isSupermarket ||
-                            bp.isEnabled('sw.grocery_weight_pricing') ||
-                            bp.isEnabled('hw.grocery_scale')) {
+                        final isScaleEnabled = bp.isEnabled('sw.grocery_weight_pricing', defaultValue: bp.isSupermarket) ||
+                            bp.isEnabled('hw.grocery_scale', defaultValue: false);
+                        if (isScaleEnabled) {
                           return const ScaleWeightIndicator();
                         }
                         return const SizedBox.shrink();
@@ -121,13 +121,13 @@ class PosSearchHeader extends StatelessWidget {
             // Dynamic Industry Actions (Pharmacy Rx / Restaurant Tables)
             _ConfigReactiveActionWrapper(
               builder: (bp) {
-                if (bp.isPharmacy || bp.isEnabled('sw.prescription_scanning')) {
+                if (bp.isEnabled('sw.prescription_scanning', defaultValue: bp.isPharmacy)) {
                   return const Padding(
                     padding: EdgeInsets.only(right: 8),
                     child: PharmacyPrescriptionButton(),
                   );
                 }
-                if (bp.isRestaurant || bp.isEnabled('sw.table_management')) {
+                if (bp.isEnabled('sw.table_management', defaultValue: bp.isRestaurant)) {
                   return const Padding(
                     padding: EdgeInsets.only(right: 8),
                     child: RestaurantTablesButton(),

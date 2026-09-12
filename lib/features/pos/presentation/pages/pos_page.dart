@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/presentation/bloc/config_bloc.dart';
+import '../../../../core/config/presentation/bloc/config_state.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_dimensions.dart';
 import '../../../../core/responsive/responsive_layout.dart';
@@ -54,6 +55,16 @@ class _PosPageView extends StatelessWidget {
 
   void _showReceiptDialog(BuildContext context, PosReady state) {
     if (state.lastCompletedOrder == null) return;
+
+    final configState = context.read<ConfigBloc?>()?.state;
+    final isPrinterEnabled = configState is ConfigLoaded
+        ? configState.blueprint.isEnabled('hw.receipt_printer_80mm', defaultValue: true)
+        : true;
+
+    if (!isPrinterEnabled) {
+      context.read<PosBloc>().add(const DismissReceiptEvent());
+      return;
+    }
 
     showDialog(
       context: context,

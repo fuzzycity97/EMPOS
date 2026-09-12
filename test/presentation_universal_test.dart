@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:empos/core/network/lan_sync/domain/entities/connected_node.dart';
 import 'package:empos/core/network/lan_sync/domain/repositories/lan_sync_repository.dart';
 import 'package:empos/core/network/lan_sync/presentation/bloc/lan_sync_bloc.dart';
+import 'package:empos/core/localization/app_language.dart';
 import 'package:empos/core/config/data/models/store_blueprint_model.dart';
 import 'package:empos/core/widgets/industry_components/universal_calendar_grid_widget.dart';
 import 'package:empos/core/widgets/industry_components/universal_pipeline_kanban_widget.dart';
@@ -85,6 +87,7 @@ void main() {
   late LanSyncBloc lanSyncBloc;
 
   setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
     tempDir = await Directory.systemTemp.createTemp('empos_presentation_test_');
     Hive.init(tempDir.path);
   });
@@ -383,6 +386,50 @@ void main() {
       expect(find.text('76 BPM'), findsOneWidget);
       expect(find.text('Adult Odontogram (Permanent 32 Teeth)'), findsOneWidget);
       expect(find.text('Complete & Send to Reception'), findsOneWidget);
+    });
+
+    testWidgets('DoctorStationPage shows empty selection placeholder and reception-only notice when no patient is active', (tester) async {
+      const loadedState = ClinicLoaded(
+        queue: [],
+        patients: [],
+      );
+
+      final dentalBlueprint = StoreBlueprintModel.defaultDentalBlueprint();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BlocProvider<LanSyncBloc>.value(
+            value: lanSyncBloc,
+            child: Scaffold(
+              body: DoctorStationPage(
+                bloc: clinicBloc,
+                blueprint: dentalBlueprint,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      clinicBloc.emit(loadedState);
+      await tester.pump();
+
+      // Verify empty selection card is shown in English by default
+      expect(find.text('Waiting for patient selection from the queue'), findsOneWidget);
+      expect(find.text('Patients are admitted via the Reception Desk'), findsOneWidget);
+      // Verify doctor station does not have intake button (reception-only flow)
+      expect(find.text('تسجيل / استقبال مريض جديد'), findsNothing);
+      // Verify 3D canvas and completion button are NOT shown
+      expect(find.text('Complete & Send to Reception'), findsNothing);
+
+      // Verify dynamic language switch to Arabic
+      await AppLanguage.setLanguage('ar');
+      await tester.pump();
+      expect(find.text('في انتظار اختيار مريض من قائمة الانتظار'), findsOneWidget);
+
+      // Reset back to English
+      await AppLanguage.setLanguage('en');
+      await tester.pump();
+      expect(find.text('Waiting for patient selection from the queue'), findsOneWidget);
     });
 
     testWidgets('ClinicReceptionPage renders KPI banner and check-in action', (tester) async {

@@ -276,5 +276,247 @@ void main() {
 
       await targetConfigBloc.close();
     });
+
+    testWidgets('Dynamically adapts 3D Anatomy toggle to Ophthalmology when selecting eye care station', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final configBloc = ConfigBloc(
+        loadStoreBlueprintUseCase: mockLoadUseCase,
+        saveStoreBlueprintUseCase: mockSaveUseCase,
+        getFeatureToggleUseCase: mockGetToggleUseCase,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+      addTearDown(configBloc.close);
+      configBloc.add(const LoadConfigEvent());
+
+      final ophthaNode = ConnectedNode(
+        id: 'station_ophthalmology_1',
+        role: 'Ophthalmology Specialist Station',
+        ipAddress: '192.168.1.188',
+        connectedAt: DateTime.now(),
+        appName: 'EMPOS Ophthalmology & Eye Care Suite',
+        profession: 'optometry_clinic',
+      );
+
+      when(() => mockLanSyncRepo.connectedNodes).thenReturn([ophthaNode]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<ConfigBloc>.value(value: configBloc),
+              BlocProvider<LanSyncBloc>.value(value: lanSyncBloc),
+            ],
+            child: TechnicianFleetConsolePage(customRepository: mockLanSyncRepo),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Click on the discovered Ophthalmology Station
+      final nodeCard = find.textContaining('Ophthalmology Specialist Station');
+      expect(nodeCard, findsWidgets);
+      await tester.tap(nodeCard.first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Verify that the 3D toggle dynamically adapted to Ophthalmology!
+      expect(find.text('Ophthalmology 3D Ocular Visualizer'), findsOneWidget);
+      expect(find.text('3D OCULAR'), findsOneWidget);
+      expect(find.text('Activates 3D Eye Globe, sliced ocular layers, and fundus C:D examination.'), findsOneWidget);
+    });
+
+    testWidgets('Dropdown selector changes station profession dynamically and deploys updated specialty blueprint', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final configBloc = ConfigBloc(
+        loadStoreBlueprintUseCase: mockLoadUseCase,
+        saveStoreBlueprintUseCase: mockSaveUseCase,
+        getFeatureToggleUseCase: mockGetToggleUseCase,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+      addTearDown(configBloc.close);
+      configBloc.add(const LoadConfigEvent());
+
+      final orthoNode = ConnectedNode(
+        id: 'station_ortho_1',
+        role: 'orthopedic',
+        ipAddress: '192.168.1.199',
+        connectedAt: DateTime.now(),
+        appName: 'EMPOS Orthopedic & Spine Center',
+        profession: 'orthopedic_clinic',
+      );
+
+      when(() => mockLanSyncRepo.connectedNodes).thenReturn([orthoNode]);
+
+      SyncEnvelope? sentEnvelope;
+      when(() => mockLanSyncRepo.broadcast(any())).thenAnswer((inv) async {
+        sentEnvelope = inv.positionalArguments[0] as SyncEnvelope;
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<ConfigBloc>.value(value: configBloc),
+              BlocProvider<LanSyncBloc>.value(value: lanSyncBloc),
+            ],
+            child: TechnicianFleetConsolePage(customRepository: mockLanSyncRepo),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Select Orthopedic node
+      await tester.tap(find.textContaining('orthopedic').first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Should initially show Orthopedics 3D Skeleton & Bone Explorer
+      expect(find.text('Orthopedics 3D Skeleton & Bone Explorer'), findsOneWidget);
+      expect(find.text('3D SKELETAL'), findsOneWidget);
+
+      // Deploy and verify the envelope contains orthopedic_clinic
+      await tester.tap(find.text('Deploy & Save to Station'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(sentEnvelope, isNotNull);
+      final rawBp = sentEnvelope!.payload!['blueprint'] as Map<String, dynamic>;
+      expect(rawBp['specificIndustry'], equals('orthopedic_clinic'));
+    });
+
+    testWidgets('Dynamically adapts 3D toggle to Veterinary when selecting veterinary station', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final configBloc = ConfigBloc(
+        loadStoreBlueprintUseCase: mockLoadUseCase,
+        saveStoreBlueprintUseCase: mockSaveUseCase,
+        getFeatureToggleUseCase: mockGetToggleUseCase,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+      addTearDown(configBloc.close);
+      configBloc.add(const LoadConfigEvent());
+
+      final vetNode = ConnectedNode(
+        id: 'station_vet_1',
+        role: 'doctor',
+        ipAddress: '192.168.1.177',
+        connectedAt: DateTime.now(),
+        appName: 'EMPOS Veterinary & Pet Care Suite',
+        profession: 'veterinary_clinic',
+      );
+
+      when(() => mockLanSyncRepo.connectedNodes).thenReturn([vetNode]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<ConfigBloc>.value(value: configBloc),
+              BlocProvider<LanSyncBloc>.value(value: lanSyncBloc),
+            ],
+            child: TechnicianFleetConsolePage(customRepository: mockLanSyncRepo),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.tap(find.textContaining('Veterinary').first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Veterinary 3D Canine & Feline Anatomical Visualizer'), findsOneWidget);
+      expect(find.text('3D VETERINARY'), findsOneWidget);
+      expect(find.text('Activates 3D canine/feline skeletal anatomy, veterinary dental charting, and microchip scanner.'), findsOneWidget);
+    });
+
+    testWidgets('Dynamically adapts 3D toggle to Restaurant Dine-In layout manager', (tester) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final configBloc = ConfigBloc(
+        loadStoreBlueprintUseCase: mockLoadUseCase,
+        saveStoreBlueprintUseCase: mockSaveUseCase,
+        getFeatureToggleUseCase: mockGetToggleUseCase,
+        lanSyncRepository: mockLanSyncRepo,
+      );
+      addTearDown(configBloc.close);
+      configBloc.add(const LoadConfigEvent());
+
+      final restaurantNode = ConnectedNode(
+        id: 'station_dinein_1',
+        role: 'pos',
+        ipAddress: '192.168.1.144',
+        connectedAt: DateTime.now(),
+        appName: 'EMPOS Dine-In Restaurant Suite',
+        profession: 'restaurant_dinein',
+      );
+
+      when(() => mockLanSyncRepo.connectedNodes).thenReturn([restaurantNode]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<ConfigBloc>.value(value: configBloc),
+              BlocProvider<LanSyncBloc>.value(value: lanSyncBloc),
+            ],
+            child: TechnicianFleetConsolePage(customRepository: mockLanSyncRepo),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.tap(find.textContaining('Dine-In').first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Restaurant 3D Dining Table & Floor Layout Manager'), findsOneWidget);
+      expect(find.text('3D DINE-IN'), findsOneWidget);
+      expect(find.text('Activates 3D dining room floor plan, course firing triggers, and server section zoning.'), findsOneWidget);
+    });
+
+    test('All 60+ SpecificIndustry values produce valid specialty adaptation label, badge and description', () {
+      expect(SpecificIndustry.values.length, greaterThanOrEqualTo(60));
+      for (final industry in SpecificIndustry.values) {
+        final node = ConnectedNode(
+          id: 'test_node',
+          role: 'custom',
+          ipAddress: '127.0.0.1',
+          connectedAt: DateTime.now(),
+          profession: industry.id,
+        );
+        final detected = TechnicianFleetConsolePage.determineNodeProfessionForTest(
+          node,
+          baseBlueprint,
+        );
+        expect(detected, equals(industry), reason: 'Failed detection for ${industry.id}');
+
+        final info = TechnicianFleetConsolePage.getSpecialtyAnatomyInfoForTest(industry);
+        expect(info.label, isNotEmpty, reason: 'Empty label for ${industry.name}');
+        expect(info.badge, isNotEmpty, reason: 'Empty badge for ${industry.name}');
+        expect(info.description, isNotEmpty, reason: 'Empty description for ${industry.name}');
+      }
+    });
   });
 }

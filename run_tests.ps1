@@ -75,7 +75,11 @@ if ($Target) {
                 -PercentComplete $percent
 
             $statusColor = if ($failed -gt 0) { "Red" } else { "Cyan" }
-            Write-Host "`r[$barStr] $percent% ($completedCount/$estimatedTotal) [$elapsed] $displayTest" -NoNewline -ForegroundColor $statusColor
+            if ($testName -match '\[E\]') {
+                Write-Host "`n[$barStr] FAIL: $testName" -ForegroundColor Red
+            } else {
+                Write-Host "`r[$barStr] $percent% ($completedCount/$estimatedTotal) [$elapsed] $displayTest" -NoNewline -ForegroundColor $statusColor
+            }
         }
         elseif ($line -match 'All tests passed!') {
             $percent = 100
@@ -83,11 +87,10 @@ if ($Target) {
             Write-Progress -Activity "EMPOS Test Runner" -Status "Complete: All tests passed!" -PercentComplete 100 -Completed
             Write-Host "`n[$barStr] 100% - SUCCESS: All tests passed successfully!" -ForegroundColor Green
         }
-        elseif ($line -match 'Some tests failed|Compilation failed|Error:') {
-            Write-Host "`n$line" -ForegroundColor Red
-        }
-        elseif ($line -match '^\s*(Expected:|Actual:|Which:|package:|test/)') {
-            Write-Host $line -ForegroundColor Red
+        else {
+            if ($line.Trim()) {
+                Write-Host $line -ForegroundColor Red
+            }
         }
     }
 } else {
@@ -118,7 +121,11 @@ if ($Target) {
                 -PercentComplete $percent
 
             $statusColor = if ($failed -gt 0) { "Red" } else { "Cyan" }
-            Write-Host "`r[$barStr] $percent% ($completedCount/$estimatedTotal) [$elapsed] $displayTest" -NoNewline -ForegroundColor $statusColor
+            if ($testName -match '\[E\]') {
+                Write-Host "`n[$barStr] FAIL: $testName" -ForegroundColor Red
+            } else {
+                Write-Host "`r[$barStr] $percent% ($completedCount/$estimatedTotal) [$elapsed] $displayTest" -NoNewline -ForegroundColor $statusColor
+            }
         }
         elseif ($line -match 'All tests passed!') {
             $percent = 100
@@ -126,11 +133,10 @@ if ($Target) {
             Write-Progress -Activity "EMPOS Test Runner" -Status "Complete: All tests passed!" -PercentComplete 100 -Completed
             Write-Host "`n[$barStr] 100% - SUCCESS: All tests passed successfully!" -ForegroundColor Green
         }
-        elseif ($line -match 'Some tests failed|Compilation failed|Error:') {
-            Write-Host "`n$line" -ForegroundColor Red
-        }
-        elseif ($line -match '^\s*(Expected:|Actual:|Which:|package:|test/)') {
-            Write-Host $line -ForegroundColor Red
+        else {
+            if ($line -match 'Some tests failed|Compilation failed|Error:|Expected:|Actual:|Which:|package:|test/|Exception:|at ') {
+                Write-Host $line -ForegroundColor Red
+            }
         }
     }
 }

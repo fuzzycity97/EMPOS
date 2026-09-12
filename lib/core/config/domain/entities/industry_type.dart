@@ -94,15 +94,56 @@ enum SpecificIndustry {
   fieldTradesHvac('Plumbing, Electrical & HVAC', 'field_trades_hvac', IndustryVertical.homeTradeServices),
   landscapingLawncare('Landscaping & Lawn Care', 'landscaping_lawncare', IndustryVertical.homeTradeServices),
 
-  // Medical, Dental & Clinical Practice (8)
+  // Medical, Dental & Clinical Practice (34)
   clinic('General Clinic & Specialist Practice', 'clinic', IndustryVertical.medical),
   dentalClinic('Dental Clinic & Orthodontics', 'dental_clinic', IndustryVertical.medical),
+  optometryClinic('Ophthalmology, Optometry & Eye Care', 'optometry_clinic', IndustryVertical.medical),
+  orthopedicClinic('Orthopedics, Bone & Joint Surgery', 'orthopedic_clinic', IndustryVertical.medical),
+  physiotherapyRehab('Physiotherapy & Musculoskeletal Rehab', 'physiotherapy_rehab', IndustryVertical.medical),
+  gastroClinic('Gastroenterology & Intestinal Medicine', 'gastro_clinic', IndustryVertical.medical),
+  cardiologyClinic('Cardiology & Heart Care', 'cardiology_clinic', IndustryVertical.medical),
+  dermatologyClinic('Dermatology & Aesthetic Medicine', 'dermatology_clinic', IndustryVertical.medical),
+  entClinic('ENT (Ear, Nose & Throat) Practice', 'ent_clinic', IndustryVertical.medical),
+  neurologyClinic('Neurology & Spine Clinic', 'neurology_clinic', IndustryVertical.medical),
+  pediatricClinic('Pediatrics & Child Health', 'pediatric_clinic', IndustryVertical.medical),
   diagnosticLab('Diagnostic Lab & Imaging Center', 'diagnostic_lab', IndustryVertical.medical),
   mentalHealthCounseling('Mental Health & Counseling Practice', 'mental_health_counseling', IndustryVertical.medical),
-  optometryClinic('Optometry & Eyewear Clinic', 'optometry_clinic', IndustryVertical.medical),
   pharmacy('Community & Clinical Pharmacy', 'pharmacy', IndustryVertical.medical),
-  physiotherapyRehab('Physiotherapy & Sports Rehab Center', 'physiotherapy_rehab', IndustryVertical.medical),
   veterinaryClinic('Veterinary Clinic & Animal Hospital', 'veterinary_clinic', IndustryVertical.medical),
+
+  // 1. Head, Brain & Neurological Specialties
+  neurologyNeurosurgery('Neurology & Neurosurgery', 'neurology_neurosurgery', IndustryVertical.medical),
+  neuroOtologyBalance('Neuro-Otology & Balance Clinic', 'neuro_otology_balance', IndustryVertical.medical),
+  neuroPsychiatryTms('Neuro-Psychiatry & TMS Behavioral Clinic', 'neuro_psychiatry_tms', IndustryVertical.medical),
+
+  // 2. Eye, ENT, Dental & Face Clinics
+  ophthalmologyClinic('Ophthalmology, Cornea & Retina', 'ophthalmology_clinic', IndustryVertical.medical),
+  rhinologySinusEnt('Rhinology & Sinus ENT Clinic', 'rhinology_sinus_ent', IndustryVertical.medical),
+  endodonticsDental('Endodontics & Periodontics (Dental CBCT)', 'endodontics_dental', IndustryVertical.medical),
+
+  // 3. Cardiovascular, Thoracic & Vein Clinics
+  veinVascularPhlebology('Vein & Vascular Clinic (Phlebology)', 'vein_vascular_phlebology', IndustryVertical.medical),
+  pulmonologyRespiratory('Pulmonology & Respiratory Clinic', 'pulmonology_respiratory', IndustryVertical.medical),
+  endocrinologyClinic('Endocrinology & Glandular Clinic', 'endocrinology_clinic', IndustryVertical.medical),
+
+  // 4. Abdominal, Pelvic & Endocrine Clinics
+  urologyMensHealth('Urology & Men\'s Health Clinic', 'urology_mens_health', IndustryVertical.medical),
+  obgynFertilityRei('Obstetrics, Gynecology & Fertility (REI)', 'obgyn_fertility_rei', IndustryVertical.medical),
+
+  // 5. Musculoskeletal, Sports & Physical Rehab
+  orthopedicSportsTrauma('Orthopedic Trauma & Sports Medicine', 'orthopedic_sports_trauma', IndustryVertical.medical),
+  physiotherapyChiropractic('Physiotherapy, Chiropractic & Rehab', 'physiotherapy_chiropractic', IndustryVertical.medical),
+  podiatryOrthotics('Podiatry & Custom Orthotics (P&O)', 'podiatry_orthotics', IndustryVertical.medical),
+
+  // 6. Plastic Surgery, Aesthetics & Dermatology
+  plasticSurgeryCosmetic('Cosmetic Plastic & Reconstructive Surgery', 'plastic_surgery_cosmetic', IndustryVertical.medical),
+  medicalAestheticsInjectors('Medical Aesthetics & Injectors Clinic', 'medical_aesthetics_injectors', IndustryVertical.medical),
+  dermatologyHairRestoration('Dermatology & Hair Restoration', 'dermatology_hair_restoration', IndustryVertical.medical),
+
+  // 7. Interventional Pain, Anesthesia & Allied Specialties
+  interventionalPainManagement('Interventional Pain Management Clinic', 'interventional_pain_management', IndustryVertical.medical),
+  acupunctureEasternMedicine('Acupuncture & Eastern Medicine Clinic', 'acupuncture_eastern_medicine', IndustryVertical.medical),
+  speechLanguagePathology('Speech-Language Pathology (SLP) Clinic', 'speech_language_pathology', IndustryVertical.medical),
 
   // Professional Services (4)
   accountingBookkeeping('Accounting & Bookkeeping Firm', 'accounting_bookkeeping', IndustryVertical.professionalServices),
@@ -130,15 +171,82 @@ enum SpecificIndustry {
     for (final s in SpecificIndustry.values) {
       if (s.id == lower || s.name.toLowerCase() == lower) return s;
     }
-    // Semantic fallbacks
+    // Specialized Medical Clinics Semantic fallbacks
+    if (lower.contains('otology') || lower.contains('balance') || lower.contains('vestibul') || lower.contains('bppv')) {
+      return SpecificIndustry.neuroOtologyBalance;
+    }
+    if (lower.contains('tms') || lower.contains('psychiatry')) {
+      return SpecificIndustry.neuroPsychiatryTms;
+    }
+    if (lower.contains('rhino') || lower.contains('sinus')) {
+      return SpecificIndustry.rhinologySinusEnt;
+    }
+    if (lower.contains('endo') || lower.contains('perio') || lower.contains('cbct')) {
+      return SpecificIndustry.endodonticsDental;
+    }
+    if (lower.contains('vein') || lower.contains('phleb') || lower.contains('angiogram')) {
+      return SpecificIndustry.veinVascularPhlebology;
+    }
+    if (lower.contains('pulmon') || lower.contains('respir') || lower.contains('lung') || lower.contains('bronch')) {
+      return SpecificIndustry.pulmonologyRespiratory;
+    }
+    if (lower.contains('endocrin') || lower.contains('thyroid') || lower.contains('hormone')) {
+      return SpecificIndustry.endocrinologyClinic;
+    }
+    if (lower.contains('uro') || lower.contains('prostate') || lower.contains('bladder') || lower.contains('kidney')) {
+      return SpecificIndustry.urologyMensHealth;
+    }
+    if (lower.contains('obgyn') || lower.contains('gyne') || lower.contains('obstet') || lower.contains('fetal') || lower.contains('fertility') || lower.contains('rei')) {
+      return SpecificIndustry.obgynFertilityRei;
+    }
+    if (lower.contains('podiat') || lower.contains('foot') || lower.contains('orthotic')) {
+      return SpecificIndustry.podiatryOrthotics;
+    }
+    if (lower.contains('plastic') || lower.contains('rhinoplasty') || lower.contains('facelift')) {
+      return SpecificIndustry.plasticSurgeryCosmetic;
+    }
+    if (lower.contains('aesthetic') || lower.contains('injector') || lower.contains('botox') || lower.contains('filler')) {
+      return SpecificIndustry.medicalAestheticsInjectors;
+    }
+    if (lower.contains('pain') || lower.contains('interventional_pain') || lower.contains('rfa')) {
+      return SpecificIndustry.interventionalPainManagement;
+    }
+    if (lower.contains('acupunct') || lower.contains('meridian') || lower.contains('eastern_medicine')) {
+      return SpecificIndustry.acupunctureEasternMedicine;
+    }
+    if (lower.contains('speech') || lower.contains('swallow') || lower.contains('slp') || lower.contains('vocal')) {
+      return SpecificIndustry.speechLanguagePathology;
+    }
     if (lower.contains('dental') || lower.contains('tooth') || lower.contains('teeth')) {
       return SpecificIndustry.dentalClinic;
     }
-    if (lower.contains('pharma')) return SpecificIndustry.pharmacy;
-    if (lower.contains('lab')) return SpecificIndustry.diagnosticLab;
-    if (lower.contains('vet') || lower.contains('animal')) return SpecificIndustry.veterinaryClinic;
-    if (lower.contains('eye') || lower.contains('optom')) return SpecificIndustry.optometryClinic;
-    if (lower.contains('physio') || lower.contains('rehab')) return SpecificIndustry.physiotherapyRehab;
+    if (lower.contains('eye') || lower.contains('optom') || lower.contains('ophthalm')) {
+      return SpecificIndustry.optometryClinic;
+    }
+    if (lower.contains('ortho') || lower.contains('bone') || lower.contains('skelet') || lower.contains('fracture')) {
+      return SpecificIndustry.orthopedicClinic;
+    }
+    if (lower.contains('physio') || lower.contains('rehab') || lower.contains('muscle')) {
+      return SpecificIndustry.physiotherapyRehab;
+    }
+    if (lower.contains('gastro') || lower.contains('digest') || lower.contains('intestin') || lower.contains('colon') || lower.contains('stomach')) {
+      return SpecificIndustry.gastroClinic;
+    }
+    if (lower.contains('cardio') || lower.contains('heart') || lower.contains('vascular')) {
+      return SpecificIndustry.cardiologyClinic;
+    }
+    if (lower.contains('dermat') || lower.contains('skin') || lower.contains('hair_restoration') || lower.contains('cosmetic_derma')) {
+      return SpecificIndustry.dermatologyClinic;
+    }
+    if (lower.contains('ent') || lower.contains('ear') || lower.contains('throat') || lower.contains('nose')) {
+      return SpecificIndustry.entClinic;
+    }
+    if (lower.contains('neuro') || lower.contains('brain') || lower.contains('spine')) {
+      return SpecificIndustry.neurologyClinic;
+    }
+    if (lower.contains('pediatric') || lower.contains('child') || lower.contains('infant')) {
+      return SpecificIndustry.pediatricClinic;
+    }
     if (lower.contains('mental') || lower.contains('counsel')) return SpecificIndustry.mentalHealthCounseling;
     if (lower.contains('clinic') || lower.contains('doctor')) return SpecificIndustry.clinic;
     if (lower.contains('supermarket') || lower.contains('grocery')) return SpecificIndustry.grocerySupermarket;

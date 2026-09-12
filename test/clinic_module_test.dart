@@ -8,12 +8,16 @@ import 'package:empos/features/clinic/data/models/patient_profile_model.dart';
 import 'package:empos/features/clinic/data/models/tooth_chart_entry_model.dart';
 import 'package:empos/features/clinic/data/repositories/clinic_repository_impl.dart';
 import 'package:empos/features/clinic/data/repositories/dental_repository_impl.dart';
+import 'package:flutter/material.dart';
+import 'package:empos/core/config/domain/entities/store_blueprint.dart';
 import 'package:empos/features/clinic/domain/entities/clinic_visit.dart';
 import 'package:empos/features/clinic/domain/entities/dental_treatment_plan.dart';
 import 'package:empos/features/clinic/domain/entities/patient_profile.dart';
 import 'package:empos/features/clinic/domain/entities/procedure_item.dart';
 import 'package:empos/features/clinic/domain/entities/tooth_chart_entry.dart';
 import 'package:empos/features/clinic/presentation/pages/clinic_reception_page.dart';
+import 'package:empos/features/clinic/presentation/widgets/clinic_receipt_generator.dart';
+import 'package:empos/features/clinic/presentation/widgets/clinic_receipt_dialog.dart';
 
 void main() {
   late Directory tempDir;
@@ -382,6 +386,91 @@ void main() {
         createdAt: DateTime.now(),
       );
       expect(adult.calculatedAge, equals(25));
+    });
+  });
+
+  group('Clinic Receipt Generation & Reception Printing Tests', () {
+    final testBlueprint = const StoreBlueprint(
+      storeName: 'EMPOS Cairo Specialist Center',
+      storeBranch: 'Zamalek Medical Hub',
+      currency: 'EGP',
+    );
+
+    final testVisit = ClinicVisit(
+      id: 'visit_receipt_99',
+      patientId: 'pat_rec_01',
+      patientName: 'Kareem Mostafa',
+      doctorName: 'Dr. Sarah Connor',
+      roomNumber: 'Suite 3A',
+      queueNumber: 7,
+      status: ClinicVisitStatus.completed,
+      checkInTime: DateTime(2026, 9, 11, 14, 30),
+      completionTime: DateTime(2026, 9, 11, 15, 10),
+      chiefComplaint: 'Severe molar pain',
+      diagnosis: 'Acute irreversible pulpitis',
+      totalFee: 1500.0,
+      patientCopay: 300.0,
+      insurancePaid: 1200.0,
+      appliedProcedures: const [
+        ProcedureItem(
+          id: 'p1',
+          code: 'D3330',
+          name: 'Endodontic Root Canal Therapy',
+          standardFee: 1500.0,
+        ),
+      ],
+      prescriptions: const ['Amoxicillin 500mg TDS', 'Ibuprofen 400mg PRN'],
+    );
+
+    final testPatient = PatientProfile(
+      id: 'pat_rec_01',
+      name: 'Kareem Mostafa',
+      phone: '01009876543',
+      insuranceProvider: 'AXA Health Egypt',
+      defaultCopayPercentage: 0.20,
+      createdAt: DateTime(2026, 1, 1),
+    );
+
+    test('ClinicReceiptGenerator produces non-empty 80mm PDF bytes with full encounter breakdown', () async {
+      final bytes = await ClinicReceiptGenerator.generate80mmReceiptBytes(
+        visit: testVisit,
+        patient: testPatient,
+        amountPaid: 300.0,
+        blueprint: testBlueprint,
+      );
+
+      expect(bytes, isNotNull);
+      expect(bytes.length, greaterThan(500));
+    });
+
+    testWidgets('ClinicReceiptDialog renders thermal preview on screen with receipt items and print button', (tester) async {
+      tester.view.physicalSize = const Size(800, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ClinicReceiptDialog(
+              visit: testVisit,
+              patient: testPatient,
+              amountPaid: 300.0,
+              blueprint: testBlueprint,
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('EMPOS CAIRO SPECIALIST CENTER'), findsOneWidget);
+      expect(find.text('Patient: Kareem Mostafa'), findsOneWidget);
+      expect(find.text('Attending: Dr. Sarah Connor (Suite 3A)'), findsOneWidget);
+      expect(find.text('Endodontic Root Canal Therapy'), findsOneWidget);
+      expect(find.text('Print Receipt'), findsOneWidget);
+      expect(find.text('Done'), findsOneWidget);
     });
   });
 }

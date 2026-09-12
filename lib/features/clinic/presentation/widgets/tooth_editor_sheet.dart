@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../domain/entities/tooth_chart_entry.dart';
+import 'clinical_status_inspector_modal.dart';
+import '../../../../core/localization/app_language.dart';
+import 'multi_specialty_anatomy_canvas_widget.dart' show ClinicalSpecialtyDiscipline;
 
 class ToothEditorSheet extends StatelessWidget {
   final ToothChartEntry entry;
@@ -234,6 +237,86 @@ class _ToothEditorSheetModalState extends State<_ToothEditorSheetModal> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Searchable Clinical Status Inspector Button
+                    InkWell(
+                      onTap: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (ctx) => ClinicalStatusInspectorModal(
+                            partKey: 'tooth_${entry.effectiveToothCode}',
+                            partName: 'Tooth FDI ${entry.fdiNumber} (${entry.plainLanguagePosition})',
+                            partNameAr: 'السن ${entry.fdiNumber}',
+                            discipline: ClinicalSpecialtyDiscipline.dental,
+                            onStatusSelected: (statusDef) {
+                              setState(() {
+                                if (statusDef.id.contains('caries')) {
+                                  _selectedState = ToothState.decayed;
+                                } else if (statusDef.id.contains('implant')) {
+                                  _selectedState = ToothState.implant;
+                                } else if (statusDef.id.contains('pulpitis') || statusDef.id.contains('abscess')) {
+                                  _selectedState = ToothState.rootCanal;
+                                } else if (statusDef.id.contains('periodontitis')) {
+                                  _selectedState = ToothState.specialCase;
+                                  _selectedSpecialCase = SpecialCaseType.customOther;
+                                  _pocketDepth = 6;
+                                } else if (statusDef.id.contains('fracture')) {
+                                  _selectedState = ToothState.fractured;
+                                } else if (statusDef.id.contains('impacted')) {
+                                  _selectedState = ToothState.impacted;
+                                } else if (statusDef.id.contains('healthy')) {
+                                  _selectedState = ToothState.healthy;
+                                }
+                                final note = '${statusDef.icd10Code}: ${statusDef.title} - Proc: ${statusDef.suggestedProcedure.name}';
+                                _notesController.text = _notesController.text.isEmpty ? note : '${_notesController.text}\n$note';
+                              });
+                            },
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        margin: const EdgeInsets.only(bottom: 14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0284C7).withValues(alpha: isDark ? 0.15 : 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF0284C7).withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0284C7).withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(LucideIcons.search, size: 16, color: Color(0xFF0284C7)),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                   Text(
+                                     AppLanguage.tr('Search Statuses & ICD-10', 'Search Statuses & ICD-10 (البحث في أمراض وحالات الأسنان)'),
+                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0284C7)),
+                                   ),
+                                  Text(
+                                    'Caries, Pulpitis, Abscess, Periodontitis, Implants & Fractures',
+                                    style: TextStyle(fontSize: 10, color: isDark ? Colors.white60 : Colors.black54),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_ios, size: 12, color: Color(0xFF0284C7)),
+                          ],
+                        ),
+                      ),
+                    ),
+
                     // 1. Clinical Status Grid
                     Text(
                       'CLINICAL STATUS',
