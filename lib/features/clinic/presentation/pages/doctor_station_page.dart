@@ -92,6 +92,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
   late final ValueNotifier<double> _eyeCdRatioOsNotifier;
   late final ValueNotifier<Map<String, ClinicalAnatomyStatusEntry>> _partStatusesNotifier;
   final List<ProcedureItem> _appliedProcedures = [];
+  final Map<String, Map<String, ClinicalAnatomyStatusEntry>> _visitPartStatusesCache = {};
 
   @override
   void initState() {
@@ -110,6 +111,12 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
     _eyeCdRatioOdNotifier = ValueNotifier<double>(0.40);
     _eyeCdRatioOsNotifier = ValueNotifier<double>(0.40);
     _partStatusesNotifier = ValueNotifier<Map<String, ClinicalAnatomyStatusEntry>>({});
+    _partStatusesNotifier.addListener(() {
+      final currentVisitId = _loadedVisitIdNotifier.value;
+      if (currentVisitId != null) {
+        _visitPartStatusesCache[currentVisitId] = Map.from(_partStatusesNotifier.value);
+      }
+    });
   }
 
   @override
@@ -215,8 +222,13 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                   )
                 : null;
 
-            // Reset inputs & auto-load tooth chart when active visit changes (taking in a patient)
+            // Reset inputs & auto-load tooth chart & pins when active visit changes (taking in a patient)
             if (activeVisit != null && activeVisit.id != loadedVisitIdNotifier.value) {
+              final oldVisitId = loadedVisitIdNotifier.value;
+              if (oldVisitId != null && _partStatusesNotifier.value.isNotEmpty) {
+                _visitPartStatusesCache[oldVisitId] = Map.from(_partStatusesNotifier.value);
+              }
+
               loadedVisitIdNotifier.value = activeVisit.id;
               clinicalNotesController.text = activeVisit.diagnosis ?? '';
               prescriptionController.text = activeVisit.prescriptions.join(', ');
@@ -224,6 +236,17 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
               labResultsController.text = activeVisit.labResults ?? '';
               _appliedProcedures.clear();
               _appliedProcedures.addAll(activeVisit.appliedProcedures);
+
+              // Scoped per-patient pin notes: load cached pins, or visit pins, or clean empty map
+              if (_visitPartStatusesCache.containsKey(activeVisit.id)) {
+                _partStatusesNotifier.value = Map.from(_visitPartStatusesCache[activeVisit.id]!);
+              } else if (activeVisit.anatomyStatuses.isNotEmpty) {
+                _partStatusesNotifier.value = {
+                  for (final entry in activeVisit.anatomyStatuses) entry.partKey: entry,
+                };
+              } else {
+                _partStatusesNotifier.value = {};
+              }
 
               final existingAttachments = <MedicalAttachment>[];
               for (int i = 0; i < activeVisit.attachmentPaths.length; i++) {
@@ -256,6 +279,10 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                 }
               }
             } else if (activeVisit == null && loadedVisitIdNotifier.value != null) {
+              final oldVisitId = loadedVisitIdNotifier.value;
+              if (oldVisitId != null && _partStatusesNotifier.value.isNotEmpty) {
+                _visitPartStatusesCache[oldVisitId] = Map.from(_partStatusesNotifier.value);
+              }
               loadedVisitIdNotifier.value = null;
               clinicalNotesController.clear();
               prescriptionController.clear();
@@ -994,6 +1021,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
 
                                       // Multi-Specialty 3D Anatomical Workspace (Dental, Ophthalmology, Orthopedics, Physio, Gastro, Cardio, Derma)
                                       MultiSpecialtyAnatomyCanvasWidget(
+                                        key: ValueKey('anatomy_canvas_${activeVisit.id}'),
                                         blueprint: currentBlueprint,
                                         disciplineNotifier: _activeDisciplineNotifier,
                                         partStatusesNotifier: _partStatusesNotifier,
@@ -1153,7 +1181,10 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                 labResults: labResults.isNotEmpty ? labResults : null,
                                                 attachmentPaths: attPaths,
                                                 attachmentTitles: attTitles,
+                                                anatomyStatuses: _partStatusesNotifier.value.values.toList(),
                                               );
+
+                                              _visitPartStatusesCache[completedVisit.id] = Map.from(_partStatusesNotifier.value);
 
                                               bloc.add(CompleteVisitEvent(completedVisit));
 

@@ -183,6 +183,9 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                           toothChart: effectiveToothChart,
                           isPediatric: isPediatric,
                           readOnly: true,
+                          activeStatuses: {
+                            for (final entry in activeVisit.anatomyStatuses) entry.partKey: entry,
+                          },
                           onToothUpdated: null,
                         ),
                         const SizedBox(height: 16),

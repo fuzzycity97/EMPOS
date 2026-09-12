@@ -710,5 +710,61 @@ void main() {
       // Advance clock past the 3-second auto-dismiss timer so no pending timers remain
       await tester.pump(const Duration(seconds: 4));
     });
+
+    test('ClinicVisitModel serializes and deserializes anatomyStatuses custom 3D pins correctly', () {
+      final pin = ClinicalAnatomyStatusEntry(
+        partKey: 'pin_tooth_21_999',
+        partName: 'Tooth #21 Composite Resin',
+        partNameAr: 'حشوة تجميلية',
+        status: const ClinicalStatusDefinition(
+          id: 'def_pin_tooth_21',
+          title: 'Composite Restoration',
+          titleAr: 'حشوة تجميلية',
+          icd10Code: 'K02.1',
+          category: ClinicalStatusCategory.procedural,
+          severity: ClinicalSeverityLevel.mild,
+          description: 'Class IV Composite Restoration',
+          suggestedProcedure: ProcedureItem(
+            id: 'proc_comp_21',
+            code: 'D2335',
+            name: 'Resin-based Composite',
+            standardFee: 750.0,
+          ),
+        ),
+        appliedAt: DateTime.parse('2026-09-12T15:00:00.000Z'),
+        clinicalNote: 'Anterior aesthetics restoration',
+        normalizedX: 0.52,
+        normalizedY: 0.44,
+        x3d: -12.4,
+        y3d: -38.2,
+        z3d: 22.0,
+        attachedToothCode: '21',
+      );
+
+      final visit = ClinicVisitModel(
+        id: 'vis_pin_serial_test',
+        patientId: 'pat_test_pin',
+        patientName: 'Lina Hany',
+        doctorName: 'Dr. Sarah Connor',
+        queueNumber: 3,
+        checkInTime: DateTime.now(),
+        anatomyStatuses: [pin],
+      );
+
+      final json = visit.toJson();
+      expect(json['anatomyStatuses'], isA<List>());
+      expect((json['anatomyStatuses'] as List).length, equals(1));
+
+      final restored = ClinicVisitModel.fromJson(json);
+      expect(restored.anatomyStatuses.length, equals(1));
+      final restoredPin = restored.anatomyStatuses.first;
+      expect(restoredPin.partKey, equals('pin_tooth_21_999'));
+      expect(restoredPin.attachedToothCode, equals('21'));
+      expect(restoredPin.x3d, equals(-12.4));
+      expect(restoredPin.y3d, equals(-38.2));
+      expect(restoredPin.z3d, equals(22.0));
+      expect(restoredPin.status.suggestedProcedure.standardFee, equals(750.0));
+      expect(restoredPin.isCustomPin, isTrue);
+    });
   });
 }

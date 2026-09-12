@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'clinical_anatomy_status_entry.dart';
 import 'procedure_item.dart';
 import 'tooth_chart_entry.dart';
 
@@ -35,6 +36,7 @@ class ClinicVisit extends Equatable {
   final List<String> prescriptions;
   final List<ProcedureItem> appliedProcedures;
   final List<ToothChartEntry> toothChart;
+  final List<ClinicalAnatomyStatusEntry> anatomyStatuses;
   final double totalFee;
   final double patientCopay;
   final double insurancePaid;
@@ -65,6 +67,7 @@ class ClinicVisit extends Equatable {
     this.prescriptions = const [],
     this.appliedProcedures = const [],
     this.toothChart = const [],
+    this.anatomyStatuses = const [],
     this.totalFee = 0.0,
     this.patientCopay = 0.0,
     this.insurancePaid = 0.0,
@@ -101,6 +104,7 @@ class ClinicVisit extends Equatable {
     List<String>? prescriptions,
     List<ProcedureItem>? appliedProcedures,
     List<ToothChartEntry>? toothChart,
+    List<ClinicalAnatomyStatusEntry>? anatomyStatuses,
     double? totalFee,
     double? patientCopay,
     double? insurancePaid,
@@ -131,6 +135,7 @@ class ClinicVisit extends Equatable {
       prescriptions: prescriptions ?? this.prescriptions,
       appliedProcedures: appliedProcedures ?? this.appliedProcedures,
       toothChart: toothChart ?? this.toothChart,
+      anatomyStatuses: anatomyStatuses ?? this.anatomyStatuses,
       totalFee: totalFee ?? this.totalFee,
       patientCopay: patientCopay ?? this.patientCopay,
       insurancePaid: insurancePaid ?? this.insurancePaid,
@@ -164,6 +169,7 @@ class ClinicVisit extends Equatable {
         prescriptions,
         appliedProcedures,
         toothChart,
+        anatomyStatuses,
         totalFee,
         patientCopay,
         insurancePaid,

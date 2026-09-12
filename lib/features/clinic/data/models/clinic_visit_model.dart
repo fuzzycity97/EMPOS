@@ -1,4 +1,5 @@
 import '../../domain/entities/clinic_visit.dart';
+import '../../domain/entities/clinical_anatomy_status_entry.dart';
 import 'procedure_item_model.dart';
 import 'tooth_chart_entry_model.dart';
 
@@ -19,6 +20,7 @@ class ClinicVisitModel extends ClinicVisit {
     super.prescriptions = const [],
     super.appliedProcedures = const [],
     super.toothChart = const [],
+    super.anatomyStatuses = const [],
     super.totalFee = 0.0,
     super.patientCopay = 0.0,
     super.insurancePaid = 0.0,
@@ -55,6 +57,10 @@ class ClinicVisitModel extends ClinicVisit {
           const [],
       toothChart: (json['toothChart'] as List<dynamic>?)
               ?.map((e) => ToothChartEntryModel.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList() ??
+          const [],
+      anatomyStatuses: (json['anatomyStatuses'] as List<dynamic>?)
+              ?.map((e) => ClinicalAnatomyStatusEntry.fromJson(Map<String, dynamic>.from(e as Map)))
               .toList() ??
           const [],
       totalFee: (json['totalFee'] as num?)?.toDouble() ?? 0.0,
@@ -94,6 +100,7 @@ class ClinicVisitModel extends ClinicVisit {
       'toothChart': toothChart
           .map((t) => t is ToothChartEntryModel ? t.toJson() : ToothChartEntryModel.fromEntity(t).toJson())
           .toList(),
+      'anatomyStatuses': anatomyStatuses.map((e) => e.toJson()).toList(),
       'totalFee': totalFee,
       'patientCopay': patientCopay,
       'insurancePaid': insurancePaid,
@@ -127,6 +134,7 @@ class ClinicVisitModel extends ClinicVisit {
       prescriptions: entity.prescriptions,
       appliedProcedures: entity.appliedProcedures,
       toothChart: entity.toothChart,
+      anatomyStatuses: entity.anatomyStatuses,
       totalFee: entity.totalFee,
       patientCopay: entity.patientCopay,
       insurancePaid: entity.insurancePaid,

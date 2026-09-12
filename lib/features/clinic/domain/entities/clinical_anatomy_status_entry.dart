@@ -27,6 +27,15 @@ enum ClinicalStatusCategory {
   const ClinicalStatusCategory(this.labelEn, this.labelAr);
 
   String get label => AppLanguage.isArabic ? '$labelEn ($labelAr)' : labelEn;
+
+  static ClinicalStatusCategory fromString(String? val) {
+    if (val == null) return ClinicalStatusCategory.all;
+    final lower = val.toLowerCase().trim();
+    for (final c in ClinicalStatusCategory.values) {
+      if (c.name.toLowerCase() == lower) return c;
+    }
+    return ClinicalStatusCategory.all;
+  }
 }
 
 /// Clinical Severity Level
@@ -43,6 +52,15 @@ enum ClinicalSeverityLevel {
   const ClinicalSeverityLevel(this.labelEn, this.labelAr, this.color);
 
   String get label => AppLanguage.isArabic ? labelAr : labelEn;
+
+  static ClinicalSeverityLevel fromString(String? val) {
+    if (val == null) return ClinicalSeverityLevel.normal;
+    final lower = val.toLowerCase().trim();
+    for (final s in ClinicalSeverityLevel.values) {
+      if (s.name.toLowerCase() == lower) return s;
+    }
+    return ClinicalSeverityLevel.normal;
+  }
 }
 
 /// Definition of a clinical status in the master catalog
@@ -76,6 +94,45 @@ class ClinicalStatusDefinition {
         description.toLowerCase().contains(q) ||
         suggestedProcedure.name.toLowerCase().contains(q) ||
         suggestedProcedure.code.toLowerCase().contains(q);
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'titleAr': titleAr,
+        'icd10Code': icd10Code,
+        'category': category.name,
+        'severity': severity.name,
+        'description': description,
+        'suggestedProcedure': {
+          'id': suggestedProcedure.id,
+          'code': suggestedProcedure.code,
+          'name': suggestedProcedure.name,
+          'standardFee': suggestedProcedure.standardFee,
+          'insuranceCoveragePercentage': suggestedProcedure.insuranceCoveragePercentage,
+          'requiredConsumables': suggestedProcedure.requiredConsumables,
+        },
+      };
+
+  factory ClinicalStatusDefinition.fromJson(Map<String, dynamic> json) {
+    final procJson = json['suggestedProcedure'] as Map<String, dynamic>? ?? {};
+    return ClinicalStatusDefinition(
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      titleAr: json['titleAr']?.toString() ?? '',
+      icd10Code: json['icd10Code']?.toString() ?? '',
+      category: ClinicalStatusCategory.fromString(json['category']?.toString()),
+      severity: ClinicalSeverityLevel.fromString(json['severity']?.toString()),
+      description: json['description']?.toString() ?? '',
+      suggestedProcedure: ProcedureItem(
+        id: procJson['id']?.toString() ?? '',
+        code: procJson['code']?.toString() ?? '',
+        name: procJson['name']?.toString() ?? '',
+        standardFee: (procJson['standardFee'] as num?)?.toDouble() ?? 0.0,
+        insuranceCoveragePercentage: (procJson['insuranceCoveragePercentage'] as num?)?.toDouble() ?? 0.0,
+        requiredConsumables: (procJson['requiredConsumables'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? const [],
+      ),
+    );
   }
 }
 
@@ -116,4 +173,38 @@ class ClinicalAnatomyStatusEntry {
   Color get visualColor => status.severity.color;
   String get icd10Code => status.icd10Code;
   String get displayTitle => AppLanguage.isArabic ? status.titleAr : status.title;
+
+  Map<String, dynamic> toJson() => {
+        'partKey': partKey,
+        'partName': partName,
+        'partNameAr': partNameAr,
+        'status': status.toJson(),
+        'appliedAt': appliedAt.toIso8601String(),
+        'clinicalNote': clinicalNote,
+        'normalizedX': normalizedX,
+        'normalizedY': normalizedY,
+        'x3d': x3d,
+        'y3d': y3d,
+        'z3d': z3d,
+        'attachedToothCode': attachedToothCode,
+      };
+
+  factory ClinicalAnatomyStatusEntry.fromJson(Map<String, dynamic> json) {
+    return ClinicalAnatomyStatusEntry(
+      partKey: json['partKey']?.toString() ?? '',
+      partName: json['partName']?.toString() ?? '',
+      partNameAr: json['partNameAr']?.toString() ?? '',
+      status: ClinicalStatusDefinition.fromJson(
+        Map<String, dynamic>.from(json['status'] as Map? ?? {}),
+      ),
+      appliedAt: DateTime.tryParse(json['appliedAt']?.toString() ?? '') ?? DateTime.now(),
+      clinicalNote: json['clinicalNote']?.toString() ?? '',
+      normalizedX: (json['normalizedX'] as num?)?.toDouble(),
+      normalizedY: (json['normalizedY'] as num?)?.toDouble(),
+      x3d: (json['x3d'] as num?)?.toDouble(),
+      y3d: (json['y3d'] as num?)?.toDouble(),
+      z3d: (json['z3d'] as num?)?.toDouble(),
+      attachedToothCode: json['attachedToothCode']?.toString(),
+    );
+  }
 }
