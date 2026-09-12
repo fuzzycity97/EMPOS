@@ -20,6 +20,7 @@ import 'package:empos/features/clinic/domain/entities/clinical_anatomy_status_en
 import 'package:empos/features/clinic/presentation/widgets/dental_tooth_3d_canvas_widget.dart';
 import 'package:empos/features/clinic/presentation/widgets/clinic_receipt_generator.dart';
 import 'package:empos/features/clinic/presentation/widgets/clinic_receipt_dialog.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 void main() {
   late Directory tempDir;
@@ -608,6 +609,106 @@ void main() {
 
       expect(find.text('gg [📍 Pin]'), findsOneWidget);
       expect(find.text('1000 EGP'), findsOneWidget);
+    });
+
+    testWidgets('DentalTooth3dCanvasWidget renders 3D Gum toggle and toggles state', (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DentalTooth3dCanvasWidget(
+              toothChart: const [],
+              onToothSelected: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.byKey(const Key('btn_toggle_3d_gums')), findsOneWidget);
+      expect(find.text('3D Gums: ON'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('btn_toggle_3d_gums')), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.text('3D Gums: OFF'), findsOneWidget);
+    });
+
+    testWidgets('ClinicalAnatomyStatusEntry supports 3D coordinates and tooth code anchoring', (tester) async {
+      final pin = ClinicalAnatomyStatusEntry(
+        partKey: 'pin_tooth_14_test',
+        partName: 'Tooth #14 Gingivitis',
+        partNameAr: 'التهاب لثة',
+        status: const ClinicalStatusDefinition(
+          id: 'def_test',
+          title: 'Gingivitis',
+          titleAr: 'التهاب لثة',
+          icd10Code: 'K05.1',
+          category: ClinicalStatusCategory.inflammation,
+          severity: ClinicalSeverityLevel.moderate,
+          description: 'Gingival inflammation',
+          suggestedProcedure: ProcedureItem(
+            id: 'proc_test',
+            code: 'D4341',
+            name: 'Scaling',
+            standardFee: 300,
+          ),
+        ),
+        appliedAt: DateTime.now(),
+        attachedToothCode: '14',
+        x3d: 50.0,
+        y3d: -40.0,
+        z3d: 15.0,
+      );
+
+      expect(pin.isCustomPin, isTrue);
+      expect(pin.attachedToothCode, equals('14'));
+      expect(pin.x3d, equals(50.0));
+      expect(pin.y3d, equals(-40.0));
+      expect(pin.z3d, equals(15.0));
+    });
+
+    testWidgets('DentalTooth3dCanvasWidget in pin mode rejects empty space tap and displays warning banner', (tester) async {
+      tester.view.physicalSize = const Size(1280, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      var pinCallbackTriggered = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DentalTooth3dCanvasWidget(
+              toothChart: const [],
+              onToothSelected: (_) {},
+              isPinMode: true,
+              onCanvasTapToPin: (nx, ny, {toothCode, partName, x3d, y3d, z3d}) {
+                pinCallbackTriggered = true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Tap at the top-left corner (Offset 10, 10) which is empty space outside teeth/gums
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pump();
+
+      // Pin callback must NOT be triggered in empty space
+      expect(pinCallbackTriggered, isFalse);
+      // Warning banner must be displayed
+      expect(find.byIcon(LucideIcons.alertTriangle), findsOneWidget);
+
+      // Advance clock past the 3-second auto-dismiss timer so no pending timers remain
+      await tester.pump(const Duration(seconds: 4));
     });
   });
 }

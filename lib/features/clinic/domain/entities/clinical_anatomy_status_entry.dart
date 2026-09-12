@@ -89,6 +89,10 @@ class ClinicalAnatomyStatusEntry {
   final String clinicalNote;
   final double? normalizedX;
   final double? normalizedY;
+  final double? x3d;
+  final double? y3d;
+  final double? z3d;
+  final String? attachedToothCode;
 
   const ClinicalAnatomyStatusEntry({
     required this.partKey,
@@ -99,9 +103,16 @@ class ClinicalAnatomyStatusEntry {
     this.clinicalNote = '',
     this.normalizedX,
     this.normalizedY,
+    this.x3d,
+    this.y3d,
+    this.z3d,
+    this.attachedToothCode,
   });
 
-  bool get isCustomPin => normalizedX != null && normalizedY != null;
+  bool get isCustomPin =>
+      (normalizedX != null && normalizedY != null) ||
+      x3d != null ||
+      attachedToothCode != null;
   Color get visualColor => status.severity.color;
   String get icd10Code => status.icd10Code;
   String get displayTitle => AppLanguage.isArabic ? status.titleAr : status.title;

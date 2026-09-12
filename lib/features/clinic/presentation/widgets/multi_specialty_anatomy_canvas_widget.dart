@@ -1140,8 +1140,18 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           onToothUpdated: onToothUpdated,
           activeStatuses: activeStatuses,
           isPinMode: _pinNoteModeNotifier.value,
-          onCanvasTapToPin: (normX, normY) {
-            _openAddCustomPinNoteDialog(context, normX: normX, normY: normY, discipline: ClinicalSpecialtyDiscipline.dental);
+          onCanvasTapToPin: (normX, normY, {toothCode, partName, x3d, y3d, z3d}) {
+            _openAddCustomPinNoteDialog(
+              context,
+              normX: normX,
+              normY: normY,
+              discipline: ClinicalSpecialtyDiscipline.dental,
+              toothCode: toothCode,
+              partName: partName,
+              x3d: x3d,
+              y3d: y3d,
+              z3d: z3d,
+            );
             _pinNoteModeNotifier.value = false;
           },
           onPinTap: (pin) => _openStatusInspector(
@@ -6189,9 +6199,14 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
     required double normX,
     required double normY,
     required ClinicalSpecialtyDiscipline discipline,
+    String? toothCode,
+    String? partName,
+    double? x3d,
+    double? y3d,
+    double? z3d,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleController = TextEditingController();
+    final titleController = TextEditingController(text: partName ?? '');
     final noteController = TextEditingController();
     final codeController = TextEditingController();
     final feeController = TextEditingController();
@@ -6231,10 +6246,16 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                               AppLanguage.tr('Add 3D Pin Note', 'إضافة ملاحظة موضعية ثلاثية الأبعاد (3D Pin Note)'),
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5),
                             ),
-                            Text(
-                              '${AppLanguage.tr('Pin Coordinates', 'إحداثيات الموضع')}: X: ${(normX * 100).toStringAsFixed(1)}% | Y: ${(normY * 100).toStringAsFixed(1)}%',
-                              style: const TextStyle(fontSize: 10.5, color: Colors.grey),
-                            ),
+                            if (toothCode != null || partName != null)
+                              Text(
+                                '📍 ${AppLanguage.tr('Anchored to', 'مثبت على')}: ${partName ?? 'Tooth #$toothCode'} (3D)',
+                                style: const TextStyle(fontSize: 11, color: Color(0xFF0284C7), fontWeight: FontWeight.bold),
+                              )
+                            else
+                              Text(
+                                '${AppLanguage.tr('Pin Coordinates', 'إحداثيات الموضع')}: X: ${(normX * 100).toStringAsFixed(1)}% | Y: ${(normY * 100).toStringAsFixed(1)}%',
+                                style: const TextStyle(fontSize: 10.5, color: Colors.grey),
+                              ),
                           ],
                         ),
                       ),
@@ -6377,8 +6398,10 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                           final sev = severityNotifier.value;
                           final cat = categoryNotifier.value;
 
-                          final key = 'custom_pin_${DateTime.now().millisecondsSinceEpoch}';
-                          final displayTitle = title.isNotEmpty ? title : AppLanguage.tr('Custom Pin', 'ملاحظة موضعية');
+                          final key = toothCode != null
+                              ? 'pin_tooth_${toothCode}_${DateTime.now().millisecondsSinceEpoch}'
+                              : 'custom_pin_${DateTime.now().millisecondsSinceEpoch}';
+                          final displayTitle = title.isNotEmpty ? title : (partName ?? AppLanguage.tr('Custom Pin', 'ملاحظة موضعية'));
                           final entry = ClinicalAnatomyStatusEntry(
                             partKey: key,
                             partName: displayTitle,
@@ -6402,6 +6425,10 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                             clinicalNote: note,
                             normalizedX: normX,
                             normalizedY: normY,
+                            x3d: x3d,
+                            y3d: y3d,
+                            z3d: z3d,
+                            attachedToothCode: toothCode,
                           );
 
                           _partStatusesNotifier.value = {

@@ -12,7 +12,15 @@ class DentalToothMatrixWidget extends StatelessWidget {
   final bool readOnly;
   final Map<String, ClinicalAnatomyStatusEntry>? activeStatuses;
   final bool isPinMode;
-  final void Function(double normX, double normY)? onCanvasTapToPin;
+  final void Function(
+    double normX,
+    double normY, {
+    String? toothCode,
+    String? partName,
+    double? x3d,
+    double? y3d,
+    double? z3d,
+  })? onCanvasTapToPin;
   final void Function(ClinicalAnatomyStatusEntry pin)? onPinTap;
 
   const DentalToothMatrixWidget({
