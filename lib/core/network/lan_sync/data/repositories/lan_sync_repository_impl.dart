@@ -90,6 +90,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
   static void setInstanceIdOverride(String? id) => _instanceIdOverride = id;
   static void setLocalRoleOverride(String? role) => _localRoleOverride = role;
   static void setLocalAppNameOverride(String? app) => _localAppNameOverride = app;
+  static String? get localAppNameOverride => _localAppNameOverride;
   static void setPrimaryLocalIpOverride(String? ip) => _primaryLocalIpOverride = ip;
 
   static String getLocalInstanceId() {

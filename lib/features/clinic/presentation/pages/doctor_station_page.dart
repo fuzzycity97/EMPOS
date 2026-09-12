@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../../../core/constants/app_colors.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
 import '../../../../core/config/presentation/bloc/config_bloc.dart';
 import '../../../../core/config/presentation/bloc/config_state.dart';
@@ -312,7 +313,6 @@ class DoctorStationPage extends StatelessWidget {
                                                       patientName: 'Demo Patient (Test Consultation)',
                                                       doctorName: 'Dr. Specialist',
                                                       chiefComplaint: 'Tooth pain & 3D Chart evaluation',
-                                                      triageLevel: 'Routine',
                                                     ),
                                                   );
                                                 },
@@ -468,7 +468,7 @@ class DoctorStationPage extends StatelessWidget {
                                             ),
                                             child: Row(
                                               children: [
-                                                const Icon(Icons.view_in_ar, color: AppColors.primary, size: 24),
+                                                Icon(Icons.view_in_ar, color: AppColors.primary, size: 24),
                                                 const SizedBox(width: 12),
                                                 Expanded(
                                                   child: Column(
