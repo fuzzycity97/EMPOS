@@ -17,6 +17,14 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+    afterEvaluate {
+        project.extensions.findByName("android")?.let { androidExt ->
+            try {
+                val setNdkVersion = androidExt.javaClass.getMethod("setNdkVersion", String::class.java)
+                setNdkVersion.invoke(androidExt, "30.0.16248370")
+            } catch (_: Exception) {}
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {
