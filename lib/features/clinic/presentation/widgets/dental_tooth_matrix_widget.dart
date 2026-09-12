@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../domain/entities/clinical_anatomy_status_entry.dart';
 import '../../domain/entities/tooth_chart_entry.dart';
 import 'dental_tooth_3d_canvas_widget.dart';
 import 'tooth_editor_sheet.dart';
@@ -8,6 +9,11 @@ class DentalToothMatrixWidget extends StatelessWidget {
   final bool isPediatric;
   final String? doctorName;
   final void Function(ToothChartEntry updatedEntry)? onToothUpdated;
+  final bool readOnly;
+  final Map<String, ClinicalAnatomyStatusEntry>? activeStatuses;
+  final bool isPinMode;
+  final void Function(double normX, double normY)? onCanvasTapToPin;
+  final void Function(ClinicalAnatomyStatusEntry pin)? onPinTap;
 
   const DentalToothMatrixWidget({
     super.key,
@@ -15,6 +21,11 @@ class DentalToothMatrixWidget extends StatelessWidget {
     this.isPediatric = false,
     this.doctorName,
     this.onToothUpdated,
+    this.readOnly = false,
+    this.activeStatuses,
+    this.isPinMode = false,
+    this.onCanvasTapToPin,
+    this.onPinTap,
   });
 
   @override
@@ -113,7 +124,12 @@ class DentalToothMatrixWidget extends StatelessWidget {
                         toothChart: toothChart,
                         isPediatric: isPediatric,
                         selectedTooth: sel,
+                        activeStatuses: activeStatuses,
+                        isPinMode: isPinMode,
+                        onCanvasTapToPin: onCanvasTapToPin,
+                        onPinTap: onPinTap,
                         onToothSelected: (entry) {
+                          if (readOnly) return;
                           selectedTooth.value = entry;
                           _openToothEditor(context, entry);
                         },

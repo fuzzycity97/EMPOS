@@ -156,7 +156,8 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                         DentalToothMatrixWidget(
                           toothChart: effectiveToothChart,
                           isPediatric: isPediatric,
-                          onToothUpdated: null, // Read-only mode
+                          readOnly: true,
+                          onToothUpdated: null,
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -424,9 +425,9 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
     final customerDebt = hasCustomer ? customer!.totalDebt : null;
     final isPaid = visit.isPaid || visit.totalFee <= 0.001;
 
-    final effectiveInsurance = visit.insurancePaid > 0.001
+    final effectiveInsurance = (visit.insurancePaid > 0.001)
         ? visit.insurancePaid
-        : ((visit.totalFee - visit.patientCopay).clamp(0.0, double.infinity));
+        : 0.0;
     final effectiveCopay = visit.patientCopay > 0.001
         ? visit.patientCopay
         : (visit.totalFee - effectiveInsurance);
@@ -435,7 +436,10 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
     final String statusText;
     final Color statusColor;
 
-    if (isPaid) {
+    if (customerDebt != null && customerDebt > 0.001) {
+      statusText = 'PARTIALLY SETTLED';
+      statusColor = AppColors.warning;
+    } else if (isPaid) {
       statusText = 'PAID & SETTLED';
       statusColor = AppColors.success;
     } else if (visit.status == ClinicVisitStatus.completed) {
@@ -460,8 +464,13 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _financeStat('Total Fee', '${visit.totalFee.toStringAsFixed(2)} EGP', AppColors.textPrimaryDark),
-              _financeStat('Patient Copay', '${effectiveCopay.toStringAsFixed(2)} EGP', AppColors.warning),
-              _financeStat('Insurance Covered', '${effectiveInsurance.toStringAsFixed(2)} EGP', AppColors.primaryLight),
+              _financeStat(
+                effectiveInsurance > 0.001 ? 'Patient Copay' : 'Patient Share',
+                '${effectiveCopay.toStringAsFixed(2)} EGP',
+                AppColors.warning,
+              ),
+              if (effectiveInsurance > 0.001)
+                _financeStat('Insurance Covered', '${effectiveInsurance.toStringAsFixed(2)} EGP', AppColors.primaryLight),
               _financeStat(
                 'Payment Status',
                 statusText,

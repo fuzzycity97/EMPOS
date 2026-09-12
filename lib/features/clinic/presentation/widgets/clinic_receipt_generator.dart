@@ -23,9 +23,10 @@ class ClinicReceiptGenerator {
     final visitDate = visit.completionTime ?? visit.checkInTime;
 
     final totalFee = visit.totalFee;
-    final copayRatio = patient?.defaultCopayPercentage ?? 1.0;
+    final hasInsurance = (patient?.insuranceProvider?.trim().isNotEmpty ?? false) || visit.insurancePaid > 0.001;
+    final copayRatio = hasInsurance ? (patient?.defaultCopayPercentage ?? 1.0) : 1.0;
     final patientShare = visit.patientCopay > 0 ? visit.patientCopay : (totalFee * copayRatio);
-    final insuranceShare = visit.insurancePaid > 0 ? visit.insurancePaid : (totalFee - patientShare);
+    final insuranceShare = hasInsurance ? (visit.insurancePaid > 0 ? visit.insurancePaid : (totalFee - patientShare)) : 0.0;
     final remainingDebt = math.max(0.0, patientShare - amountPaid);
     final isFullyPaid = remainingDebt <= 0.001;
 

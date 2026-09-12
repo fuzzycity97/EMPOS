@@ -16,6 +16,8 @@ import 'package:empos/features/clinic/domain/entities/patient_profile.dart';
 import 'package:empos/features/clinic/domain/entities/procedure_item.dart';
 import 'package:empos/features/clinic/domain/entities/tooth_chart_entry.dart';
 import 'package:empos/features/clinic/presentation/pages/clinic_reception_page.dart';
+import 'package:empos/features/clinic/domain/entities/clinical_anatomy_status_entry.dart';
+import 'package:empos/features/clinic/presentation/widgets/dental_tooth_3d_canvas_widget.dart';
 import 'package:empos/features/clinic/presentation/widgets/clinic_receipt_generator.dart';
 import 'package:empos/features/clinic/presentation/widgets/clinic_receipt_dialog.dart';
 
@@ -534,6 +536,78 @@ void main() {
       expect(find.text('Endodontic Root Canal Therapy'), findsOneWidget);
       expect(find.text('Print Receipt'), findsOneWidget);
       expect(find.text('Done'), findsOneWidget);
+    });
+
+    test('Non-insured patient visit completion never invents fake insurance coverage', () async {
+      final nonInsuredVisit = ClinicVisit(
+        id: 'vis_non_insured_100',
+        patientId: 'pat_002',
+        patientName: 'Omar Khaled',
+        doctorName: 'Dr. Sarah Connor',
+        queueNumber: 1,
+        checkInTime: DateTime.now(),
+        totalFee: 1300.0,
+        patientCopay: 400.0, // Partial payment entered
+        insurancePaid: 0.0,  // Patient has NO insurance
+      );
+
+      final result = await clinicRepository.completeVisit(nonInsuredVisit);
+      expect(result.isRight(), isTrue);
+      final completed = result.getOrElse(() => throw Exception());
+      expect(completed.totalFee, 1300.0);
+      expect(completed.patientCopay, 400.0);
+      // Critical check: insurancePaid MUST remain 0.0, never computed as 1300 - 400 = 900!
+      expect(completed.insurancePaid, 0.0);
+    });
+
+    testWidgets('DentalTooth3dCanvasWidget renders custom pin markers on 3D chart canvas', (tester) async {
+      tester.view.physicalSize = const Size(800, 700);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final customPin = ClinicalAnatomyStatusEntry(
+        partKey: 'pin_test_1',
+        partName: 'gg [📍 Pin]',
+        partNameAr: 'ملاحظة',
+        status: const ClinicalStatusDefinition(
+          id: 'status_pin',
+          title: 'Tooth Finding',
+          titleAr: 'ملاحظة سن',
+          icd10Code: 'K02.9',
+          severity: ClinicalSeverityLevel.mild,
+          category: ClinicalStatusCategory.procedural,
+          description: 'Tooth finding',
+          suggestedProcedure: ProcedureItem(
+            id: 'proc_pin',
+            code: 'PROC-1',
+            name: 'Root Procedure',
+            standardFee: 1000.0,
+          ),
+        ),
+        appliedAt: DateTime.now(),
+        normalizedX: 0.5,
+        normalizedY: 0.5,
+        clinicalNote: 'Test dental lesion',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DentalTooth3dCanvasWidget(
+              toothChart: const [],
+              activeStatuses: {'pin_test_1': customPin},
+              onToothSelected: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('gg [📍 Pin]'), findsOneWidget);
+      expect(find.text('1000 EGP'), findsOneWidget);
     });
   });
 }

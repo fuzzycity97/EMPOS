@@ -829,13 +829,13 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                                 return Stack(
                                   children: [
                                     _buildSpecialtyContent(context, discipline, isDark, activeStatuses),
-                                    if (pinActive)
+                                    if (pinActive && discipline != ClinicalSpecialtyDiscipline.dental)
                                       Positioned.fill(
                                         child: GestureDetector(
                                           behavior: HitTestBehavior.translucent,
                                           onTapUp: (details) {
-                                            final w = constraints.maxWidth > 0 ? constraints.maxWidth : 400.0;
-                                            final h = constraints.maxHeight > 0 ? constraints.maxHeight : 300.0;
+                                            final w = (constraints.maxWidth.isFinite && constraints.maxWidth > 0) ? constraints.maxWidth : 400.0;
+                                            final h = (constraints.maxHeight.isFinite && constraints.maxHeight > 0) ? constraints.maxHeight : 380.0;
                                             final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
                                             final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
                                             _openAddCustomPinNoteDialog(context, normX: normX, normY: normY, discipline: discipline);
@@ -873,10 +873,10 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                                         ),
                                       ),
                                     // Custom pins placed on the active anatomical model / workbench
-                                    if (discipline != ClinicalSpecialtyDiscipline.ophthalmology)
+                                    if (discipline != ClinicalSpecialtyDiscipline.ophthalmology && discipline != ClinicalSpecialtyDiscipline.dental)
                                       ...activeStatuses.values.where((e) => e.isCustomPin).map((pin) {
-                                        final w = constraints.maxWidth > 0 ? constraints.maxWidth : 400.0;
-                                        final h = constraints.maxHeight > 0 ? constraints.maxHeight : 300.0;
+                                        final w = (constraints.maxWidth.isFinite && constraints.maxWidth > 0) ? constraints.maxWidth : 400.0;
+                                        final h = (constraints.maxHeight.isFinite && constraints.maxHeight > 0) ? constraints.maxHeight : 380.0;
                                         final px = (pin.normalizedX ?? 0.5) * w;
                                         final py = (pin.normalizedY ?? 0.5) * h;
                                         return Positioned(
@@ -1138,6 +1138,19 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           isPediatric: isPediatric,
           doctorName: doctorName,
           onToothUpdated: onToothUpdated,
+          activeStatuses: activeStatuses,
+          isPinMode: _pinNoteModeNotifier.value,
+          onCanvasTapToPin: (normX, normY) {
+            _openAddCustomPinNoteDialog(context, normX: normX, normY: normY, discipline: ClinicalSpecialtyDiscipline.dental);
+            _pinNoteModeNotifier.value = false;
+          },
+          onPinTap: (pin) => _openStatusInspector(
+            context,
+            partKey: pin.partKey,
+            partName: pin.partName,
+            partNameAr: pin.partNameAr,
+            discipline: ClinicalSpecialtyDiscipline.dental,
+          ),
         );
 
       case ClinicalSpecialtyDiscipline.neurology:

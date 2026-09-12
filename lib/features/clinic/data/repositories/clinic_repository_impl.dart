@@ -174,9 +174,6 @@ class ClinicRepositoryImpl implements ClinicRepository {
         );
       } else {
         patientCopay = double.parse(patientCopay.toStringAsFixed(2));
-        if (insurancePaid <= 0.0001 && totalFee > patientCopay) {
-          insurancePaid = double.parse((totalFee - patientCopay).clamp(0.0, double.infinity).toStringAsFixed(2));
-        }
       }
 
       final completedVisit = visit.copyWith(

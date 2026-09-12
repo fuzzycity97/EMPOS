@@ -1198,26 +1198,26 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
             final entries = ledgerRes.getOrElse(() => []);
             double totalExcess = 0.0;
             for (final v in historicalVisits) {
-              final effInsurance = v.insurancePaid > 0
-                  ? v.insurancePaid
-                  : (v.totalFee > v.patientCopay ? (v.totalFee - v.patientCopay) : 0.0);
+              final effInsurance = (v.insurancePaid > 0.001) ? v.insurancePaid : 0.0;
               final effCopay = v.patientCopay > 0 ? v.patientCopay : (v.totalFee - effInsurance);
-              for (final entry in entries) {
-                if (entry.type == CustomerLedgerType.debtCharge &&
-                    (entry.notes?.contains('Visit #${v.id}') ?? false) &&
-                    entry.amount > effCopay + 0.01) {
-                  final alreadyAdjusted = entries.any((e) =>
-                      e.type == CustomerLedgerType.debtPayment &&
-                      (e.notes?.contains('Adjustment for Visit #${v.id}') ?? false));
-                  if (!alreadyAdjusted) {
-                    final excess = entry.amount - effCopay;
-                    totalExcess += excess;
-                    await custRepo.processDebtPayment(
-                      customerId: matchedCustomer!.id,
-                      amount: excess,
-                      paymentTender: TenderType.customerAccount,
-                      notes: 'Insurance Carrier Settlement Credit (Adjustment for Visit #${v.id})',
-                    );
+              if (effInsurance > 0.001) {
+                for (final entry in entries) {
+                  if (entry.type == CustomerLedgerType.debtCharge &&
+                      (entry.notes?.contains('Visit #${v.id}') ?? false) &&
+                      entry.amount > effCopay + 0.01) {
+                    final alreadyAdjusted = entries.any((e) =>
+                        e.type == CustomerLedgerType.debtPayment &&
+                        (e.notes?.contains('Adjustment for Visit #${v.id}') ?? false));
+                    if (!alreadyAdjusted) {
+                      final excess = entry.amount - effCopay;
+                      totalExcess += excess;
+                      await custRepo.processDebtPayment(
+                        customerId: matchedCustomer!.id,
+                        amount: excess,
+                        paymentTender: TenderType.customerAccount,
+                        notes: 'Insurance Carrier Settlement Credit (Adjustment for Visit #${v.id})',
+                      );
+                    }
                   }
                 }
               }
@@ -1235,9 +1235,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
     double totalPending = 0.0;
 
     for (final v in historicalVisits) {
-      final effectiveInsurance = v.insurancePaid > 0
-          ? v.insurancePaid
-          : (v.totalFee > v.patientCopay ? (v.totalFee - v.patientCopay) : 0.0);
+      final effectiveInsurance = (v.insurancePaid > 0.001) ? v.insurancePaid : 0.0;
       final effectiveCopay = v.patientCopay > 0 ? v.patientCopay : (v.totalFee - effectiveInsurance);
 
       if (v.isPaid || v.totalFee <= 0.001) {
@@ -1389,9 +1387,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                           final dateStr = DateFormat('yyyy-MM-dd • hh:mm a').format(hVisit.checkInTime);
                           final treatedTeeth = hVisit.toothChart.where((t) => t.state != ToothState.healthy).toList();
                           final isFullySettled = hVisit.isPaid || hVisit.totalFee <= 0.001;
-                          final effectiveInsurance = hVisit.insurancePaid > 0.001
-                              ? hVisit.insurancePaid
-                              : ((hVisit.totalFee - hVisit.patientCopay).clamp(0.0, double.infinity));
+                          final effectiveInsurance = (hVisit.insurancePaid > 0.001) ? hVisit.insurancePaid : 0.0;
                           final effectiveCopay = hVisit.patientCopay > 0.001
                               ? hVisit.patientCopay
                               : (hVisit.totalFee - effectiveInsurance);
@@ -1401,7 +1397,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                               ? ' (Carrier: EGP ${effectiveInsurance.toStringAsFixed(2)})'
                               : '';
                           final settlementInfo = isFullySettled
-                              ? 'Copay Settled: EGP ${effectiveCopay.toStringAsFixed(2)}$insInfo'
+                              ? '${effectiveInsurance > 0.001 ? "Copay Settled" : "Settled"}: EGP ${effectiveCopay.toStringAsFixed(2)}$insInfo'
                               : 'Due: EGP ${visitDue.toStringAsFixed(2)}$insInfo';
 
                           return InkWell(

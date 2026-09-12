@@ -911,8 +911,8 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           : 0.0;
 
       final updatedVisit = visit.copyWith(
-        isPaid: true,
-        patientCopay: actualPaid,
+        isPaid: remainingDebt <= 0.001,
+        patientCopay: expectedPatientShare,
         insurancePaid: insuranceShare,
       );
       await _saveVisitLocally(updatedVisit);
@@ -963,28 +963,31 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
 
           // 3. Self-healing audit reconciliation:
           // Check for any legacy erroneous ledger entries that charged the full totalFee instead of expectedPatientShare
-          try {
-            final ledgerRes = await customerRepository!.getCustomerLedger(targetCustId);
-            final entries = ledgerRes.getOrElse(() => []);
-            for (final entry in entries) {
-              if (entry.type == CustomerLedgerType.debtCharge &&
-                  (entry.notes?.contains('Visit #${visit.id}') ?? false) &&
-                  entry.amount > expectedPatientShare + 0.01) {
-                final alreadyAdjusted = entries.any((e) =>
-                    e.type == CustomerLedgerType.debtPayment &&
-                    (e.notes?.contains('Adjustment for Visit #${visit.id}') ?? false));
-                if (!alreadyAdjusted) {
-                  final excess = entry.amount - expectedPatientShare;
-                  await customerRepository!.processDebtPayment(
-                    customerId: targetCustId,
-                    amount: excess,
-                    paymentTender: TenderType.customerAccount,
-                    notes: 'Insurance Carrier Settlement Credit (Adjustment for Visit #${visit.id})',
-                  );
+          // (ONLY applicable if patient has valid insurance coverage!)
+          if (hasInsurance && insuranceShare > 0.001) {
+            try {
+              final ledgerRes = await customerRepository!.getCustomerLedger(targetCustId);
+              final entries = ledgerRes.getOrElse(() => []);
+              for (final entry in entries) {
+                if (entry.type == CustomerLedgerType.debtCharge &&
+                    (entry.notes?.contains('Visit #${visit.id}') ?? false) &&
+                    entry.amount > expectedPatientShare + 0.01) {
+                  final alreadyAdjusted = entries.any((e) =>
+                      e.type == CustomerLedgerType.debtPayment &&
+                      (e.notes?.contains('Adjustment for Visit #${visit.id}') ?? false));
+                  if (!alreadyAdjusted) {
+                    final excess = entry.amount - expectedPatientShare;
+                    await customerRepository!.processDebtPayment(
+                      customerId: targetCustId,
+                      amount: excess,
+                      paymentTender: TenderType.customerAccount,
+                      notes: 'Insurance Carrier Settlement Credit (Adjustment for Visit #${visit.id})',
+                    );
+                  }
                 }
               }
-            }
-          } catch (_) {}
+            } catch (_) {}
+          }
 
           final updatedCustRes = await customerRepository!.getCustomerById(targetCustId);
           final ledgerRes = await customerRepository!.getCustomerLedger(targetCustId);

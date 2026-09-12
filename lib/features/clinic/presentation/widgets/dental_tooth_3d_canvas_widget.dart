@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../domain/entities/clinical_anatomy_status_entry.dart';
 import '../../domain/entities/tooth_chart_entry.dart';
 import 'tooth_glb_mesh.dart';
 
@@ -19,6 +20,10 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
   final ToothChartEntry? selectedTooth;
   final void Function(ToothChartEntry entry) onToothSelected;
   final String specialtyKey;
+  final Map<String, ClinicalAnatomyStatusEntry>? activeStatuses;
+  final bool isPinMode;
+  final void Function(double normX, double normY)? onCanvasTapToPin;
+  final void Function(ClinicalAnatomyStatusEntry pin)? onPinTap;
 
   static Future<void> get _meshLoadFuture => ToothGlbMeshLibrary.preloadAll();
 
@@ -29,6 +34,10 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
     this.selectedTooth,
     required this.onToothSelected,
     this.specialtyKey = 'dental_clinic',
+    this.activeStatuses,
+    this.isPinMode = false,
+    this.onCanvasTapToPin,
+    this.onPinTap,
   });
 
   @override
@@ -59,58 +68,119 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
         child: FutureBuilder<void>(
           future: _meshLoadFuture,
           builder: (context, snapshot) {
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final canvasW = constraints.maxWidth > 0 ? constraints.maxWidth : 400.0;
+                final canvasH = constraints.maxHeight > 0 ? constraints.maxHeight : 380.0;
+
                 return Stack(
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    onScaleStart: (_) {},
-                    onScaleUpdate: (details) {
-                      if (details.pointerCount == 1) {
-                        rotY.value += details.focalPointDelta.dx * 0.012;
-                        rotX.value = (rotX.value - details.focalPointDelta.dy * 0.012)
-                            .clamp(-1.2, 1.2);
-                      } else {
-                        scale.value = (scale.value * details.scale).clamp(0.6, 2.5);
-                        panOffset.value += details.focalPointDelta;
-                      }
-                    },
-                    onTapUp: (details) {
-                      final size = context.size ?? const Size(400, 350);
-                      final hit = _hitTestTooth(
-                        details.localPosition,
-                        size,
-                        rotX.value,
-                        rotY.value,
-                        scale.value,
-                        panOffset.value,
-                      );
-                      if (hit != null) {
-                        onToothSelected(hit);
-                      }
-                    },
-                    child: AnimatedBuilder(
-                      animation: Listenable.merge([rotX, rotY, scale, panOffset]),
-                      builder: (context, _) {
-                        return CustomPaint(
-                          painter: _Tooth3dPainter(
-                            toothChart: toothChart,
-                            isPediatric: isPediatric,
-                            selectedToothCode: selectedTooth?.effectiveToothCode,
-                            rotX: rotX.value,
-                            rotY: rotY.value,
-                            scale: scale.value,
-                            pan: panOffset.value,
-                            isDark: isDark,
-                          ),
-                        );
-                      },
+                  children: [
+                    Positioned.fill(
+                      child: GestureDetector(
+                        onScaleStart: (_) {},
+                        onScaleUpdate: (details) {
+                          if (details.pointerCount == 1) {
+                            rotY.value += details.focalPointDelta.dx * 0.012;
+                            rotX.value = (rotX.value - details.focalPointDelta.dy * 0.012)
+                                .clamp(-1.2, 1.2);
+                          } else {
+                            scale.value = (scale.value * details.scale).clamp(0.6, 2.5);
+                            panOffset.value += details.focalPointDelta;
+                          }
+                        },
+                        onTapUp: (details) {
+                          if (isPinMode && onCanvasTapToPin != null) {
+                            final normX = (details.localPosition.dx / canvasW).clamp(0.05, 0.95);
+                            final normY = (details.localPosition.dy / canvasH).clamp(0.05, 0.95);
+                            onCanvasTapToPin!(normX, normY);
+                            return;
+                          }
+                          final size = Size(canvasW, canvasH);
+                          final hit = _hitTestTooth(
+                            details.localPosition,
+                            size,
+                            rotX.value,
+                            rotY.value,
+                            scale.value,
+                            panOffset.value,
+                          );
+                          if (hit != null) {
+                            onToothSelected(hit);
+                          }
+                        },
+                        child: AnimatedBuilder(
+                          animation: Listenable.merge([rotX, rotY, scale, panOffset]),
+                          builder: (context, _) {
+                            return CustomPaint(
+                              painter: _Tooth3dPainter(
+                                toothChart: toothChart,
+                                isPediatric: isPediatric,
+                                selectedToothCode: selectedTooth?.effectiveToothCode,
+                                rotX: rotX.value,
+                                rotY: rotY.value,
+                                scale: scale.value,
+                                pan: panOffset.value,
+                                isDark: isDark,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                _cameraPresetsDock(rotX, rotY, scale, panOffset),
-                _zoomControls(rotX, rotY, scale, panOffset),
-                _bottomBar(selectedTooth),
-              ],
+                    _cameraPresetsDock(rotX, rotY, scale, panOffset),
+                    _zoomControls(rotX, rotY, scale, panOffset),
+                    _bottomBar(selectedTooth),
+                    if (isPinMode)
+                      Positioned(
+                        top: 52,
+                        left: 12,
+                        right: 12,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.4),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(LucideIcons.pin, color: Colors.white, size: 14),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Tap anywhere on 3D Odontogram to place Pin Note',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    // Render custom pin markers on the 3D tooth canvas
+                    if (activeStatuses != null)
+                      ...activeStatuses!.values.where((e) => e.isCustomPin).map((pin) {
+                        final px = (pin.normalizedX ?? 0.5) * canvasW;
+                        final py = (pin.normalizedY ?? 0.5) * canvasH;
+                        return Positioned(
+                          left: (px - 14).clamp(4.0, (canvasW - 110.0).clamp(4.0, double.infinity)),
+                          top: (py - 14).clamp(4.0, (canvasH - 32.0).clamp(4.0, double.infinity)),
+                          child: _buildPinMarker(context, pin, isDark),
+                        );
+                      }),
+                  ],
+                );
+              },
             );
           },
         ),
@@ -281,6 +351,69 @@ class DentalTooth3dCanvasWidget extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildPinMarker(BuildContext context, ClinicalAnatomyStatusEntry pin, bool isDark) {
+    final color = pin.visualColor;
+    final fee = pin.status.suggestedProcedure.standardFee;
+    return Tooltip(
+      message: '${pin.partName}: ${pin.clinicalNote.isNotEmpty ? pin.clinicalNote : pin.status.title}${fee > 0 ? " (${fee.toStringAsFixed(0)} EGP)" : ""}',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPinTap != null ? () => onPinTap!(pin) : null,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color, width: 2.0),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.8),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(2.5),
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  child: const Icon(LucideIcons.pin, size: 9, color: Colors.white),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  pin.partName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (fee > 0) ...[
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '${fee.toStringAsFixed(0)} EGP',
+                      style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
