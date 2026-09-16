@@ -364,13 +364,15 @@ class ElectronicsDevice3DInspectorWidget extends StatelessWidget {
                   _showAddPinDialog(context, details.localPosition, device);
                 }
               },
-              child: CustomPaint(
-                painter: _Device3DPainter(
-                  yaw: yaw,
-                  pitch: pitch,
-                  device: device,
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _Device3DPainter(
+                    yaw: yaw,
+                    pitch: pitch,
+                    device: device,
+                  ),
+                  child: const SizedBox.expand(),
                 ),
-                child: const SizedBox.expand(),
               ),
             ),
 

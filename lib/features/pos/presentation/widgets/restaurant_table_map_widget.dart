@@ -410,12 +410,14 @@ class RestaurantTableMapWidget extends StatelessWidget {
                               children: [
                                 // 3D Isometric Floor Grid Painter
                                 Positioned.fill(
-                                  child: CustomPaint(
-                                    painter: _RestaurantFloor3DPainter(
-                                      tables: sectionTables,
-                                      yaw: yaw,
-                                      pitch: pitch,
-                                      activeSection: activeSection,
+                                  child: RepaintBoundary(
+                                    child: CustomPaint(
+                                      painter: _RestaurantFloor3DPainter(
+                                        tables: sectionTables,
+                                        yaw: yaw,
+                                        pitch: pitch,
+                                        activeSection: activeSection,
+                                      ),
                                     ),
                                   ),
                                 ),

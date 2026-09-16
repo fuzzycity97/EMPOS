@@ -364,12 +364,14 @@ class RetailFashion3DShowcaseWidget extends StatelessWidget {
                     }
                   }
                 },
-                child: CustomPaint(
-                  painter: _MannequinFashion3DPainter(
-                    yaw: yaw,
-                    pitch: pitch,
-                    garment: garment,
-                    pins: pins,
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: _MannequinFashion3DPainter(
+                      yaw: yaw,
+                      pitch: pitch,
+                      garment: garment,
+                      pins: pins,
+                    ),
                   ),
                 ),
               ),

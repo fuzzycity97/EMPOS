@@ -382,13 +382,15 @@ class TattooPiercing3DStudioWidget extends StatelessWidget {
                     }
                   }
                 },
-                child: CustomPaint(
-                  painter: _TattooBody3DPainter(
-                    yaw: yaw,
-                    pitch: pitch,
-                    region: activeRegion,
-                    designs: designs,
-                    selectedDesign: selectedDesign,
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: _TattooBody3DPainter(
+                      yaw: yaw,
+                      pitch: pitch,
+                      region: activeRegion,
+                      designs: designs,
+                      selectedDesign: selectedDesign,
+                    ),
                   ),
                 ),
               ),

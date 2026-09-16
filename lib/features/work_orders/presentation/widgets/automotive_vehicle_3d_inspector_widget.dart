@@ -726,14 +726,16 @@ class _AutomotiveVehicle3DInspectorWidgetState extends State<AutomotiveVehicle3D
               children: [
                 // 3D Chassis Painter
                 Positioned.fill(
-                  child: CustomPaint(
-                    painter: _Vehicle3DChassisPainter(
-                      bodyType: activeVehicle.bodyType,
-                      paintColor: activeVehicle.paintColor,
-                      activeLayer: activeLayer,
-                      yaw: yaw,
-                      pitch: pitch,
-                      isDark: isDark,
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: _Vehicle3DChassisPainter(
+                        bodyType: activeVehicle.bodyType,
+                        paintColor: activeVehicle.paintColor,
+                        activeLayer: activeLayer,
+                        yaw: yaw,
+                        pitch: pitch,
+                        isDark: isDark,
+                      ),
                     ),
                   ),
                 ),

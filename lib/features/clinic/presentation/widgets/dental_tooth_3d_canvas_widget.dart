@@ -93,24 +93,25 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF090D16) : const Color(0xFF0F172A),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: FutureBuilder<void>(
-          future: _meshLoadFuture,
-          builder: (context, snapshot) {
+    return RepaintBoundary(
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF090D16) : const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: FutureBuilder<void>(
+            future: _meshLoadFuture,
+            builder: (context, snapshot) {
             return LayoutBuilder(
               builder: (context, constraints) {
                 final canvasW = constraints.maxWidth > 0 ? constraints.maxWidth : 400.0;
@@ -214,17 +215,19 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
                               clipBehavior: Clip.none,
                               children: [
                                 Positioned.fill(
-                                  child: CustomPaint(
-                                    painter: _Tooth3dPainter(
-                                      toothChart: widget.toothChart,
-                                      isPediatric: widget.isPediatric,
-                                      selectedToothCode: widget.selectedTooth?.effectiveToothCode,
-                                      rotX: _rotX.value,
-                                      rotY: _rotY.value,
-                                      scale: _scale.value,
-                                      pan: _panOffset.value,
-                                      isDark: isDark,
-                                      showGums: _showGumsNotifier.value,
+                                  child: RepaintBoundary(
+                                    child: CustomPaint(
+                                      painter: _Tooth3dPainter(
+                                        toothChart: widget.toothChart,
+                                        isPediatric: widget.isPediatric,
+                                        selectedToothCode: widget.selectedTooth?.effectiveToothCode,
+                                        rotX: _rotX.value,
+                                        rotY: _rotY.value,
+                                        scale: _scale.value,
+                                        pan: _panOffset.value,
+                                        isDark: isDark,
+                                        showGums: _showGumsNotifier.value,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -250,10 +253,10 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
                     ),
                   ),
                   _cameraPresetsDock(),
-                    _zoomControls(),
-                    _bottomBar(widget.selectedTooth),
-                    if (widget.isPinMode)
-                      Positioned(
+                  _zoomControls(),
+                  _bottomBar(widget.selectedTooth),
+                  if (widget.isPinMode)
+                    Positioned(
                         top: 52,
                         left: 12,
                         right: 12,
@@ -344,6 +347,7 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
           },
         ),
       ),
+    ),
     );
   }
 
@@ -434,96 +438,97 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
       top: 12,
       left: 12,
       right: 120,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.65),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ── 3D GUM (GINGIVAL ARCH) TOGGLE ──
-              ValueListenableBuilder<bool>(
-                valueListenable: _showGumsNotifier,
-                builder: (context, showGums, _) {
-                  return GestureDetector(
-                    key: const Key('btn_toggle_3d_gums'),
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => _showGumsNotifier.value = !showGums,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: showGums
-                            ? const Color(0xFFE11D48).withValues(alpha: 0.35)
-                            : Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                        border: showGums
-                            ? Border.all(color: const Color(0xFFFB7185), width: 1.2)
-                            : Border.all(color: Colors.white12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            LucideIcons.activity,
-                            size: 11,
-                            color: showGums ? const Color(0xFFFDA4AF) : Colors.white70,
+      child: RepaintBoundary(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.65),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ── 3D GUM (GINGIVAL ARCH) TOGGLE ──
+                ValueListenableBuilder<bool>(
+                  valueListenable: _showGumsNotifier,
+                  builder: (context, showGums, _) {
+                    return GestureDetector(
+                      key: const Key('btn_toggle_3d_gums'),
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _showGumsNotifier.value = !showGums,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: showGums ? Colors.pinkAccent.withValues(alpha: 0.35) : Colors.white10,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: showGums ? Colors.pinkAccent : Colors.white24,
+                            width: 1,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            showGums ? '3D Gums: ON' : '3D Gums: OFF',
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              color: showGums ? Colors.white : Colors.white70,
-                              fontWeight: showGums ? FontWeight.bold : FontWeight.w500,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              showGums ? LucideIcons.smile : LucideIcons.frown,
+                              size: 13,
+                              color: showGums ? Colors.pinkAccent : Colors.white60,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Text(
+                              showGums ? '3D Gums: ON' : '3D Gums: OFF',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                color: showGums ? Colors.white : Colors.white70,
+                                fontWeight: showGums ? FontWeight.bold : FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 6),
-              _presetButton('Front 3D', () {
-                _rotX.value = 0.35;
-                _rotY.value = 0.0;
-                _scale.value = 1.1;
-                _panOffset.value = Offset.zero;
-              }),
-              const SizedBox(width: 4),
-              _presetButton('Upper Arch', () {
-                _rotX.value = 1.15;
-                _rotY.value = 0.0;
-                _scale.value = 1.25;
-                _panOffset.value = Offset.zero;
-              }),
-              const SizedBox(width: 4),
-              _presetButton('Lower Arch', () {
-                _rotX.value = -1.15;
-                _rotY.value = 0.0;
-                _scale.value = 1.25;
-                _panOffset.value = Offset.zero;
-              }),
-              const SizedBox(width: 4),
-              _presetButton('Right Sagittal', () {
-                _rotX.value = 0.15;
-                _rotY.value = 1.35;
-                _scale.value = 1.2;
-                _panOffset.value = Offset.zero;
-              }),
-              const SizedBox(width: 4),
-              _presetButton('Left Sagittal', () {
-                _rotX.value = 0.15;
-                _rotY.value = -1.35;
-                _scale.value = 1.2;
-                _panOffset.value = Offset.zero;
-              }),
-            ],
+                    );
+                  },
+                ),
+                const SizedBox(width: 6),
+                _presetButton('Front 3D', () {
+                  _rotX.value = 0.35;
+                  _rotY.value = 0.0;
+                  _scale.value = 1.1;
+                  _panOffset.value = Offset.zero;
+                }),
+                const SizedBox(width: 4),
+                _presetButton('Upper Arch', () {
+                  _rotX.value = 1.15;
+                  _rotY.value = 0.0;
+                  _scale.value = 1.25;
+                  _panOffset.value = Offset.zero;
+                }),
+                const SizedBox(width: 4),
+                _presetButton('Lower Arch', () {
+                  _rotX.value = -1.15;
+                  _rotY.value = 0.0;
+                  _scale.value = 1.25;
+                  _panOffset.value = Offset.zero;
+                }),
+                const SizedBox(width: 4),
+                _presetButton('Right Sagittal', () {
+                  _rotX.value = 0.15;
+                  _rotY.value = 1.35;
+                  _scale.value = 1.2;
+                  _panOffset.value = Offset.zero;
+                }),
+                const SizedBox(width: 4),
+                _presetButton('Left Sagittal', () {
+                  _rotX.value = 0.15;
+                  _rotY.value = -1.35;
+                  _scale.value = 1.2;
+                  _panOffset.value = Offset.zero;
+                }),
+              ],
+            ),
           ),
         ),
       ),
@@ -534,42 +539,44 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
     return Positioned(
       top: 12,
       right: 12,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.65),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(LucideIcons.minus, size: 16, color: Colors.white70),
-              onPressed: () => _scale.value = (_scale.value - 0.2).clamp(0.6, 2.5),
-              tooltip: 'Zoom Out',
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              padding: EdgeInsets.zero,
-            ),
-            IconButton(
-              icon: const Icon(LucideIcons.plus, size: 16, color: Colors.white70),
-              onPressed: () => _scale.value = (_scale.value + 0.2).clamp(0.6, 2.5),
-              tooltip: 'Zoom In',
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              padding: EdgeInsets.zero,
-            ),
-            IconButton(
-              icon: const Icon(LucideIcons.rotateCcw, size: 16, color: Colors.white70),
-              onPressed: () {
-                _rotX.value = 0.35;
-                _rotY.value = 0.0;
-                _scale.value = 1.1;
-                _panOffset.value = Offset.zero;
-              },
-              tooltip: 'Reset Camera',
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              padding: EdgeInsets.zero,
-            ),
-          ],
+      child: RepaintBoundary(
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(LucideIcons.minus, size: 16, color: Colors.white70),
+                onPressed: () => _scale.value = (_scale.value - 0.2).clamp(0.6, 2.5),
+                tooltip: 'Zoom Out',
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
+              ),
+              IconButton(
+                icon: const Icon(LucideIcons.plus, size: 16, color: Colors.white70),
+                onPressed: () => _scale.value = (_scale.value + 0.2).clamp(0.6, 2.5),
+                tooltip: 'Zoom In',
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
+              ),
+              IconButton(
+                icon: const Icon(LucideIcons.rotateCcw, size: 16, color: Colors.white70),
+                onPressed: () {
+                  _rotX.value = 0.35;
+                  _rotY.value = 0.0;
+                  _scale.value = 1.1;
+                  _panOffset.value = Offset.zero;
+                },
+                tooltip: 'Reset Camera',
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                padding: EdgeInsets.zero,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -580,54 +587,56 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
       bottom: 12,
       left: 12,
       right: 12,
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Row(
-                children: [
-                  const Icon(LucideIcons.mousePointer, size: 12, color: Colors.white60),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      AppLanguage.tr(
-                        'Drag to rotate 3D • Pinch/Scroll to zoom • Tap tooth/gum to inspect',
-                        'اسحب لتدوير النموذج 3D • قرص/تمرير للتكبير • انقر على السن/اللثة للمعاينة',
+      child: RepaintBoundary(
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(LucideIcons.mousePointer, size: 12, color: Colors.white60),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        AppLanguage.tr(
+                          'Drag to rotate 3D • Pinch/Scroll to zoom • Tap tooth/gum to inspect',
+                          'اسحب لتدوير النموذج 3D • قرص/تمرير للتكبير • انقر على السن/اللثة للمعاينة',
+                        ),
+                        style: const TextStyle(fontSize: 10, color: Colors.white70),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      style: const TextStyle(fontSize: 10, color: Colors.white70),
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (selectedTooth != null) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blueAccent),
-              ),
-              child: Text(
-                'FDI ${selectedTooth.fdiNumber}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  ],
                 ),
               ),
             ),
+            if (selectedTooth != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blueAccent),
+                ),
+                child: Text(
+                  'FDI ${selectedTooth.fdiNumber}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

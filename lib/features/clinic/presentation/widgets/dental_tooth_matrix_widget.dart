@@ -4,7 +4,7 @@ import '../../domain/entities/tooth_chart_entry.dart';
 import 'dental_tooth_3d_canvas_widget.dart';
 import 'tooth_editor_sheet.dart';
 
-class DentalToothMatrixWidget extends StatelessWidget {
+class DentalToothMatrixWidget extends StatefulWidget {
   final List<ToothChartEntry> toothChart;
   final bool isPediatric;
   final String? doctorName;
@@ -36,21 +36,68 @@ class DentalToothMatrixWidget extends StatelessWidget {
     this.onPinTap,
   });
 
+  static Color _getStateColor(ToothState state) {
+    switch (state) {
+      case ToothState.healthy:
+        return const Color(0xFF10B981);
+      case ToothState.decayed:
+        return const Color(0xFFEF4444);
+      case ToothState.filled:
+        return const Color(0xFF3B82F6);
+      case ToothState.crown:
+        return const Color(0xFFF59E0B);
+      case ToothState.rootCanal:
+        return const Color(0xFFF97316);
+      case ToothState.missing:
+        return const Color(0xFF64748B);
+      case ToothState.extracted:
+        return const Color(0xFF3F3F46);
+      case ToothState.impacted:
+        return const Color(0xFFE11D48);
+      case ToothState.bridge:
+        return const Color(0xFF06B6D4);
+      case ToothState.implant:
+        return const Color(0xFF8B5CF6);
+      case ToothState.fractured:
+        return const Color(0xFFDC2626);
+      case ToothState.specialCase:
+        return const Color(0xFF6366F1);
+    }
+  }
+
+  @override
+  State<DentalToothMatrixWidget> createState() => _DentalToothMatrixWidgetState();
+}
+
+class _DentalToothMatrixWidgetState extends State<DentalToothMatrixWidget> {
+  late final ValueNotifier<bool> _is3dMode;
+  late final ValueNotifier<ToothChartEntry?> _selectedTooth;
+
+  @override
+  void initState() {
+    super.initState();
+    _is3dMode = ValueNotifier<bool>(true);
+    _selectedTooth = ValueNotifier<ToothChartEntry?>(null);
+  }
+
+  @override
+  void dispose() {
+    _is3dMode.dispose();
+    _selectedTooth.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // Local ValueNotifiers for 100% StatelessWidget state management
-    final is3dMode = ValueNotifier<bool>(true);
-    final selectedTooth = ValueNotifier<ToothChartEntry?>(null);
-
     // FDI Codes: Upper Arch and Lower Arch
-    final upperCodes = isPediatric
+    final upperCodes = widget.isPediatric
         ? ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
         : List.generate(16, (i) => (i + 1).toString());
 
-    final lowerCodes = isPediatric
+    final lowerCodes = widget.isPediatric
         ? ['T', 'S', 'R', 'Q', 'P', 'O', 'N', 'M', 'L', 'K']
         : List.generate(16, (i) => (32 - i).toString());
 
@@ -81,7 +128,7 @@ class DentalToothMatrixWidget extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              isPediatric
+                              widget.isPediatric
                                   ? 'Deciduous Odontogram (Primary 20 Teeth)'
                                   : 'Adult Odontogram (Permanent 32 Teeth)',
                               style: theme.textTheme.titleSmall?.copyWith(
@@ -101,7 +148,7 @@ class DentalToothMatrixWidget extends StatelessWidget {
                       ),
                       if (!isNarrow) ...[
                         const SizedBox(width: 8),
-                        _buildHeaderControls(theme, isDark, is3dMode),
+                        _buildHeaderControls(theme, isDark, _is3dMode),
                       ],
                     ],
                   ),
@@ -109,7 +156,7 @@ class DentalToothMatrixWidget extends StatelessWidget {
                     const SizedBox(height: 8),
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: _buildHeaderControls(theme, isDark, is3dMode),
+                      child: _buildHeaderControls(theme, isDark, _is3dMode),
                     ),
                   ],
                 ],
@@ -118,34 +165,36 @@ class DentalToothMatrixWidget extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          // 2. Main Odontogram Presentation (3D Canvas vs 2D Grid)
-          ValueListenableBuilder<bool>(
-            valueListenable: is3dMode,
-            builder: (context, in3d, _) {
-              if (in3d) {
-                return ValueListenableBuilder<ToothChartEntry?>(
-                  valueListenable: selectedTooth,
-                  builder: (context, sel, _) {
-                    return SizedBox(
-                      height: 380,
-                      child: DentalTooth3dCanvasWidget(
-                        toothChart: toothChart,
-                        isPediatric: isPediatric,
-                        selectedTooth: sel,
-                        activeStatuses: activeStatuses,
-                        isPinMode: isPinMode,
-                        onCanvasTapToPin: onCanvasTapToPin,
-                        onPinTap: onPinTap,
-                        onToothSelected: (entry) {
-                          if (readOnly) return;
-                          selectedTooth.value = entry;
-                          _openToothEditor(context, entry);
-                        },
-                      ),
-                    );
-                  },
-                );
-              }
+          // 2. Main Odontogram Presentation (3D Canvas vs 2D Grid) isolated in RepaintBoundary
+          RepaintBoundary(
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _is3dMode,
+              builder: (context, in3d, _) {
+                if (in3d) {
+                  return ValueListenableBuilder<ToothChartEntry?>(
+                    valueListenable: _selectedTooth,
+                    builder: (context, sel, _) {
+                      return SizedBox(
+                        height: 380,
+                        child: DentalTooth3dCanvasWidget(
+                          key: const ValueKey('dental_tooth_3d_canvas_root'),
+                          toothChart: widget.toothChart,
+                          isPediatric: widget.isPediatric,
+                          selectedTooth: sel,
+                          activeStatuses: widget.activeStatuses,
+                          isPinMode: widget.isPinMode,
+                          onCanvasTapToPin: widget.onCanvasTapToPin,
+                          onPinTap: widget.onPinTap,
+                          onToothSelected: (entry) {
+                            if (widget.readOnly) return;
+                            _selectedTooth.value = entry;
+                            _openToothEditor(context, entry);
+                          },
+                        ),
+                      );
+                    },
+                  );
+                }
 
               // 2D Matrix Mode
               return Column(
@@ -179,7 +228,7 @@ class DentalToothMatrixWidget extends StatelessWidget {
                           entry: entry,
                           isDark: isDark,
                           onTap: () {
-                            selectedTooth.value = entry;
+                            _selectedTooth.value = entry;
                             _openToothEditor(context, entry);
                           },
                         );
@@ -216,7 +265,7 @@ class DentalToothMatrixWidget extends StatelessWidget {
                           entry: entry,
                           isDark: isDark,
                           onTap: () {
-                            selectedTooth.value = entry;
+                            _selectedTooth.value = entry;
                             _openToothEditor(context, entry);
                           },
                         );
@@ -227,6 +276,7 @@ class DentalToothMatrixWidget extends StatelessWidget {
               );
             },
           ),
+          ),
           const SizedBox(height: 14),
 
           // 3. Clinical Status Legend Bar
@@ -234,14 +284,14 @@ class DentalToothMatrixWidget extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: ToothState.values.map((state) {
-                final count = toothChart.where((t) => t.state == state).length;
+                final count = widget.toothChart.where((t) => t.state == state).length;
                 return Container(
                   margin: const EdgeInsets.only(right: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _getStateColor(state).withValues(alpha: 0.1),
+                    color: DentalToothMatrixWidget._getStateColor(state).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _getStateColor(state).withValues(alpha: 0.3)),
+                    border: Border.all(color: DentalToothMatrixWidget._getStateColor(state).withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -251,7 +301,7 @@ class DentalToothMatrixWidget extends StatelessWidget {
                         height: 8,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: _getStateColor(state),
+                          color: DentalToothMatrixWidget._getStateColor(state),
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -288,15 +338,15 @@ class DentalToothMatrixWidget extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: (isPediatric ? Colors.pink : Colors.blue).withValues(alpha: 0.15),
+            color: (widget.isPediatric ? Colors.pink : Colors.blue).withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
-            isPediatric ? 'Pediatric (<12y)' : 'Adult (12y+)',
+            widget.isPediatric ? 'Pediatric (<12y)' : 'Adult (12y+)',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: isPediatric ? Colors.pink : Colors.blue,
+              color: widget.isPediatric ? Colors.pink : Colors.blue,
             ),
           ),
         ),
@@ -386,16 +436,16 @@ class DentalToothMatrixWidget extends StatelessWidget {
     ToothEditorSheet.show(
       context,
       entry: freshEntry,
-      isPediatric: isPediatric,
-      doctorName: doctorName,
+      isPediatric: widget.isPediatric,
+      doctorName: widget.doctorName,
       onSave: (updated) {
-        onToothUpdated?.call(updated);
+        widget.onToothUpdated?.call(updated);
       },
     );
   }
 
   ToothChartEntry _findEntry(String code) {
-    for (final t in toothChart) {
+    for (final t in widget.toothChart) {
       if (t.effectiveToothCode.toUpperCase() == code.toUpperCase()) {
         return t;
       }
@@ -403,37 +453,8 @@ class DentalToothMatrixWidget extends StatelessWidget {
     return ToothChartEntry(
       toothNumber: int.tryParse(code) ?? 1,
       toothCode: code,
-      isDeciduous: isPediatric,
+      isDeciduous: widget.isPediatric,
     );
-  }
-
-  static Color _getStateColor(ToothState state) {
-    switch (state) {
-      case ToothState.healthy:
-        return const Color(0xFF10B981);
-      case ToothState.decayed:
-        return const Color(0xFFEF4444);
-      case ToothState.filled:
-        return const Color(0xFF3B82F6);
-      case ToothState.crown:
-        return const Color(0xFFF59E0B);
-      case ToothState.rootCanal:
-        return const Color(0xFFF97316);
-      case ToothState.missing:
-        return const Color(0xFF64748B);
-      case ToothState.extracted:
-        return const Color(0xFF3F3F46);
-      case ToothState.impacted:
-        return const Color(0xFFE11D48);
-      case ToothState.bridge:
-        return const Color(0xFF06B6D4);
-      case ToothState.implant:
-        return const Color(0xFF8B5CF6);
-      case ToothState.fractured:
-        return const Color(0xFFDC2626);
-      case ToothState.specialCase:
-        return const Color(0xFF6366F1);
-    }
   }
 }
 

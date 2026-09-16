@@ -306,20 +306,23 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
               body: Column(
                 children: [
                   // Prominent LAN Connection & Offline Warning Banner
-                  _buildConnectionBanner(context, isDark),
+                  RepaintBoundary(
+                    child: _buildConnectionBanner(context, isDark),
+                  ),
 
                   Expanded(
                     child: Row(
                       children: [
                         // LEFT SIDEBAR: LIVE QUEUE
-                        Container(
-                          width: 320,
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                            border: Border(
-                              right: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
+                        RepaintBoundary(
+                          child: Container(
+                            width: 320,
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                              border: Border(
+                                right: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
+                              ),
                             ),
-                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -336,7 +339,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
-                                            AppLanguage.tr('Patient Management', 'إدارة المرضى'),
+                                            AppLanguage.tr('Patient Management', 'Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„Ù…Ø±Ø¶Ù‰'),
                                             style: theme.textTheme.titleMedium?.copyWith(
                                               fontWeight: FontWeight.bold,
                                             ),
@@ -359,7 +362,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                             ),
                                             icon: const Icon(LucideIcons.userSearch, size: 15),
                                             label: Text(
-                                              AppLanguage.tr('Archive', 'الأرشيف'),
+                                              AppLanguage.tr('Archive', 'Ø§Ù„Ø£Ø±Ø´ÙŠÙ'),
                                               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                             ),
                                             onPressed: () => _showAllPatientsArchiveDialog(
@@ -380,7 +383,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                             ),
                                             icon: const Icon(LucideIcons.calendarDays, size: 14),
                                             label: Text(
-                                              AppLanguage.tr("Today's Appts", 'مواعيدي اليوم'),
+                                              AppLanguage.tr("Today's Appts", 'Ù…ÙˆØ§Ø¹ÙŠØ¯ÙŠ Ø§Ù„ÙŠÙˆÙ…'),
                                               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                             ),
                                             onPressed: () => _showDoctorAppointmentsDialog(context, isDark),
@@ -403,7 +406,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                         ),
                                         icon: const Icon(LucideIcons.boxes, size: 14),
                                         label: Text(
-                                          AppLanguage.tr('Consumables & Stock', 'مخزون المستهلكات والمواد'),
+                                          AppLanguage.tr('Consumables & Stock', 'Ù…Ø®Ø²ÙˆÙ† Ø§Ù„Ù…Ø³ØªÙ‡Ù„ÙƒØ§Øª ÙˆØ§Ù„Ù…ÙˆØ§Ø¯'),
                                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                         ),
                                         onPressed: () => _showDoctorConsumablesStockDialog(context, isDark),
@@ -429,7 +432,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                               ),
                                               const SizedBox(height: 12),
                                               Text(
-                                                AppLanguage.tr('No patients in waiting queue', 'لا يوجد مرضى في قائمة الانتظار'),
+                                                AppLanguage.tr('No patients in waiting queue', 'Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ù…Ø±Ø¶Ù‰ ÙÙŠ Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø±'),
                                                 textAlign: TextAlign.center,
                                                 style: TextStyle(
                                                   fontWeight: FontWeight.bold,
@@ -441,7 +444,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                               Text(
                                                 AppLanguage.tr(
                                                   'Patients are registered and checked in at the Reception Desk.\nTransferred patients will automatically appear here.',
-                                                  'يتم تسجيل واستقبال المرضى من قسم الاستقبال.\nالمرضى المحولون سيظهرون تلقائياً هنا.',
+                                                  'ÙŠØªÙ… ØªØ³Ø¬ÙŠÙ„ ÙˆØ§Ø³ØªÙ‚Ø¨Ø§Ù„ Ø§Ù„Ù…Ø±Ø¶Ù‰ Ù…Ù† Ù‚Ø³Ù… Ø§Ù„Ø§Ø³ØªÙ‚Ø¨Ø§Ù„.\nØ§Ù„Ù…Ø±Ø¶Ù‰ Ø§Ù„Ù…Ø­ÙˆÙ„ÙˆÙ† Ø³ÙŠØ¸Ù‡Ø±ÙˆÙ† ØªÙ„Ù‚Ø§Ø¦ÙŠØ§Ù‹ Ù‡Ù†Ø§.',
                                                 ),
                                                 textAlign: TextAlign.center,
                                                 style: TextStyle(
@@ -454,7 +457,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                               OutlinedButton.icon(
                                                 icon: const Icon(LucideIcons.userPlus, size: 14),
                                                 label: Text(
-                                                  AppLanguage.tr('Add Demo Test Patient', 'إضافة مريض تجريبي'),
+                                                  AppLanguage.tr('Add Demo Test Patient', 'Ø¥Ø¶Ø§ÙØ© Ù…Ø±ÙŠØ¶ ØªØ¬Ø±ÙŠØ¨ÙŠ'),
                                                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                                 ),
                                                 onPressed: () {
@@ -602,6 +605,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                             ],
                           ),
                         ),
+                        ),
 
                         // CENTRAL WORKSPACE
                         Expanded(
@@ -640,7 +644,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                         ),
                                         const SizedBox(height: 20),
                                         Text(
-                                          AppLanguage.tr('No Active Patient Selected', 'لا يوجد مريض محدد حالياً'),
+                                          AppLanguage.tr('No Active Patient Selected', 'Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ù…Ø±ÙŠØ¶ Ù…Ø­Ø¯Ø¯ Ø­Ø§Ù„ÙŠØ§Ù‹'),
                                           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                                           textAlign: TextAlign.center,
                                         ),
@@ -648,7 +652,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                         Text(
                                           AppLanguage.tr(
                                             'Select a patient from the queue to start consultation, view 3D anatomical models, record clinical findings, and manage treatment fees.',
-                                            'يرجى اختيار مريض من قائمة الانتظار على اليسار لبدء الكشف الطبي وتوثيق الإجراءات ومخطط الأسنان، أو تسجيل مريض جديد من الاستقبال.',
+                                            'ÙŠØ±Ø¬Ù‰ Ø§Ø®ØªÙŠØ§Ø± Ù…Ø±ÙŠØ¶ Ù…Ù† Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø± Ø¹Ù„Ù‰ Ø§Ù„ÙŠØ³Ø§Ø± Ù„Ø¨Ø¯Ø¡ Ø§Ù„ÙƒØ´Ù Ø§Ù„Ø·Ø¨ÙŠ ÙˆØªÙˆØ«ÙŠÙ‚ Ø§Ù„Ø¥Ø¬Ø±Ø§Ø¡Ø§Øª ÙˆÙ…Ø®Ø·Ø· Ø§Ù„Ø£Ø³Ù†Ø§Ù†ØŒ Ø£Ùˆ ØªØ³Ø¬ÙŠÙ„ Ù…Ø±ÙŠØ¶ Ø¬Ø¯ÙŠØ¯ Ù…Ù† Ø§Ù„Ø§Ø³ØªÙ‚Ø¨Ø§Ù„.',
                                           ),
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
@@ -669,7 +673,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                             icon: const Icon(LucideIcons.play, size: 14),
                                             label: Text(
                                               AppLanguage.isArabic
-                                                  ? 'معاينة أول مريض بالانتظار: ${activeQueue.first.patientName}'
+                                                  ? 'Ù…Ø¹Ø§ÙŠÙ†Ø© Ø£ÙˆÙ„ Ù…Ø±ÙŠØ¶ Ø¨Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø±: ${activeQueue.first.patientName}'
                                                   : 'Consult First Queued Patient: ${activeQueue.first.patientName}',
                                             ),
                                             onPressed: () {
@@ -692,7 +696,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                               const SizedBox(width: 8),
                                               Flexible(
                                                 child: Text(
-                                                  AppLanguage.tr('Patients are admitted via the Reception Desk', 'يتم تسجيل واستقبال المرضى من شاشة قسم الاستقبال'),
+                                                  AppLanguage.tr('Patients are admitted via the Reception Desk', 'ÙŠØªÙ… ØªØ³Ø¬ÙŠÙ„ ÙˆØ§Ø³ØªÙ‚Ø¨Ø§Ù„ Ø§Ù„Ù…Ø±Ø¶Ù‰ Ù…Ù† Ø´Ø§Ø´Ø© Ù‚Ø³Ù… Ø§Ù„Ø§Ø³ØªÙ‚Ø¨Ø§Ù„'),
                                                   style: TextStyle(
                                                     fontSize: 11.5,
                                                     fontWeight: FontWeight.w600,
@@ -714,7 +718,9 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                     crossAxisAlignment: CrossAxisAlignment.stretch,
                                     children: [
                                       // Patient Profile Card & Vitals
-                                      _buildPatientVitalsCard(context, activeVisit, activePatient, loadedState.queue, loadedState.activeToothChart, isDark),
+                                      RepaintBoundary(
+                                        child: _buildPatientVitalsCard(context, activeVisit, activePatient, loadedState.queue, loadedState.activeToothChart, isDark),
+                                      ),
                                       const SizedBox(height: 16),
 
                                       // Live Settlement Status Banner for Completed Consultations
@@ -779,17 +785,17 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                         Text(
                                                           isPartiallySettled
                                                               ? AppLanguage.tr(
-                                                                  'Visit Partially Settled • Outstanding Balance',
-                                                                  'تم سداد جزء من الزيارة • يوجد رصيد متبقي ذمة',
+                                                                  'Visit Partially Settled â€¢ Outstanding Balance',
+                                                                  'ØªÙ… Ø³Ø¯Ø§Ø¯ Ø¬Ø²Ø¡ Ù…Ù† Ø§Ù„Ø²ÙŠØ§Ø±Ø© â€¢ ÙŠÙˆØ¬Ø¯ Ø±ØµÙŠØ¯ Ù…ØªØ¨Ù‚ÙŠ Ø°Ù…Ø©',
                                                                 )
                                                               : (isFullySettled
                                                                   ? AppLanguage.tr(
                                                                       'Visit Paid & Settled at Reception',
-                                                                      'تم تحصيل وسداد الزيارة بالاستقبال',
+                                                                      'ØªÙ… ØªØ­ØµÙŠÙ„ ÙˆØ³Ø¯Ø§Ø¯ Ø§Ù„Ø²ÙŠØ§Ø±Ø© Ø¨Ø§Ù„Ø§Ø³ØªÙ‚Ø¨Ø§Ù„',
                                                                     )
                                                                   : AppLanguage.tr(
-                                                                      'Consultation Completed • Awaiting Settlement at Reception',
-                                                                      'اكتمل الكشف الطبي • في انتظار السداد بالاستقبال',
+                                                                      'Consultation Completed â€¢ Awaiting Settlement at Reception',
+                                                                      'Ø§ÙƒØªÙ…Ù„ Ø§Ù„ÙƒØ´Ù Ø§Ù„Ø·Ø¨ÙŠ â€¢ ÙÙŠ Ø§Ù†ØªØ¸Ø§Ø± Ø§Ù„Ø³Ø¯Ø§Ø¯ Ø¨Ø§Ù„Ø§Ø³ØªÙ‚Ø¨Ø§Ù„',
                                                                     )),
                                                           style: TextStyle(
                                                             fontWeight: FontWeight.bold,
@@ -802,7 +808,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                         const SizedBox(height: 2),
                                                         Text(
                                                           isPartiallySettled
-                                                              ? 'Paid: EGP ${totalPaidAmount.toStringAsFixed(2)} • Remaining Account Debt: EGP ${custDebt.toStringAsFixed(2)} Due'
+                                                              ? 'Paid: EGP ${totalPaidAmount.toStringAsFixed(2)} â€¢ Remaining Account Debt: EGP ${custDebt.toStringAsFixed(2)} Due'
                                                               : (isFullySettled
                                                                   ? 'Total Paid: EGP ${activeVisit.totalFee.toStringAsFixed(2)}${activeVisit.insurancePaid > 0.001 ? " (Insurance Covered: EGP ${activeVisit.insurancePaid.toStringAsFixed(2)})" : ""}'
                                                                   : 'Patient Copay Due: EGP ${(activeVisit.patientCopay > 0.001 ? activeVisit.patientCopay : activeVisit.totalFee).toStringAsFixed(2)}${activeVisit.insurancePaid > 0.001 ? " (Insurance Claim: EGP ${activeVisit.insurancePaid.toStringAsFixed(2)})" : ""}'),
@@ -825,7 +831,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                     ),
                                                     icon: const Icon(LucideIcons.fileSpreadsheet, size: 14),
                                                     label: Text(
-                                                      AppLanguage.tr('View History & Logs', 'سجل الزيارات والمدفوعات'),
+                                                      AppLanguage.tr('View History & Logs', 'Ø³Ø¬Ù„ Ø§Ù„Ø²ÙŠØ§Ø±Ø§Øª ÙˆØ§Ù„Ù…Ø¯ÙÙˆØ¹Ø§Øª'),
                                                       style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                                                     ),
                                                     onPressed: () => _showPatientHistoryDialog(
@@ -844,62 +850,70 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                         const SizedBox(height: 16),
                                       ],
 
-                                      MultiSpecialtyAnatomyCanvasWidget(
-                                        key: ValueKey('anatomy_canvas_${activeVisit.id}'),
-                                        blueprint: currentBlueprint,
-                                        disciplineNotifier: _activeDisciplineNotifier,
-                                        partStatusesNotifier: _partStatusesNotifier,
-                                        eyeCdRatioOdNotifier: _eyeCdRatioOdNotifier,
-                                        eyeCdRatioOsNotifier: _eyeCdRatioOsNotifier,
-                                        doctorName: activeVisit.doctorName,
-                                        toothChart: _getEffectiveToothChart(loadedState.activeToothChart, isPediatric),
-                                        isPediatric: isPediatric,
-                                        onToothUpdated: (updatedEntry) {
-                                          bloc.add(
-                                            UpdateToothChartEntryEvent(
-                                              patientId: activeVisit.patientId,
-                                              entry: updatedEntry,
-                                            ),
-                                          );
-                                        },
-                                        onProcedureApplied: (proc, note) {
-                                          _appliedProcedures.add(proc);
-                                          final currentFee = double.tryParse(totalFeeController.text.trim()) ?? 0.0;
-                                          totalFeeController.text = (currentFee + proc.standardFee).toStringAsFixed(2);
-                                          if (clinicalNotesController.text.trim().isEmpty) {
-                                            clinicalNotesController.text = note;
-                                          } else {
-                                            clinicalNotesController.text = '${clinicalNotesController.text}\n$note';
-                                          }
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text('Added ${proc.name} (EGP ${proc.standardFee.toStringAsFixed(2)}) to consultation'),
-                                              backgroundColor: Colors.teal,
-                                              duration: const Duration(seconds: 2),
-                                            ),
-                                          );
-                                        },
+                                      RepaintBoundary(
+                                        child: MultiSpecialtyAnatomyCanvasWidget(
+                                          key: ValueKey('anatomy_canvas_${activeVisit.id}'),
+                                          blueprint: currentBlueprint,
+                                          disciplineNotifier: _activeDisciplineNotifier,
+                                          partStatusesNotifier: _partStatusesNotifier,
+                                          eyeCdRatioOdNotifier: _eyeCdRatioOdNotifier,
+                                          eyeCdRatioOsNotifier: _eyeCdRatioOsNotifier,
+                                          doctorName: activeVisit.doctorName,
+                                          toothChart: _getEffectiveToothChart(loadedState.activeToothChart, isPediatric),
+                                          isPediatric: isPediatric,
+                                          onToothUpdated: (updatedEntry) {
+                                            bloc.add(
+                                              UpdateToothChartEntryEvent(
+                                                patientId: activeVisit.patientId,
+                                                entry: updatedEntry,
+                                              ),
+                                            );
+                                          },
+                                          onProcedureApplied: (proc, note) {
+                                            _appliedProcedures.add(proc);
+                                            final currentFee = double.tryParse(totalFeeController.text.trim()) ?? 0.0;
+                                            totalFeeController.text = (currentFee + proc.standardFee).toStringAsFixed(2);
+                                            if (clinicalNotesController.text.trim().isEmpty) {
+                                              clinicalNotesController.text = note;
+                                            } else {
+                                              clinicalNotesController.text = '${clinicalNotesController.text}\n$note';
+                                            }
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('Added ${proc.name} (EGP ${proc.standardFee.toStringAsFixed(2)}) to consultation'),
+                                                backgroundColor: Colors.teal,
+                                                duration: const Duration(seconds: 2),
+                                              ),
+                                            );
+                                          },
+                                        ),
                                       ),
                                       const SizedBox(height: 20),
 
                                       // General Clinical Form (Notes, Prescriptions, Fee)
-                                      _buildClinicalForm(
-                                        context,
-                                        clinicalNotesController,
-                                        prescriptionController,
-                                        totalFeeController,
-                                        labResultsController,
-                                        isDark,
-                                        patient: activePatient,
+                                      RepaintBoundary(
+                                        child: _buildClinicalForm(
+                                          context,
+                                          clinicalNotesController,
+                                          prescriptionController,
+                                          totalFeeController,
+                                          labResultsController,
+                                          isDark,
+                                          patient: activePatient,
+                                        ),
                                       ),
                                       const SizedBox(height: 20),
-                                      DoctorAttachmentsLightbox(
-                                        attachmentsNotifier: doctorAttachmentsNotifier,
+                                      RepaintBoundary(
+                                        child: DoctorAttachmentsLightbox(
+                                          attachmentsNotifier: doctorAttachmentsNotifier,
+                                        ),
                                       ),
                                       const SizedBox(height: 24),
 
                                       // Action Footer
                                       if (activeVisit.status == ClinicVisitStatus.completed)
+                                        RepaintBoundary(
+                                          child:
                                         Container(
                                           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                                           decoration: BoxDecoration(
@@ -915,7 +929,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                   const Icon(LucideIcons.checkCircle2, color: Colors.teal, size: 20),
                                                   const SizedBox(width: 8),
                                                   Text(
-                                                    AppLanguage.tr('Consultation Completed & Recorded', 'تم توثيق وإنهاء هذا الكشف الطبي'),
+                                                    AppLanguage.tr('Consultation Completed & Recorded', 'ØªÙ… ØªÙˆØ«ÙŠÙ‚ ÙˆØ¥Ù†Ù‡Ø§Ø¡ Ù‡Ø°Ø§ Ø§Ù„ÙƒØ´Ù Ø§Ù„Ø·Ø¨ÙŠ'),
                                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                                                   ),
                                                 ],
@@ -924,7 +938,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                 children: [
                                                   OutlinedButton.icon(
                                                     icon: const Icon(LucideIcons.fileSpreadsheet, size: 14),
-                                                    label: Text(AppLanguage.tr('Patient History', 'سجل المريض')),
+                                                    label: Text(AppLanguage.tr('Patient History', 'Ø³Ø¬Ù„ Ø§Ù„Ù…Ø±ÙŠØ¶')),
                                                     onPressed: () => _showPatientHistoryDialog(
                                                       context,
                                                       activeVisit,
@@ -940,7 +954,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                       foregroundColor: Colors.white,
                                                     ),
                                                     icon: const Icon(LucideIcons.userCheck, size: 14),
-                                                    label: Text(AppLanguage.tr('Next Queued Patient', 'المريض التالي بالانتظار')),
+                                                    label: Text(AppLanguage.tr('Next Queued Patient', 'Ø§Ù„Ù…Ø±ÙŠØ¶ Ø§Ù„ØªØ§Ù„ÙŠ Ø¨Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø±')),
                                                     onPressed: () {
                                                                                                             if (activeQueue.isNotEmpty) {
                                                         selectedVisitNotifier.value = activeQueue.first.id;
@@ -953,9 +967,11 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                               ),
                                             ],
                                           ),
-                                        )
+                                        ),
+                                      )
                                       else
-                                        SizedBox(
+                                        RepaintBoundary(
+                                          child: SizedBox(
                                           height: 48,
                                           child: ElevatedButton.icon(
                                             onPressed: () {
@@ -1038,6 +1054,8 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                             ),
                                           ),
                                         ),
+                                      ),
+
                                     ],
                                   ),
                                 ),
@@ -1070,7 +1088,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'DISCONNECTED FROM LAN SERVER • Offline Mode (Attempting to reconnect...)',
+                    'DISCONNECTED FROM LAN SERVER â€¢ Offline Mode (Attempting to reconnect...)',
                     style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
@@ -1135,8 +1153,8 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                   const SizedBox(width: 8),
                   Text(
                     isHost
-                        ? '● LAN Sync Hub Online (Host Station)'
-                        : '● Connected to LAN Server (${lanState.address}:${lanState.port})',
+                        ? 'â— LAN Sync Hub Online (Host Station)'
+                        : 'â— Connected to LAN Server (${lanState.address}:${lanState.port})',
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
                   ),
                 ],
@@ -1225,7 +1243,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              cond.toLowerCase().contains('smok') ? '🚬 $cond' : (cond.toLowerCase().contains('diabet') ? '🩺 $cond' : cond),
+                              cond.toLowerCase().contains('smok') ? 'ðŸš¬ $cond' : (cond.toLowerCase().contains('diabet') ? 'ðŸ©º $cond' : cond),
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
@@ -1243,7 +1261,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              '⚠️ Allergy: $allergy',
+                              'âš ï¸ Allergy: $allergy',
                               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red),
                             ),
                           ),
@@ -1601,7 +1619,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                               itemBuilder: (context, idx) {
                                 final hVisit = historicalVisits[idx];
                                 final isCurrent = hVisit.id == currentVisit.id;
-                                final dateStr = DateFormat('yyyy-MM-dd • hh:mm a').format(hVisit.checkInTime);
+                                final dateStr = DateFormat('yyyy-MM-dd â€¢ hh:mm a').format(hVisit.checkInTime);
                                 final treatedTeeth = hVisit.toothChart.where((t) => t.state != ToothState.healthy).toList();
                                 final isDebtCarried = (matchedCustomer != null && matchedCustomer.totalDebt > 0.001);
                                 final isPartiallySettled = hVisit.isPaid && isDebtCarried;
@@ -1619,7 +1637,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                     ? (effectiveCopay - matchedCustomer.totalDebt).clamp(0.0, double.infinity)
                                     : effectiveCopay;
                                 final settlementInfo = isPartiallySettled
-                                    ? 'Partially Settled (Paid: EGP ${paidAmount.toStringAsFixed(2)} • Due: EGP ${visitDue.toStringAsFixed(2)})$insInfo'
+                                    ? 'Partially Settled (Paid: EGP ${paidAmount.toStringAsFixed(2)} â€¢ Due: EGP ${visitDue.toStringAsFixed(2)})$insInfo'
                                     : (isFullySettled
                                         ? '${effectiveInsurance > 0.001 ? "Copay Settled" : "Settled"}: EGP ${effectiveCopay.toStringAsFixed(2)}$insInfo'
                                         : 'Due: EGP ${visitDue.toStringAsFixed(2)}$insInfo');
@@ -1760,7 +1778,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
-                                              'Fee: EGP ${hVisit.totalFee.toStringAsFixed(2)} • $settlementInfo',
+                                              'Fee: EGP ${hVisit.totalFee.toStringAsFixed(2)} â€¢ $settlementInfo',
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.bold,
@@ -2080,7 +2098,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                               ],
                             ),
                             subtitle: Text(
-                              'Phone: ${patient.phone}${patient.insuranceProvider != null ? ' • Insured: ${patient.insuranceProvider}' : ''}',
+                              'Phone: ${patient.phone}${patient.insuranceProvider != null ? ' â€¢ Insured: ${patient.insuranceProvider}' : ''}',
                               style: const TextStyle(fontSize: 12),
                             ),
                             trailing: Row(
@@ -2187,11 +2205,11 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  AppLanguage.tr("Today's Scheduled Appointments", 'مواعيد اليوم المجدولة'),
+                                  AppLanguage.tr("Today's Scheduled Appointments", 'Ù…ÙˆØ§Ø¹ÙŠØ¯ Ø§Ù„ÙŠÙˆÙ… Ø§Ù„Ù…Ø¬Ø¯ÙˆÙ„Ø©'),
                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                 ),
                                 Text(
-                                  AppLanguage.tr('Scheduled Appointments for Today (${todayBookings.length})', 'المواعيد المحجوزة لليوم (${todayBookings.length})'),
+                                  AppLanguage.tr('Scheduled Appointments for Today (${todayBookings.length})', 'Ø§Ù„Ù…ÙˆØ§Ø¹ÙŠØ¯ Ø§Ù„Ù…Ø­Ø¬ÙˆØ²Ø© Ù„Ù„ÙŠÙˆÙ… (${todayBookings.length})'),
                                   style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black54),
                                 ),
                               ],
@@ -2213,7 +2231,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                     Icon(LucideIcons.calendarDays, size: 40, color: isDark ? Colors.white24 : Colors.black26),
                                     const SizedBox(height: 10),
                                     Text(
-                                      AppLanguage.tr('No appointments scheduled for today', 'لا توجد مواعيد محجوزة اليوم'),
+                                      AppLanguage.tr('No appointments scheduled for today', 'Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…ÙˆØ§Ø¹ÙŠØ¯ Ù…Ø­Ø¬ÙˆØ²Ø© Ø§Ù„ÙŠÙˆÙ…'),
                                       style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 13),
                                     ),
                                   ],
@@ -2360,7 +2378,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                AppLanguage.tr('Medical Consumables & Stock', 'مخزون المستهلكات والمواد الطبية'),
+                                AppLanguage.tr('Medical Consumables & Stock', 'Ù…Ø®Ø²ÙˆÙ† Ø§Ù„Ù…Ø³ØªÙ‡Ù„ÙƒØ§Øª ÙˆØ§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ø·Ø¨ÙŠØ©'),
                                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                               ),
                               Text(
@@ -2383,7 +2401,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                     TextField(
                       onChanged: (val) => setStateDialog(() => searchQuery = val),
                       decoration: InputDecoration(
-                        hintText: AppLanguage.tr('Search consumables or barcode...', 'بحث في المستهلكات أو الباركود...'),
+                        hintText: AppLanguage.tr('Search consumables or barcode...', 'Ø¨Ø­Ø« ÙÙŠ Ø§Ù„Ù…Ø³ØªÙ‡Ù„ÙƒØ§Øª Ø£Ùˆ Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯...'),
                         prefixIcon: const Icon(Icons.search, size: 18),
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -2400,7 +2418,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                       child: filtered.isEmpty
                           ? Center(
                               child: Text(
-                                AppLanguage.tr('No registered consumables or materials currently', 'لا توجد مستهلكات أو مواد مسجلة حالياً'),
+                                AppLanguage.tr('No registered consumables or materials currently', 'Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…Ø³ØªÙ‡Ù„ÙƒØ§Øª Ø£Ùˆ Ù…ÙˆØ§Ø¯ Ù…Ø³Ø¬Ù„Ø© Ø­Ø§Ù„ÙŠØ§Ù‹'),
                                 style: TextStyle(color: isDark ? Colors.white54 : Colors.black45),
                               ),
                             )
@@ -2415,8 +2433,8 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                     ? Colors.red
                                     : (isLow ? Colors.amber : Colors.teal);
                                 final String statusText = isOut
-                                    ? AppLanguage.tr('Out of Stock', 'نفذ المخزون')
-                                    : (isLow ? AppLanguage.tr('Low Stock', 'مخزون منخفض') : AppLanguage.tr('In Stock', 'متوفر'));
+                                    ? AppLanguage.tr('Out of Stock', 'Ù†ÙØ° Ø§Ù„Ù…Ø®Ø²ÙˆÙ†')
+                                    : (isLow ? AppLanguage.tr('Low Stock', 'Ù…Ø®Ø²ÙˆÙ† Ù…Ù†Ø®ÙØ¶') : AppLanguage.tr('In Stock', 'Ù…ØªÙˆÙØ±'));
 
                                 return Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -2479,7 +2497,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                         crossAxisAlignment: CrossAxisAlignment.end,
                                         children: [
                                           Text(
-                                            '${prod.stock} ${AppLanguage.tr('units / pack', 'وحدة / علبة')}',
+                                            '${prod.stock} ${AppLanguage.tr('units / pack', 'ÙˆØ­Ø¯Ø© / Ø¹Ù„Ø¨Ø©')}',
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 14,
@@ -2523,7 +2541,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              AppLanguage.tr('Session consumables are automatically deducted upon procedure confirmation by the physician.', 'يتم خصم مستهلكات الجلسات الطبية تلقائياً عند اعتماد الطبيب للإجراءات السريرية.'),
+                              AppLanguage.tr('Session consumables are automatically deducted upon procedure confirmation by the physician.', 'ÙŠØªÙ… Ø®ØµÙ… Ù…Ø³ØªÙ‡Ù„ÙƒØ§Øª Ø§Ù„Ø¬Ù„Ø³Ø§Øª Ø§Ù„Ø·Ø¨ÙŠØ© ØªÙ„Ù‚Ø§Ø¦ÙŠØ§Ù‹ Ø¹Ù†Ø¯ Ø§Ø¹ØªÙ…Ø§Ø¯ Ø§Ù„Ø·Ø¨ÙŠØ¨ Ù„Ù„Ø¥Ø¬Ø±Ø§Ø¡Ø§Øª Ø§Ù„Ø³Ø±ÙŠØ±ÙŠØ©.'),
                               style: const TextStyle(fontSize: 11, color: Colors.blue),
                             ),
                           ),

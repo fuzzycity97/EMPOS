@@ -294,12 +294,14 @@ class RealEstateVenue3DCanvasWidget extends StatelessWidget {
                   yawNotifier.value = (yawNotifier.value + details.delta.dx * 0.004).clamp(-1.0, 1.0);
                   pitchNotifier.value = (pitchNotifier.value - details.delta.dy * 0.004).clamp(-0.2, 0.8);
                 },
-                child: CustomPaint(
-                  painter: _ArchitecturalFloor3DPainter(
-                    yaw: yaw,
-                    pitch: pitch,
-                    units: units,
-                    selectedUnit: selected,
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: _ArchitecturalFloor3DPainter(
+                      yaw: yaw,
+                      pitch: pitch,
+                      units: units,
+                      selectedUnit: selected,
+                    ),
                   ),
                 ),
               ),
