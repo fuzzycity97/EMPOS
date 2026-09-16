@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -62,6 +63,7 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
   late final ValueNotifier<bool> _showGumsNotifier;
   late final ValueNotifier<String?> _emptySpaceWarningNotifier;
   Timer? _warningTimer;
+  double _baseScale = 1.1;
 
   @override
   void initState() {
@@ -117,18 +119,30 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
                 return Stack(
                   children: [
                     Positioned.fill(
-                      child: GestureDetector(
-                        onScaleStart: (_) {},
-                        onScaleUpdate: (details) {
-                          if (details.pointerCount == 1) {
-                            _rotY.value += details.focalPointDelta.dx * 0.012;
-                            _rotX.value = (_rotX.value - details.focalPointDelta.dy * 0.012)
-                                .clamp(-1.2, 1.2);
-                          } else {
-                            _scale.value = (_scale.value * details.scale).clamp(0.6, 2.5);
-                            _panOffset.value += details.focalPointDelta;
+                      child: Listener(
+                        onPointerSignal: (pointerSignal) {
+                          if (pointerSignal is PointerScrollEvent) {
+                            if (pointerSignal.scrollDelta.dy < 0) {
+                              _scale.value = (_scale.value + 0.1).clamp(0.6, 2.5);
+                            } else if (pointerSignal.scrollDelta.dy > 0) {
+                              _scale.value = (_scale.value - 0.1).clamp(0.6, 2.5);
+                            }
                           }
                         },
+                        child: GestureDetector(
+                          onScaleStart: (_) {
+                            _baseScale = _scale.value;
+                          },
+                          onScaleUpdate: (details) {
+                            if (details.pointerCount == 1) {
+                              _rotY.value += details.focalPointDelta.dx * 0.012;
+                              _rotX.value = (_rotX.value - details.focalPointDelta.dy * 0.012)
+                                  .clamp(-1.2, 1.2);
+                            } else {
+                              _scale.value = (_baseScale * details.scale).clamp(0.6, 2.5);
+                              _panOffset.value += details.focalPointDelta;
+                            }
+                          },
                         onTapUp: (details) {
                           final size = Size(canvasW, canvasH);
                           if (widget.isPinMode && widget.onCanvasTapToPin != null) {
@@ -234,7 +248,8 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
                         ),
                       ),
                     ),
-                    _cameraPresetsDock(),
+                  ),
+                  _cameraPresetsDock(),
                     _zoomControls(),
                     _bottomBar(widget.selectedTooth),
                     if (widget.isPinMode)
@@ -401,7 +416,7 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
 
       widgets.add(
         Positioned(
-          left: (screenX - 16).clamp(4.0, (canvasW - 120.0).clamp(4.0, double.infinity)),
+          left: (screenX - 16).clamp(4.0, (canvasW - 32.0).clamp(4.0, double.infinity)),
           top: (screenY - 34).clamp(4.0, (canvasH - 38.0).clamp(4.0, double.infinity)),
           child: Opacity(
             opacity: opacity,
@@ -726,7 +741,7 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
     for (final t in teethData) {
       final entry = _findEntry(t.code);
       final p3d = rotatePoint(t.x, t.y, t.z, rx, ry);
-      const distance = 400.0;
+      const distance = 450.0;
       final fov = distance / (distance - p3d.z);
       final screenX = center.dx + p3d.x * s * fov;
       final screenY = center.dy + p3d.y * s * fov;
@@ -1209,7 +1224,7 @@ class _Tooth3dPainter extends CustomPainter {
     final mesh = ToothGlbMeshLibrary.meshForSync(entry.category);
     final meshHeight = (mesh.crownY - mesh.rootY).abs().clamp(0.5, 999.0);
     final categoryScale = _categoryMeshScale(entry.category);
-    final vertexScale = (categoryScale / meshHeight) * scale * fov;
+    final vertexScale = categoryScale / meshHeight;
     final meshMidY = (mesh.crownY + mesh.rootY) / 2;
 
     final isMissing = entry.state == ToothState.missing || entry.state == ToothState.extracted;
@@ -1227,9 +1242,9 @@ class _Tooth3dPainter extends CustomPainter {
       for (var j = 0; j < 3; j++) {
         final v = mesh.vertices[mesh.indices[i + j]];
         final localY = (v[1] - meshMidY) * (isUpper ? 1.0 : -1.0);
-        final wx = archX + v[0] * vertexScale / fov;
-        final wy = archY + localY * vertexScale / fov;
-        final wz = archZ + v[2] * vertexScale / fov;
+        final wx = archX + v[0] * vertexScale;
+        final wy = archY + localY * vertexScale;
+        final wz = archZ + v[2] * vertexScale;
         final rotated = _DentalTooth3dCanvasWidgetState.rotatePoint(wx, wy, wz, rotX, rotY);
         projected.add(rotated);
         const distance = 450.0;
@@ -1262,11 +1277,12 @@ class _Tooth3dPainter extends CustomPainter {
       );
     }
 
+    final fallbackRotated = _DentalTooth3dCanvasWidgetState.rotatePoint(archX, archY, archZ, rotX, rotY);
     final crownCenter = crownCount > 0
         ? Offset(crownSumX / crownCount, crownSumY / crownCount)
         : Offset(
-            center.dx + archX * scale * fov,
-            center.dy + archY * scale * fov,
+            center.dx + fallbackRotated.x * scale * fov,
+            center.dy + fallbackRotated.y * scale * fov,
           );
 
     for (final tri in triangles) {

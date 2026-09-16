@@ -398,7 +398,6 @@ class StoreBuilderWizardPage extends StatelessWidget {
                           basePreset = StoreBlueprintModel.defaultGastroenterologyBlueprint();
                           break;
                         case SpecificIndustry.cardiologyClinic:
-                        case SpecificIndustry.veinVascularPhlebology:
                           basePreset = StoreBlueprintModel.defaultCardiologyBlueprint();
                           break;
                         case SpecificIndustry.dermatologyClinic:

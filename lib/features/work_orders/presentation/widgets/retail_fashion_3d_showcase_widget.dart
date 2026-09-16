@@ -802,7 +802,7 @@ class RetailFashion3DShowcaseWidget extends StatelessWidget {
                           const Color(0xFFD97706), // Camel Wool
                           const Color(0xFFF8FAFC), // Ivory
                         ].map((c) {
-                          final isSel = c.value == selectedColor.value;
+                          final isSel = c.toARGB32() == selectedColor.toARGB32();
                           return GestureDetector(
                             onTap: () => setDialogState(() => selectedColor = c),
                             child: Container(

@@ -548,7 +548,7 @@ class RestaurantTableMapWidget extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: selectedSection,
+                      initialValue: selectedSection,
                       dropdownColor: AppColors.surfaceElevatedDark,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
@@ -699,7 +699,7 @@ class RestaurantTableMapWidget extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: selectedSection,
+                      initialValue: selectedSection,
                       dropdownColor: AppColors.surfaceElevatedDark,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(

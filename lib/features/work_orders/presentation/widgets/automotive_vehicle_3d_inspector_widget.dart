@@ -570,7 +570,7 @@ class _AutomotiveVehicle3DInspectorWidgetState extends State<AutomotiveVehicle3D
           Row(
             mainAxisSize: MainAxisSize.min,
             children: _availablePaints.map((color) {
-              final isPicked = activeVehicle.paintColor.value == color.value;
+              final isPicked = activeVehicle.paintColor.toARGB32() == color.toARGB32();
               return InkWell(
                 onTap: () {
                   _updateCurrentVehicle(activeVehicle.copyWith(paintColor: color));
@@ -959,7 +959,7 @@ class _AutomotiveVehicle3DInspectorWidgetState extends State<AutomotiveVehicle3D
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<AutoInspectionLayer>(
-                      value: selectedLayer,
+                      initialValue: selectedLayer,
                       decoration: InputDecoration(
                         labelText: AppLanguage.tr('System Layer', 'نظام الفحص'),
                         border: const OutlineInputBorder(),
@@ -973,7 +973,7 @@ class _AutomotiveVehicle3DInspectorWidgetState extends State<AutomotiveVehicle3D
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<InspectionSeverity>(
-                      value: selectedSeverity,
+                      initialValue: selectedSeverity,
                       decoration: InputDecoration(
                         labelText: AppLanguage.tr('Severity Level', 'درجة الخطورة'),
                         border: const OutlineInputBorder(),
@@ -1154,7 +1154,7 @@ class _AutomotiveVehicle3DInspectorWidgetState extends State<AutomotiveVehicle3D
                     const SizedBox(height: 6),
                     Row(
                       children: _availablePaints.map((color) {
-                        final isPicked = selectedPaint.value == color.value;
+                        final isPicked = selectedPaint.toARGB32() == color.toARGB32();
                         return InkWell(
                           onTap: () => setDialogState(() => selectedPaint = color),
                           child: Container(

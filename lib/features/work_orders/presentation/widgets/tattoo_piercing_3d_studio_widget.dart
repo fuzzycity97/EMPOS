@@ -879,7 +879,7 @@ class TattooPiercing3DStudioWidget extends StatelessWidget {
                           const Color(0xFF065F46),
                           const Color(0xFFEAB308),
                         ].map((c) {
-                          final isSel = c.value == selectedColor.value;
+                          final isSel = c.toARGB32() == selectedColor.toARGB32();
                           return GestureDetector(
                             onTap: () => setDialogState(() => selectedColor = c),
                             child: Container(
@@ -1009,6 +1009,26 @@ class TattooPiercing3DStudioWidget extends StatelessWidget {
                           labelText: AppLanguage.tr('Design Title', 'عنوان الرسم'),
                           prefixIcon: const Icon(Icons.title, size: 16),
                         ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Design Type (Tattoo vs Piercing)
+                      Row(
+                        children: [
+                          ChoiceChip(
+                            label: Text(AppLanguage.tr('Tattoo', 'تاتو / وشم'), style: const TextStyle(fontSize: 11)),
+                            selected: !isPiercing,
+                            selectedColor: const Color(0xFFA855F7),
+                            onSelected: (_) => setDialogState(() => isPiercing = false),
+                          ),
+                          const SizedBox(width: 8),
+                          ChoiceChip(
+                            label: Text(AppLanguage.tr('Piercing', 'بيرسينج / ثقب'), style: const TextStyle(fontSize: 11)),
+                            selected: isPiercing,
+                            selectedColor: const Color(0xFFA855F7),
+                            onSelected: (_) => setDialogState(() => isPiercing = true),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 10),
 
@@ -1163,6 +1183,7 @@ class TattooPiercing3DStudioWidget extends StatelessWidget {
                       inkColor: selectedColor,
                       priceEgp: double.tryParse(priceCtrl.text) ?? design.priceEgp,
                       estimatedHours: double.tryParse(hoursCtrl.text) ?? design.estimatedHours,
+                      isPiercing: isPiercing,
                       notes: notesCtrl.text.trim(),
                     );
 

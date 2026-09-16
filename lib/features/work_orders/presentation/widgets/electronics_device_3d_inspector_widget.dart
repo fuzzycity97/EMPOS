@@ -1252,7 +1252,22 @@ class _Device3DPainter extends CustomPainter {
 
     final rect = Rect.fromCenter(center: Offset.zero, width: devW, height: devH);
 
-    // 1. Chassis Outer Edge (Extruded bevel)
+    // 1. Chassis 3D Extruded Depth Bevel (perspective side rim when rotated)
+    if (sinYaw.abs() > 0.02) {
+      final sideWidth = depth * sinYaw;
+      final sideRect = Rect.fromLTWH(
+        sideWidth > 0 ? rect.right - 2 : rect.left - sideWidth.abs() + 2,
+        rect.top + 4,
+        sideWidth.abs(),
+        rect.height - 8,
+      );
+      final sidePaint = Paint()
+        ..color = Color.lerp(chassisColor, Colors.black, 0.45)!
+        ..style = PaintingStyle.fill;
+      canvas.drawRRect(RRect.fromRectAndRadius(sideRect, Radius.circular(cornerR * 0.4)), sidePaint);
+    }
+
+    // 2. Chassis Outer Edge (Extruded bevel)
     final framePaint = Paint()
       ..color = chassisColor
       ..style = PaintingStyle.fill;
