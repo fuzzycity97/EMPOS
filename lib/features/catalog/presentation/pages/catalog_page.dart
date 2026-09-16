@@ -180,65 +180,69 @@ class _CatalogPageView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     // 1. Stats & Action Header
-                    CatalogStatsHeader(
-                      onAddProduct: () => _openProductDialog(
-                        context,
-                        loadedState: state,
+                    RepaintBoundary(
+                      child: CatalogStatsHeader(
+                        onAddProduct: () => _openProductDialog(
+                          context,
+                          loadedState: state,
+                        ),
+                        onImportExport: () => _openDataIoDialog(context),
                       ),
-                      onImportExport: () => _openDataIoDialog(context),
                     ),
                     const SizedBox(height: AppDimensions.space12),
 
                     // 2. Search Bar
-                    const CatalogSearchBar(),
+                    const RepaintBoundary(child: CatalogSearchBar()),
                     const SizedBox(height: AppDimensions.space12),
 
                     // 3. Category Filter Tabs
-                    const CategoryFilterList(),
+                    const RepaintBoundary(child: CategoryFilterList()),
                     const SizedBox(height: AppDimensions.space16),
 
                     // 4. Responsive Product Grid
                     Expanded(
-                      child: state.displayedProducts.isEmpty
-                          ? _buildEmptyState(context, state)
-                          : ResponsiveLayout(
-                              mobile: _ProductGrid(
-                                crossAxisCount: 1,
-                                childAspectRatio: 2.0,
-                                products: state.displayedProducts,
-                                onEdit: (p) => _openProductDialog(
-                                  context,
-                                  productToEdit: p,
-                                  loadedState: state,
+                      child: RepaintBoundary(
+                        child: state.displayedProducts.isEmpty
+                            ? _buildEmptyState(context, state)
+                            : ResponsiveLayout(
+                                mobile: _ProductGrid(
+                                  crossAxisCount: 1,
+                                  childAspectRatio: 2.0,
+                                  products: state.displayedProducts,
+                                  onEdit: (p) => _openProductDialog(
+                                    context,
+                                    productToEdit: p,
+                                    loadedState: state,
+                                  ),
+                                  onDelete: (p) =>
+                                      _confirmDeleteProduct(context, p),
                                 ),
-                                onDelete: (p) =>
-                                    _confirmDeleteProduct(context, p),
-                              ),
-                              tablet: _ProductGrid(
-                                crossAxisCount: 2,
-                                childAspectRatio: 1.5,
-                                products: state.displayedProducts,
-                                onEdit: (p) => _openProductDialog(
-                                  context,
-                                  productToEdit: p,
-                                  loadedState: state,
+                                tablet: _ProductGrid(
+                                  crossAxisCount: 2,
+                                  childAspectRatio: 1.5,
+                                  products: state.displayedProducts,
+                                  onEdit: (p) => _openProductDialog(
+                                    context,
+                                    productToEdit: p,
+                                    loadedState: state,
+                                  ),
+                                  onDelete: (p) =>
+                                      _confirmDeleteProduct(context, p),
                                 ),
-                                onDelete: (p) =>
-                                    _confirmDeleteProduct(context, p),
-                              ),
-                              desktop: _ProductGrid(
-                                crossAxisCount: 4,
-                                childAspectRatio: 1.35,
-                                products: state.displayedProducts,
-                                onEdit: (p) => _openProductDialog(
-                                  context,
-                                  productToEdit: p,
-                                  loadedState: state,
+                                desktop: _ProductGrid(
+                                  crossAxisCount: 4,
+                                  childAspectRatio: 1.35,
+                                  products: state.displayedProducts,
+                                  onEdit: (p) => _openProductDialog(
+                                    context,
+                                    productToEdit: p,
+                                    loadedState: state,
+                                  ),
+                                  onDelete: (p) =>
+                                      _confirmDeleteProduct(context, p),
                                 ),
-                                onDelete: (p) =>
-                                    _confirmDeleteProduct(context, p),
                               ),
-                            ),
+                      ),
                     ),
                   ],
                 ),

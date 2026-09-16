@@ -20,10 +20,11 @@ class PosProductTile extends StatelessWidget {
     final theme = Theme.of(context);
     final bool isOutOfStock = product.isOutOfStock;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: isOutOfStock ? null : onAddToCart,
+    return RepaintBoundary(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isOutOfStock ? null : onAddToCart,
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
@@ -153,8 +154,9 @@ class PosProductTile extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildStockBadge(Product product) {
     if (!product.trackQty) {

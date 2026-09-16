@@ -114,23 +114,25 @@ class _CustomersView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // KPI Metric Cards
-                  _buildMetricsRow(context, state, isDebtEnabled),
+                  RepaintBoundary(child: _buildMetricsRow(context, state, isDebtEnabled)),
                   const SizedBox(height: AppDimensions.space16),
 
                   // Search Bar & Add Customer Button
-                  _buildSearchAndActions(context, state),
+                  RepaintBoundary(child: _buildSearchAndActions(context, state)),
                   const SizedBox(height: AppDimensions.space16),
 
                   // Customers Table
                   Expanded(
-                    child: state.displayedCustomers.isEmpty
-                        ? _buildEmptyState(state)
-                        : _buildCustomersTable(
-                            context, 
-                            state,
-                            isDebtEnabled: isDebtEnabled,
-                            isLoyaltyEnabled: isLoyaltyEnabled,
-                          ),
+                    child: RepaintBoundary(
+                      child: state.displayedCustomers.isEmpty
+                          ? _buildEmptyState(state)
+                          : _buildCustomersTable(
+                              context, 
+                              state,
+                              isDebtEnabled: isDebtEnabled,
+                              isLoyaltyEnabled: isLoyaltyEnabled,
+                            ),
+                    ),
                   ),
                 ],
               ),

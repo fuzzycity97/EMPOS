@@ -329,115 +329,117 @@ class PosCartDock extends StatelessWidget {
                     separatorBuilder: (_, index) => const SizedBox(height: 6),
                     itemBuilder: (context, index) {
                       final item = cart.items[index];
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceElevatedDark,
-                          borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                          border: Border(
-                            left: BorderSide(color: theme.colorScheme.primary, width: 3),
+                      return RepaintBoundary(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceElevatedDark,
+                            borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                            border: Border(
+                              left: BorderSide(color: theme.colorScheme.primary, width: 3),
+                            ),
                           ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            // Title & Price Calculation
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.product.nameEn,
-                                    style: const TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.textPrimaryDark,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Title & Price Calculation
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.product.nameEn,
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.textPrimaryDark,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '${CurrencyFormatter.format(item.unitPrice)} × ${item.quantity} = ${CurrencyFormatter.format(item.lineTotal)}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontFamily: 'monospace',
+                                        color: AppColors.success,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // Quantity Stepper
+                              Row(
+                                children: [
+                                  InkWell(
+                                    onTap: () {
+                                      context.read<PosBloc>().add(
+                                            UpdateQuantityEvent(
+                                              productId: item.product.id,
+                                              quantity: item.quantity - 1,
+                                            ),
+                                          );
+                                    },
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.danger.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Text(
+                                        '−',
+                                        style: TextStyle(
+                                          color: AppColors.danger,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${CurrencyFormatter.format(item.unitPrice)} × ${item.quantity} = ${CurrencyFormatter.format(item.lineTotal)}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontFamily: 'monospace',
-                                      color: AppColors.success,
+                                  Container(
+                                    constraints: const BoxConstraints(minWidth: 26),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      '${item.quantity}',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  InkWell(
+                                    onTap: () {
+                                      context.read<PosBloc>().add(
+                                            UpdateQuantityEvent(
+                                              productId: item.product.id,
+                                              quantity: item.quantity + 1,
+                                            ),
+                                          );
+                                    },
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.success.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Text(
+                                        '+',
+                                        style: TextStyle(
+                                          color: AppColors.success,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-
-                            // Quantity Stepper
-                            Row(
-                              children: [
-                                InkWell(
-                                  onTap: () {
-                                    context.read<PosBloc>().add(
-                                          UpdateQuantityEvent(
-                                            productId: item.product.id,
-                                            quantity: item.quantity - 1,
-                                          ),
-                                        );
-                                  },
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.danger.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Text(
-                                      '−',
-                                      style: TextStyle(
-                                        color: AppColors.danger,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                Container(
-                                  constraints: const BoxConstraints(minWidth: 26),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    '${item.quantity}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                                InkWell(
-                                  onTap: () {
-                                    context.read<PosBloc>().add(
-                                          UpdateQuantityEvent(
-                                            productId: item.product.id,
-                                            quantity: item.quantity + 1,
-                                          ),
-                                        );
-                                  },
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.success.withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Text(
-                                      '+',
-                                      style: TextStyle(
-                                        color: AppColors.success,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     },
@@ -445,14 +447,15 @@ class PosCartDock extends StatelessWidget {
           ),
 
           // 4. Cart Summary & Big Checkout Button
-          Container(
-            padding: const EdgeInsets.all(AppDimensions.space12),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: AppColors.borderDark)),
-              color: AppColors.surfaceElevatedDark,
-            ),
-            child: Column(
-              children: [
+          RepaintBoundary(
+            child: Container(
+              padding: const EdgeInsets.all(AppDimensions.space12),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: AppColors.borderDark)),
+                color: AppColors.surfaceElevatedDark,
+              ),
+              child: Column(
+                children: [
                 _summaryRow('Subtotal:', CurrencyFormatter.format(cart.subtotal)),
                 if (cart.discountAmount > 0)
                   _summaryRow(
@@ -521,6 +524,7 @@ class PosCartDock extends StatelessWidget {
               ],
             ),
           ),
+        ),
         ],
       ),
     );

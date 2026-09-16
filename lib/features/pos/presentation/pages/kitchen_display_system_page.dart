@@ -125,7 +125,7 @@ class KitchenDisplaySystemPage extends StatelessWidget {
         child: Column(
           children: [
             // ── TOP KDS BAR ──────────────────────────────────────────────────
-            _buildKdsHeader(context),
+            RepaintBoundary(child: _buildKdsHeader(context)),
             const Divider(height: 1, color: AppColors.borderDark),
 
             // ── KANBAN COLUMNS ───────────────────────────────────────────────
@@ -143,13 +143,13 @@ class KitchenDisplaySystemPage extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(child: _buildColumn(context, 'NEW ORDERS', newTickets, AppColors.error, LucideIcons.bellRing)),
+                        Expanded(child: RepaintBoundary(child: _buildColumn(context, 'NEW ORDERS', newTickets, AppColors.error, LucideIcons.bellRing))),
                         const SizedBox(width: 12),
-                        Expanded(child: _buildColumn(context, 'IN PREPARATION', cookingTickets, AppColors.warning, LucideIcons.flame)),
+                        Expanded(child: RepaintBoundary(child: _buildColumn(context, 'IN PREPARATION', cookingTickets, AppColors.warning, LucideIcons.flame))),
                         const SizedBox(width: 12),
-                        Expanded(child: _buildColumn(context, 'READY FOR EXPO', readyTickets, AppColors.success, LucideIcons.checkCircle)),
+                        Expanded(child: RepaintBoundary(child: _buildColumn(context, 'READY FOR EXPO', readyTickets, AppColors.success, LucideIcons.checkCircle))),
                         const SizedBox(width: 12),
-                        Expanded(child: _buildColumn(context, 'SERVED / ARCHIVE', servedTickets, AppColors.textSecondaryDark, LucideIcons.history)),
+                        Expanded(child: RepaintBoundary(child: _buildColumn(context, 'SERVED / ARCHIVE', servedTickets, AppColors.textSecondaryDark, LucideIcons.history))),
                       ],
                     ),
                   );
@@ -329,135 +329,137 @@ class KitchenDisplaySystemPage extends StatelessWidget {
   Widget _buildTicketCard(BuildContext context, KdsTicket ticket) {
     final elapsedMinutes = DateTime.now().difference(ticket.orderTime).inMinutes;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceElevatedDark,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-        border: Border.all(
-          color: ticket.isRush ? AppColors.error : AppColors.borderDark,
-          width: ticket.isRush ? 2 : 1,
+    return RepaintBoundary(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceElevatedDark,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+          border: Border.all(
+            color: ticket.isRush ? AppColors.error : AppColors.borderDark,
+            width: ticket.isRush ? 2 : 1,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top Row: Ticket Number & Elapsed Timer
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    ticket.orderNumber,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
-                  ),
-                  if (ticket.isRush) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.error,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Text('RUSH', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Row: Ticket Number & Elapsed Timer
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      ticket.orderNumber,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
                     ),
-                  ],
-                ],
-              ),
-              Row(
-                children: [
-                  Icon(LucideIcons.clock, size: 12, color: elapsedMinutes > 15 ? AppColors.error : AppColors.textSecondaryDark),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${elapsedMinutes}m ago',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: elapsedMinutes > 15 ? AppColors.error : AppColors.textSecondaryDark,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-
-          // Table & Server
-          Text(
-            '${ticket.tableOrCustomer} • ${ticket.serverName}',
-            style: const TextStyle(fontSize: 11, color: AppColors.textSecondaryDark),
-          ),
-          const Divider(height: 14, color: AppColors.borderDark),
-
-          // Order Items
-          ...ticket.items.map((item) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                        child: Text('${item.quantity}x', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 11)),
-                      ),
+                    if (ticket.isRush) ...[
                       const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          item.name,
-                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(4),
                         ),
+                        child: const Text('RUSH', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
                       ),
                     ],
-                  ),
-                  if (item.modifierNotes != null)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 24, top: 1),
-                      child: Text(
-                        '↳ ${item.modifierNotes}',
-                        style: const TextStyle(color: AppColors.warning, fontSize: 10, fontStyle: FontStyle.italic),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Icon(LucideIcons.clock, size: 12, color: elapsedMinutes > 15 ? AppColors.error : AppColors.textSecondaryDark),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${elapsedMinutes}m ago',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: elapsedMinutes > 15 ? AppColors.error : AppColors.textSecondaryDark,
                       ),
                     ),
-                ],
-              ),
-            );
-          }),
-          const SizedBox(height: 10),
-
-          // Advance Status Buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (ticket.status == KdsTicketStatus.newOrder)
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-                  icon: const Icon(LucideIcons.flame, size: 12, color: Colors.white),
-                  label: const Text('Start Cook', style: TextStyle(fontSize: 11, color: Colors.white)),
-                  onPressed: () => _updateTicketStatus(ticket.id, KdsTicketStatus.cooking),
-                )
-              else if (ticket.status == KdsTicketStatus.cooking)
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-                  icon: const Icon(LucideIcons.check, size: 12, color: Colors.white),
-                  label: const Text('Mark Ready', style: TextStyle(fontSize: 11, color: Colors.white)),
-                  onPressed: () => _updateTicketStatus(ticket.id, KdsTicketStatus.ready),
-                )
-              else if (ticket.status == KdsTicketStatus.ready)
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-                  icon: const Icon(LucideIcons.checkCheck, size: 12, color: Colors.white),
-                  label: const Text('Served', style: TextStyle(fontSize: 11, color: Colors.white)),
-                  onPressed: () => _updateTicketStatus(ticket.id, KdsTicketStatus.served),
+                  ],
                 ),
-            ],
-          ),
-        ],
+              ],
+            ),
+            const SizedBox(height: 4),
+
+            // Table & Server
+            Text(
+              '${ticket.tableOrCustomer} • ${ticket.serverName}',
+              style: const TextStyle(fontSize: 11, color: AppColors.textSecondaryDark),
+            ),
+            const Divider(height: 14, color: AppColors.borderDark),
+
+            // Order Items
+            ...ticket.items.map((item) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                          child: Text('${item.quantity}x', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 11)),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            item.name,
+                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (item.modifierNotes != null)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 24, top: 1),
+                        child: Text(
+                          '↳ ${item.modifierNotes}',
+                          style: const TextStyle(color: AppColors.warning, fontSize: 10, fontStyle: FontStyle.italic),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 10),
+
+            // Advance Status Buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (ticket.status == KdsTicketStatus.newOrder)
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                    icon: const Icon(LucideIcons.flame, size: 12, color: Colors.white),
+                    label: const Text('Start Cook', style: TextStyle(fontSize: 11, color: Colors.white)),
+                    onPressed: () => _updateTicketStatus(ticket.id, KdsTicketStatus.cooking),
+                  )
+                else if (ticket.status == KdsTicketStatus.cooking)
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                    icon: const Icon(LucideIcons.check, size: 12, color: Colors.white),
+                    label: const Text('Mark Ready', style: TextStyle(fontSize: 11, color: Colors.white)),
+                    onPressed: () => _updateTicketStatus(ticket.id, KdsTicketStatus.ready),
+                  )
+                else if (ticket.status == KdsTicketStatus.ready)
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                    icon: const Icon(LucideIcons.checkCheck, size: 12, color: Colors.white),
+                    label: const Text('Served', style: TextStyle(fontSize: 11, color: Colors.white)),
+                    onPressed: () => _updateTicketStatus(ticket.id, KdsTicketStatus.served),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

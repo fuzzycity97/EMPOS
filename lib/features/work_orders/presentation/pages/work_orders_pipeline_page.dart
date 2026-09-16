@@ -149,97 +149,101 @@ class _WorkOrdersPipelinePageState extends State<WorkOrdersPipelinePage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Top Action Header with Dynamic Profession Switcher
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  border: Border(
-                    bottom: BorderSide(color: Theme.of(context).dividerColor),
+              RepaintBoundary(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    border: Border(
+                      bottom: BorderSide(color: Theme.of(context).dividerColor),
+                    ),
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Row(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Icon(
+                              headerIcon(),
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                headerTitle(loaded.tickets.length),
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            headerIcon(),
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              headerTitle(loaded.tickets.length),
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          if (has3DWorkspace) ...[
+                            SegmentedButton<int>(
+                              segments: [
+                                ButtonSegment<int>(
+                                  value: 0,
+                                  icon: const Icon(Icons.view_kanban_outlined, size: 16),
+                                  label: Text(AppLanguage.tr('Kanban Pipeline', 'لوحة العمليات')),
+                                ),
+                                ButtonSegment<int>(
+                                  value: 1,
+                                  icon: Icon(secondaryTabIcon(), size: 16),
+                                  label: Text(secondaryTabLabel()),
+                                ),
+                              ],
+                              selected: {_activeTabIndex},
+                              onSelectionChanged: (selected) {
+                                setState(() {
+                                  _activeTabIndex = selected.first;
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 12),
+                          ],
+                          ElevatedButton.icon(
+                            onPressed: () => _showCreateTicketDialog(context, workOrderBloc),
+                            icon: const Icon(Icons.add),
+                            label: Text(
+                              isAutomotive
+                                  ? AppLanguage.tr('New Repair Order', 'أمر صيانة جديد')
+                                  : isTattoo
+                                      ? AppLanguage.tr('New Tattoo Order', 'طلب وشم جديد')
+                                      : isFashion
+                                          ? AppLanguage.tr('New Tailoring Order', 'أمر تفصيل جديد')
+                                          : AppLanguage.tr('New Service Ticket', 'تذكرة خدمة جديدة'),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (has3DWorkspace) ...[
-                          SegmentedButton<int>(
-                            segments: [
-                              ButtonSegment<int>(
-                                value: 0,
-                                icon: const Icon(Icons.view_kanban_outlined, size: 16),
-                                label: Text(AppLanguage.tr('Kanban Pipeline', 'لوحة العمليات')),
-                              ),
-                              ButtonSegment<int>(
-                                value: 1,
-                                icon: Icon(secondaryTabIcon(), size: 16),
-                                label: Text(secondaryTabLabel()),
-                              ),
-                            ],
-                            selected: {_activeTabIndex},
-                            onSelectionChanged: (selected) {
-                              setState(() {
-                                _activeTabIndex = selected.first;
-                              });
-                            },
-                          ),
-                          const SizedBox(width: 12),
-                        ],
-                        ElevatedButton.icon(
-                          onPressed: () => _showCreateTicketDialog(context, workOrderBloc),
-                          icon: const Icon(Icons.add),
-                          label: Text(
-                            isAutomotive
-                                ? AppLanguage.tr('New Repair Order', 'أمر صيانة جديد')
-                                : isTattoo
-                                    ? AppLanguage.tr('New Tattoo Order', 'طلب وشم جديد')
-                                    : isFashion
-                                        ? AppLanguage.tr('New Tailoring Order', 'أمر تفصيل جديد')
-                                        : AppLanguage.tr('New Service Ticket', 'تذكرة خدمة جديدة'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
 
               // Main Workspace: 3D Professional Inspector or Universal Kanban
               Expanded(
-                child: (has3DWorkspace && _activeTabIndex == 1)
-                    ? _buildActive3DWorkspace(context, workOrderBloc, isAutomotive, isTattoo, isFashion, isRealEstate)
-                    : UniversalPipelineKanbanWidget(
-                        pipeline: loaded.pipeline,
-                        onAdvanceStage: (ticket, targetStage) {
-                          workOrderBloc.add(
-                            AdvanceStageEvent(
-                              ticketId: ticket.id,
-                              newStage: targetStage,
-                              note: 'Stage advanced from Kanban board',
-                            ),
-                          );
-                        },
-                      ),
+                child: RepaintBoundary(
+                  child: (has3DWorkspace && _activeTabIndex == 1)
+                      ? _buildActive3DWorkspace(context, workOrderBloc, isAutomotive, isTattoo, isFashion, isRealEstate)
+                      : UniversalPipelineKanbanWidget(
+                          pipeline: loaded.pipeline,
+                          onAdvanceStage: (ticket, targetStage) {
+                            workOrderBloc.add(
+                              AdvanceStageEvent(
+                                ticketId: ticket.id,
+                                newStage: targetStage,
+                                note: 'Stage advanced from Kanban board',
+                              ),
+                            );
+                          },
+                        ),
+                ),
               ),
             ],
           ),

@@ -40,7 +40,7 @@ class ClinicReceptionPage extends StatelessWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildConnectionBanner(context, isDark),
+          RepaintBoundary(child: _buildConnectionBanner(context, isDark)),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -48,16 +48,17 @@ class ClinicReceptionPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // ── TOP KPI BANNER (Granular BlocBuilder) ─────────────────────
-                  _buildKpiBanner(context, isDark),
+                  RepaintBoundary(child: _buildKpiBanner(context, isDark)),
                   const SizedBox(height: 20),
 
-            // â”€â”€ TAB HEADER & CHECK-IN BUTTON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            _buildTabHeaderAndActions(context, isDark, selectedTabNotifier),
-            const SizedBox(height: 16),
+                  // ── TAB HEADER & CHECK-IN BUTTON ──────────────────────────────
+                  RepaintBoundary(child: _buildTabHeaderAndActions(context, isDark, selectedTabNotifier)),
+                  const SizedBox(height: 16),
 
-            // â”€â”€ TAB CONTENT LIST VIEW (Granular BlocBuilder) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            Expanded(
-              child: ValueListenableBuilder<int>(
+                  // ── TAB CONTENT LIST VIEW (Granular BlocBuilder) ──────────────
+                  Expanded(
+                    child: RepaintBoundary(
+                      child: ValueListenableBuilder<int>(
                 valueListenable: selectedTabNotifier,
                 builder: (context, selectedTab, _) {
                   return BlocBuilder<ClinicBloc, ClinicState>(
@@ -100,6 +101,7 @@ class ClinicReceptionPage extends StatelessWidget {
                 },
               ),
             ),
+          ),
           ],
         ),
       ),
@@ -446,56 +448,57 @@ class ClinicReceptionPage extends StatelessWidget {
         final visit = allActive[index];
         final isInRoom = visit.status == ClinicVisitStatus.inExamination;
 
-        return Card(
-          key: ValueKey('queue_visit_${visit.id}'),
-          margin: const EdgeInsets.only(bottom: 10),
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: isInRoom ? Colors.amber.withValues(alpha: 0.2) : Colors.blue.withValues(alpha: 0.2),
-              child: Icon(
-                isInRoom ? LucideIcons.doorOpen : LucideIcons.user,
-                color: isInRoom ? Colors.amber[800] : Colors.blue,
-                size: 20,
-              ),
-            ),
-            title: Text(visit.patientName, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('Doctor: ${formatDoctorName(visit.doctorName)} • Complaint: ${visit.chiefComplaint}'),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(LucideIcons.folderOpen, color: Colors.blue, size: 18),
-                  tooltip: 'View Patient File',
-                  onPressed: () => _showPatientFileDialog(context, visit, patients),
+        return RepaintBoundary(
+          child: Card(
+            key: ValueKey('queue_visit_${visit.id}'),
+            margin: const EdgeInsets.only(bottom: 10),
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: isInRoom ? Colors.amber.withValues(alpha: 0.2) : Colors.blue.withValues(alpha: 0.2),
+                child: Icon(
+                  isInRoom ? LucideIcons.doorOpen : LucideIcons.user,
+                  color: isInRoom ? Colors.amber[800] : Colors.blue,
+                  size: 20,
                 ),
-                if (!isInRoom)
-                  ElevatedButton(
+              ),
+              title: Text(visit.patientName, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('Doctor: ${formatDoctorName(visit.doctorName)} • Complaint: ${visit.chiefComplaint}'),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(LucideIcons.folderOpen, color: Colors.blue, size: 18),
+                    tooltip: 'View Patient File',
+                    onPressed: () => _showPatientFileDialog(context, visit, patients),
+                  ),
+                  if (!isInRoom)
+                    IconButton(
+                      icon: const Icon(LucideIcons.stethoscope, color: Colors.purple, size: 18),
+                      tooltip: 'Call into Exam Room',
+                      onPressed: () {
+                        bloc.add(
+                          UpdateVisitStatusEvent(
+                            visitId: visit.id,
+                            status: ClinicVisitStatus.inExamination,
+                          ),
+                        );
+                      },
+                    ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.circleX, color: Colors.red, size: 18),
                     onPressed: () {
                       bloc.add(
                         UpdateVisitStatusEvent(
                           visitId: visit.id,
-                          status: ClinicVisitStatus.inExamination,
+                          status: ClinicVisitStatus.cancelled,
                         ),
                       );
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.amber[800]),
-                    child: const Text('Call In', style: TextStyle(color: Colors.white)),
                   ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(LucideIcons.circleX, color: Colors.red, size: 18),
-                  onPressed: () {
-                    bloc.add(
-                      UpdateVisitStatusEvent(
-                        visitId: visit.id,
-                        status: ClinicVisitStatus.cancelled,
-                      ),
-                    );
-                  },
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -569,96 +572,103 @@ class ClinicReceptionPage extends StatelessWidget {
                 insuranceShare = 0.0;
               }
 
-              return Card(
-                key: ValueKey('billing_visit_${visit.id}'),
-                margin: const EdgeInsets.only(bottom: 12),
-                color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+              return RepaintBoundary(
+                child: Card(
+                  key: ValueKey('billing_visit_${visit.id}'),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                visit.patientName,
+                                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 4),
+                              Text('Doctor: ${formatDoctorName(visit.doctorName)} • Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}'),
+                              const SizedBox(height: 6),
+                              if (patient?.insuranceProvider != null)
+                                Text(
+                                  'Insurance: ${patient!.insuranceProvider} • Copay Split: ${(copayRatio * 100).toInt()}% Patient / ${((1 - copayRatio) * 100).toInt()}% Carrier',
+                                  style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
+                                ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              visit.patientName,
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              'Patient Copay: ${patientShare.toStringAsFixed(2)} ${blueprint.currency}',
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal),
                             ),
-                            const SizedBox(height: 4),
-                            Text('Doctor: ${formatDoctorName(visit.doctorName)} • Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}'),
-                            const SizedBox(height: 6),
-                            if (patient?.insuranceProvider != null)
+                            if (insuranceShare > 0)
                               Text(
-                                'Insurance: ${patient!.insuranceProvider} • Copay Split: ${(copayRatio * 100).toInt()}% Patient / ${((1 - copayRatio) * 100).toInt()}% Carrier',
-                                style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
+                                'Carrier Claim: ${insuranceShare.toStringAsFixed(2)} ${blueprint.currency}',
+                                style: const TextStyle(fontSize: 12, color: Colors.grey),
                               ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Patient Copay: ${patientShare.toStringAsFixed(2)} ${blueprint.currency}',
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal),
-                          ),
-                          if (insuranceShare > 0)
-                            Text(
-                              'Carrier Claim: ${insuranceShare.toStringAsFixed(2)} ${blueprint.currency}',
-                              style: const TextStyle(fontSize: 12, color: Colors.grey),
-                            ),
-                          const SizedBox(height: 8),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              showDialog(
-                                context: context,
-                                builder: (ctx) => PaymentCheckoutDialog(
-                                  visit: visit,
-                                  patient: patient,
-                                  totalFee: totalFee,
-                                  patientShare: patientShare,
-                                  insuranceShare: insuranceShare,
-                                  onSubmit: (amountPaid) async {
-                                    bloc.add(ProcessVisitPaymentEvent(visit.id, amountPaid: amountPaid));
-                                    try {
-                                      context.read<CustomerBloc>().add(const LoadCustomersEvent());
-                                    } catch (_) {}
-
-                                    final settledVisit = visit.copyWith(isPaid: true);
-
-                                    // 1. Dispatch actual print job via Printing package
-                                    await ClinicReceiptGenerator.printReceipt(
-                                      visit: settledVisit,
-                                      patient: patient,
-                                      amountPaid: amountPaid,
-                                      blueprint: blueprint,
-                                    );
-
-                                    // 2. Open on-screen thermal receipt dialog
-                                    if (context.mounted) {
-                                      showDialog(
-                                        context: context,
-                                        builder: (_) => ClinicReceiptDialog(
-                                          visit: settledVisit,
-                                          patient: patient,
+                            const SizedBox(height: 8),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => PaymentCheckoutDialog(
+                                    visit: visit,
+                                    patient: patient,
+                                    totalFee: totalFee,
+                                    patientShare: patientShare,
+                                    insuranceShare: insuranceShare,
+                                    onSubmit: (amountPaid) async {
+                                      bloc.add(
+                                        ProcessVisitPaymentEvent(
+                                          visit.id,
                                           amountPaid: amountPaid,
-                                          blueprint: blueprint,
                                         ),
                                       );
-                                    }
-                                  },
-                                ),
-                              );
-                            },
-                            icon: const Icon(LucideIcons.printer, size: 16),
-                            label: const Text('Pay & Print Receipt'),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
-                          ),
-                        ],
-                      ),
-                    ],
+                                      try {
+                                        context.read<CustomerBloc>().add(const LoadCustomersEvent());
+                                      } catch (_) {}
+
+                                      final settledVisit = visit.copyWith(isPaid: true);
+
+                                      // 1. Dispatch actual print job via Printing package
+                                      await ClinicReceiptGenerator.printReceipt(
+                                        visit: settledVisit,
+                                        patient: patient,
+                                        amountPaid: amountPaid,
+                                        blueprint: blueprint,
+                                      );
+
+                                      // 2. Open on-screen thermal receipt dialog
+                                      if (context.mounted) {
+                                        showDialog(
+                                          context: context,
+                                          builder: (_) => ClinicReceiptDialog(
+                                            visit: settledVisit,
+                                            patient: patient,
+                                            amountPaid: amountPaid,
+                                            blueprint: blueprint,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                );
+                              },
+                              icon: const Icon(LucideIcons.printer, size: 16),
+                              label: const Text('Pay & Print Receipt'),
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -710,89 +720,91 @@ class ClinicReceptionPage extends StatelessWidget {
 
               final paidAmount = visit.patientCopay > 0 ? visit.patientCopay : visit.totalFee;
 
-              return Card(
-                key: ValueKey('paid_visit_${visit.id}'),
-                margin: const EdgeInsets.only(bottom: 10),
-                color: isDark ? const Color(0xFF1E293B) : Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.teal.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
+              return RepaintBoundary(
+                child: Card(
+                  key: ValueKey('paid_visit_${visit.id}'),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.teal.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(LucideIcons.checkCircle2, size: 20, color: Colors.teal),
                         ),
-                        child: const Icon(LucideIcons.checkCircle2, size: 20, color: Colors.teal),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  visit.patientName,
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.teal.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(4),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    visit.patientName,
+                                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                                   ),
-                                  child: const Text('PAID', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.teal)),
-                                ),
-                              ],
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.teal.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text('PAID', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.teal)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Text('Doctor: ${formatDoctorName(visit.doctorName)} • Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'Paid: ${paidAmount.toStringAsFixed(2)} ${blueprint.currency}',
+                              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: Colors.teal),
                             ),
-                            const SizedBox(height: 3),
-                            Text('Doctor: ${formatDoctorName(visit.doctorName)} • Diagnosis: ${visit.diagnosis ?? "Standard Consultation"}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                            const SizedBox(height: 6),
+                            ElevatedButton.icon(
+                              onPressed: () async {
+                                await ClinicReceiptGenerator.printReceipt(
+                                  visit: visit,
+                                  patient: patient,
+                                  amountPaid: paidAmount,
+                                  blueprint: blueprint,
+                                );
+                                if (context.mounted) {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => ClinicReceiptDialog(
+                                      visit: visit,
+                                      patient: patient,
+                                      amountPaid: paidAmount,
+                                      blueprint: blueprint,
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(LucideIcons.printer, size: 14),
+                              label: const Text('Print Receipt'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF0F172A),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Paid: ${paidAmount.toStringAsFixed(2)} ${blueprint.currency}',
-                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, color: Colors.teal),
-                          ),
-                          const SizedBox(height: 6),
-                          ElevatedButton.icon(
-                            onPressed: () async {
-                              await ClinicReceiptGenerator.printReceipt(
-                                visit: visit,
-                                patient: patient,
-                                amountPaid: paidAmount,
-                                blueprint: blueprint,
-                              );
-                              if (context.mounted) {
-                                showDialog(
-                                  context: context,
-                                  builder: (_) => ClinicReceiptDialog(
-                                    visit: visit,
-                                    patient: patient,
-                                    amountPaid: paidAmount,
-                                    blueprint: blueprint,
-                                  ),
-                                );
-                              }
-                            },
-                            icon: const Icon(LucideIcons.printer, size: 14),
-                            label: const Text('Print Receipt'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0F172A),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               );

@@ -121,14 +121,16 @@ class _OrdersHistoryView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Top Header & Search Bar
-                  _buildHeaderAndFilters(context, state),
+                  RepaintBoundary(child: _buildHeaderAndFilters(context, state)),
                   const SizedBox(height: AppDimensions.space16),
 
                   // Orders Table / List
                   Expanded(
-                    child: state.displayedOrders.isEmpty
-                        ? _buildEmptyState(state)
-                        : _buildOrdersList(context, state),
+                    child: RepaintBoundary(
+                      child: state.displayedOrders.isEmpty
+                          ? _buildEmptyState(state)
+                          : _buildOrdersList(context, state),
+                    ),
                   ),
                 ],
               ),

@@ -103,20 +103,20 @@ class _BossPortalView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Top Header & Period Selector
-                _buildHeader(context, loaded),
+                RepaintBoundary(child: _buildHeader(context, loaded)),
                 const SizedBox(height: AppDimensions.space16),
 
                 // Top 4 KPI Metrics Row
-                _buildKpiMetrics(loaded),
+                RepaintBoundary(child: _buildKpiMetrics(loaded)),
                 const SizedBox(height: AppDimensions.space16),
 
                 // Sub-navigation Tabs
-                _buildSubTabs(context, loaded),
+                RepaintBoundary(child: _buildSubTabs(context, loaded)),
                 const SizedBox(height: AppDimensions.space12),
 
                 // Main Sub-Tab Viewport
                 Expanded(
-                  child: _buildSubTabContent(context, loaded),
+                  child: RepaintBoundary(child: _buildSubTabContent(context, loaded)),
                 ),
               ],
             ),

@@ -317,43 +317,45 @@ class _PosPageView extends StatelessWidget {
         // Left Pane: Catalog & Scanner (65% width)
         Expanded(
           flex: 65,
-          child: Column(
-            children: [
-              PosSearchHeader(
-                categories: state.categories,
-                selectedCategoryId: state.selectedCategoryId,
-              ),
-              const SizedBox(height: AppDimensions.space12),
-              Expanded(
-                child: state.displayedProducts.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No products found matching "${state.searchQuery}"',
-                          style: const TextStyle(color: AppColors.textMutedDark),
+          child: RepaintBoundary(
+            child: Column(
+              children: [
+                PosSearchHeader(
+                  categories: state.categories,
+                  selectedCategoryId: state.selectedCategoryId,
+                ),
+                const SizedBox(height: AppDimensions.space12),
+                Expanded(
+                  child: state.displayedProducts.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No products found matching "${state.searchQuery}"',
+                            style: const TextStyle(color: AppColors.textMutedDark),
+                          ),
+                        )
+                      : GridView.builder(
+                          itemCount: state.displayedProducts.length,
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
+                            crossAxisSpacing: AppDimensions.space8,
+                            mainAxisSpacing: AppDimensions.space8,
+                            childAspectRatio: 1.15,
+                          ),
+                          itemBuilder: (context, index) {
+                            final product = state.displayedProducts[index];
+                            return PosProductTile(
+                              product: product,
+                              onAddToCart: () {
+                                context
+                                    .read<PosBloc>()
+                                    .add(AddProductToCart(product));
+                              },
+                            );
+                          },
                         ),
-                      )
-                    : GridView.builder(
-                        itemCount: state.displayedProducts.length,
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          crossAxisSpacing: AppDimensions.space8,
-                          mainAxisSpacing: AppDimensions.space8,
-                          childAspectRatio: 1.15,
-                        ),
-                        itemBuilder: (context, index) {
-                          final product = state.displayedProducts[index];
-                          return PosProductTile(
-                            product: product,
-                            onAddToCart: () {
-                              context
-                                  .read<PosBloc>()
-                                  .add(AddProductToCart(product));
-                            },
-                          );
-                        },
-                      ),
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(width: AppDimensions.space12),
@@ -361,9 +363,11 @@ class _PosPageView extends StatelessWidget {
         // Right Pane: Active Cart Dock (35% width)
         Expanded(
           flex: 35,
-          child: PosCartDock(
-            cart: state.cart,
-            heldTabs: state.heldTabs,
+          child: RepaintBoundary(
+            child: PosCartDock(
+              cart: state.cart,
+              heldTabs: state.heldTabs,
+            ),
           ),
         ),
       ],
@@ -375,9 +379,11 @@ class _PosPageView extends StatelessWidget {
     return Column(
       children: [
         Expanded(
-          child: PosCartDock(
-            cart: state.cart,
-            heldTabs: state.heldTabs,
+          child: RepaintBoundary(
+            child: PosCartDock(
+              cart: state.cart,
+              heldTabs: state.heldTabs,
+            ),
           ),
         ),
         const SizedBox(height: 8),

@@ -96,43 +96,47 @@ class BookingsCalendarPage extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           // Top Responsive Navigation Bar
-                          _buildTopBar(
-                            context: context,
-                            bookingBloc: bookingBloc,
-                            selectedDate: selectedDate,
-                            selectedDateNotifier: selectedDateNotifier,
-                            rosters: rosters,
-                            doctorRostersNotifier: doctorRostersNotifier,
-                            clinicDataSource: clinicDataSource,
-                            scheduledCount: loaded.bookings.length,
-                            isDark: isDark,
+                          RepaintBoundary(
+                            child: _buildTopBar(
+                              context: context,
+                              bookingBloc: bookingBloc,
+                              selectedDate: selectedDate,
+                              selectedDateNotifier: selectedDateNotifier,
+                              rosters: rosters,
+                              doctorRostersNotifier: doctorRostersNotifier,
+                              clinicDataSource: clinicDataSource,
+                              scheduledCount: loaded.bookings.length,
+                              isDark: isDark,
+                            ),
                           ),
 
                           // Calendar Grid View
                           Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.all(AppDimensions.space16),
-                              child: UniversalCalendarGridWidget(
-                                bookings: loaded.bookings,
-                                selectedDate: selectedDate,
-                                doctors: filteredDoctors,
-                                onDoctorSlotSelected: (doc, slotTime) {
-                                  _openBookingModal(
-                                    context: context,
-                                    bookingBloc: bookingBloc,
-                                    selectedDate: selectedDate,
-                                    rosters: rosters,
-                                    preselectedDoctor: doc,
-                                    initialSlotTime: slotTime,
-                                  );
-                                },
-                                onBookingTapped: (booking) {
-                                  _openAppointmentDetails(
-                                    context: context,
-                                    booking: booking,
-                                    bookingBloc: bookingBloc,
-                                  );
-                                },
+                            child: RepaintBoundary(
+                              child: Padding(
+                                padding: const EdgeInsets.all(AppDimensions.space16),
+                                child: UniversalCalendarGridWidget(
+                                  bookings: loaded.bookings,
+                                  selectedDate: selectedDate,
+                                  doctors: filteredDoctors,
+                                  onDoctorSlotSelected: (doc, slotTime) {
+                                    _openBookingModal(
+                                      context: context,
+                                      bookingBloc: bookingBloc,
+                                      selectedDate: selectedDate,
+                                      rosters: rosters,
+                                      preselectedDoctor: doc,
+                                      initialSlotTime: slotTime,
+                                    );
+                                  },
+                                  onBookingTapped: (booking) {
+                                    _openAppointmentDetails(
+                                      context: context,
+                                      booking: booking,
+                                      bookingBloc: bookingBloc,
+                                    );
+                                  },
+                                ),
                               ),
                             ),
                           ),
