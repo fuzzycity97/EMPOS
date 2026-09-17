@@ -1186,6 +1186,140 @@ void main() {
       expect(selectedCode, isNotNull);
       expect(selectedName, isNotNull);
     });
+
+    testWidgets('28. SkeletalBone3dCanvasWidget isolates bone in Solo 3D View and returns to Whole Skeleton view', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 800,
+                height: 540,
+                child: SkeletalBone3dCanvasWidget(
+                  selectedBoneId: 'bone_femur',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. Initially in Whole Skeleton mode
+      expect(find.byKey(const ValueKey('btn_enter_solo_bone_mode')), findsOneWidget);
+      expect(find.byKey(const ValueKey('btn_view_whole_skeleton')), findsNothing);
+
+      // 2. Click "عزل وعرض منفرد / Solo 3D View"
+      await tester.tap(find.byKey(const ValueKey('btn_enter_solo_bone_mode')));
+      await tester.pumpAndSettle();
+
+      // 3. Verify Solo Mode is active: Header displays bone name & View Whole Skeleton button
+      expect(find.byKey(const ValueKey('btn_view_whole_skeleton')), findsOneWidget);
+      expect(find.textContaining('عظم الفخذ'), findsWidgets);
+
+      // 4. Click "عرض كامل الهيكل / View Whole Skeleton"
+      await tester.tap(find.byKey(const ValueKey('btn_view_whole_skeleton')));
+      await tester.pumpAndSettle();
+
+      // 5. Verify returned to Whole Skeleton mode
+      expect(find.byKey(const ValueKey('btn_view_whole_skeleton')), findsNothing);
+      expect(find.byKey(const ValueKey('btn_enter_solo_bone_mode')), findsOneWidget);
+    });
+
+    testWidgets('29. SkeletalBone3dCanvasWidget supports surgical hardware placement (drill, plate, screw, nail, pin) visible in dual views', (tester) async {
+      List<BoneInterventionPoint> recordedInterventions = [];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 800,
+                height: 540,
+                child: SkeletalBone3dCanvasWidget(
+                  selectedBoneId: 'bone_femur',
+                  onInterventionsChanged: (list) {
+                    recordedInterventions = list;
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. Verify surgical hardware toolbar items exist
+      expect(find.byKey(const ValueKey('btn_tool_orbit')), findsOneWidget);
+      expect(find.byKey(const ValueKey('btn_tool_drillHole')), findsOneWidget);
+      expect(find.byKey(const ValueKey('btn_tool_fixationPlate')), findsOneWidget);
+      expect(find.byKey(const ValueKey('btn_tool_corticalScrew')), findsOneWidget);
+      expect(find.byKey(const ValueKey('btn_tool_intramedullaryNail')), findsOneWidget);
+      expect(find.byKey(const ValueKey('btn_tool_kWirePin')), findsOneWidget);
+
+      // 2. Select Drill Hole tool
+      await tester.tap(find.byKey(const ValueKey('btn_tool_drillHole')));
+      await tester.pumpAndSettle();
+      expect(find.byType(CustomPaint), findsWidgets);
+
+      // 3. Tap on bone to drill a hole
+      final canvas = find.byType(CustomPaint).first;
+      await tester.tapAt(tester.getCenter(canvas));
+      await tester.pumpAndSettle();
+
+      expect(recordedInterventions.length, 1);
+      expect(recordedInterventions.first.type, SurgicalHardwareType.drillHole);
+      expect(find.text('1'), findsOneWidget);
+
+      // 4. Select Dynamic Compression Fixation Plate tool and tap to place
+      await tester.tap(find.byKey(const ValueKey('btn_tool_fixationPlate')));
+      await tester.pumpAndSettle();
+      await tester.tapAt(tester.getCenter(canvas) + const Offset(20, -30));
+      await tester.pumpAndSettle();
+
+      expect(recordedInterventions.length, 2);
+      expect(recordedInterventions.last.type, SurgicalHardwareType.fixationPlate);
+      expect(find.text('2'), findsOneWidget);
+
+      // 5. Enter Solo Mode and verify hardware remains visible in Solo view
+      await tester.tap(find.byKey(const ValueKey('btn_enter_solo_bone_mode')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('btn_view_whole_skeleton')), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+
+      // 6. In Solo Mode, select Cortical Screw and place on solo bone
+      await tester.tap(find.byKey(const ValueKey('btn_tool_corticalScrew')));
+      await tester.pumpAndSettle();
+      await tester.tapAt(tester.getCenter(canvas) + const Offset(-15, 20));
+      await tester.pumpAndSettle();
+
+      expect(recordedInterventions.length, 3);
+      expect(recordedInterventions.last.type, SurgicalHardwareType.corticalScrew);
+      expect(find.text('3'), findsOneWidget);
+
+      // 7. Test Undo Last Hardware
+      final undoBtn = find.byKey(const ValueKey('btn_undo_hardware'));
+      await tester.ensureVisible(undoBtn);
+      await tester.pumpAndSettle();
+      await tester.tap(undoBtn);
+      await tester.pumpAndSettle();
+      expect(recordedInterventions.length, 2);
+      expect(find.text('2'), findsOneWidget);
+
+      // 8. Return to Whole Skeleton and verify hardware is still present
+      await tester.tap(find.byKey(const ValueKey('btn_view_whole_skeleton')));
+      await tester.pumpAndSettle();
+      expect(recordedInterventions.length, 2);
+
+      // 9. Test Clear All Hardware
+      final clearBtn = find.byKey(const ValueKey('btn_clear_hardware'));
+      await tester.ensureVisible(clearBtn);
+      await tester.pumpAndSettle();
+      await tester.tap(clearBtn);
+      await tester.pumpAndSettle();
+      expect(recordedInterventions.length, 0);
+      expect(find.byKey(const ValueKey('btn_clear_hardware')), findsNothing);
+    });
   });
 }
 
