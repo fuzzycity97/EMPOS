@@ -90,6 +90,22 @@ class BonePoint3D {
   BonePoint3D operator -(BonePoint3D other) => BonePoint3D(x - other.x, y - other.y, z - other.z);
   BonePoint3D operator *(double factor) => BonePoint3D(x * factor, y * factor, z * factor);
 
+  double get length => math.sqrt(x * x + y * y + z * z);
+
+  double dot(BonePoint3D other) => x * other.x + y * other.y + z * other.z;
+
+  BonePoint3D cross(BonePoint3D other) => BonePoint3D(
+        y * other.z - z * other.y,
+        z * other.x - x * other.z,
+        x * other.y - y * other.x,
+      );
+
+  BonePoint3D normalized() {
+    final len = length;
+    if (len == 0) return const BonePoint3D(0, 1, 0);
+    return BonePoint3D(x / len, y / len, z / len);
+  }
+
   BonePoint3D rotateY(double angle) {
     final cosA = math.cos(angle);
     final sinA = math.sin(angle);
@@ -125,6 +141,7 @@ class BoneInterventionPoint {
   final String boneId;
   final SurgicalHardwareType type;
   final BonePoint3D localOffset; // relative to bone.center in local 3D space
+  final BonePoint3D normal; // 3D surface normal vector on the bone
   final double length;
   final double angle;
 
@@ -133,6 +150,7 @@ class BoneInterventionPoint {
     required this.boneId,
     required this.type,
     required this.localOffset,
+    this.normal = const BonePoint3D(0, 0, 1),
     this.length = 32.0,
     this.angle = 0.0,
   });
@@ -142,6 +160,7 @@ class BoneInterventionPoint {
     String? boneId,
     SurgicalHardwareType? type,
     BonePoint3D? localOffset,
+    BonePoint3D? normal,
     double? length,
     double? angle,
   }) {
@@ -150,6 +169,7 @@ class BoneInterventionPoint {
       boneId: boneId ?? this.boneId,
       type: type ?? this.type,
       localOffset: localOffset ?? this.localOffset,
+      normal: normal ?? this.normal,
       length: length ?? this.length,
       angle: angle ?? this.angle,
     );
@@ -1069,6 +1089,120 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
     );
   }
 
+  ({BonePoint3D point, BonePoint3D normal})? _raycastBoneSurface({
+    required _BoneSegment3D bone,
+    required Offset tapPos,
+    required double cx,
+    required double cy,
+    required double yaw,
+    required double pitch,
+    required double zoom,
+    required Offset pan,
+    double scaleMultiplier = 1.0,
+    bool isSolo = false,
+  }) {
+    const fov = 680.0;
+    final center = isSolo ? const BonePoint3D(0, 0, 0) : bone.center;
+
+    // Transform vertices to local centered and camera space
+    final localVertices = bone.vertices.map((v) {
+      if (isSolo) {
+        return (v - bone.center) * scaleMultiplier;
+      }
+      return v;
+    }).toList();
+
+    final camVertices = localVertices.map((v) => v.transform(yaw, pitch)).toList();
+
+    final projPoints = camVertices.map((p) {
+      final s = (fov / (fov + p.z)) * zoom;
+      return Offset(cx + pan.dx + p.x * s, cy + pan.dy - p.y * s);
+    }).toList();
+
+    double triArea2D(Offset a, Offset b, Offset c) {
+      return (b.dx - a.dx) * (c.dy - a.dy) - (b.dy - a.dy) * (c.dx - a.dx);
+    }
+
+    BonePoint3D? bestHitLocal;
+    BonePoint3D? bestNormalLocal;
+    double closestDistance = double.infinity;
+    double bestCameraZ = double.infinity;
+
+    for (final face in bone.faces) {
+      if (face.length < 3) continue;
+
+      final triIndices = [
+        [face[0], face[1], face[2]],
+        if (face.length >= 4) [face[0], face[2], face[3]],
+      ];
+
+      for (final tri in triIndices) {
+        final i0 = tri[0];
+        final i1 = tri[1];
+        final i2 = tri[2];
+
+        final p0 = projPoints[i0];
+        final p1 = projPoints[i1];
+        final p2 = projPoints[i2];
+
+        final area = triArea2D(p0, p1, p2);
+        if (area.abs() < 1e-4) continue;
+
+        final w0 = triArea2D(p1, p2, tapPos) / area;
+        final w1 = triArea2D(p2, p0, tapPos) / area;
+        final w2 = 1.0 - w0 - w1;
+
+        final v01 = localVertices[i1] - localVertices[i0];
+        final v02 = localVertices[i2] - localVertices[i0];
+        var fn = v01.cross(v02).normalized();
+
+        if (w0 >= -0.05 && w1 >= -0.05 && w2 >= -0.05) {
+          final c0 = camVertices[i0];
+          final c1 = camVertices[i1];
+          final c2 = camVertices[i2];
+          final camZ = c0.z * w0 + c1.z * w1 + c2.z * w2;
+
+          if (camZ < bestCameraZ) {
+            bestCameraZ = camZ;
+            final hit = localVertices[i0] * w0.clamp(0.0, 1.0) +
+                localVertices[i1] * w1.clamp(0.0, 1.0) +
+                localVertices[i2] * w2.clamp(0.0, 1.0);
+
+            if (fn.dot(hit - center) < 0) fn = fn * -1.0;
+            bestHitLocal = hit;
+            bestNormalLocal = fn;
+            closestDistance = 0.0;
+          }
+        } else if (closestDistance > 0) {
+          final triCenterProj = Offset((p0.dx + p1.dx + p2.dx) / 3, (p0.dy + p1.dy + p2.dy) / 3);
+          final dist = (tapPos - triCenterProj).distance;
+          if (dist < closestDistance) {
+            closestDistance = dist;
+            final hit = (localVertices[i0] + localVertices[i1] + localVertices[i2]) * (1.0 / 3.0);
+            if (fn.dot(hit - center) < 0) fn = fn * -1.0;
+            bestHitLocal = hit;
+            bestNormalLocal = fn;
+          }
+        }
+      }
+    }
+
+    if (bestHitLocal != null && bestNormalLocal != null) {
+      if (isSolo) {
+        return (
+          point: bestHitLocal * (1.0 / scaleMultiplier),
+          normal: bestNormalLocal,
+        );
+      } else {
+        return (
+          point: bestHitLocal - bone.center,
+          normal: bestNormalLocal,
+        );
+      }
+    }
+    return null;
+  }
+
   void _handleCanvasTap(Offset tapPos, Size canvasSize) {
     final bones = _SkeletalMeshDatabase.allBones;
     final yaw = _yawNotifier.value;
@@ -1090,20 +1224,36 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
       if (soloBone == null) return;
 
       if (activeTool != null) {
-        // Place surgical intervention on the solo bone
+        // True 3D Surface Raycast on the solo bone
         const soloScale = 3.2;
-        final screenDx = tapPos.dx - (cx + pan.dx);
-        final screenDy = (cy + pan.dy) - tapPos.dy;
-        final camScale = zoom * soloScale;
-        final camX = screenDx / camScale;
-        final camY = screenDy / camScale;
-        final localOffset = BonePoint3D(camX, camY, 0.0).inverseTransform(yaw, pitch);
+        final hit = _raycastBoneSurface(
+          bone: soloBone,
+          tapPos: tapPos,
+          cx: cx,
+          cy: cy,
+          yaw: yaw,
+          pitch: pitch,
+          zoom: zoom,
+          pan: pan,
+          scaleMultiplier: soloScale,
+          isSolo: true,
+        );
+
+        final localOffset = hit?.point ??
+            BonePoint3D(
+              (tapPos.dx - (cx + pan.dx)) / (zoom * soloScale),
+              ((cy + pan.dy) - tapPos.dy) / (zoom * soloScale),
+              0.0,
+            ).inverseTransform(yaw, pitch);
+
+        final normal = hit?.normal ?? const BonePoint3D(0, 0, 1).inverseTransform(yaw, pitch).normalized();
 
         final intervention = BoneInterventionPoint(
           id: 'hw_${DateTime.now().microsecondsSinceEpoch}',
           boneId: soloBone.id,
           type: activeTool,
           localOffset: localOffset,
+          normal: normal,
         );
         final updated = [..._interventionsNotifier.value, intervention];
         _interventionsNotifier.value = updated;
@@ -1114,43 +1264,62 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
 
     // 2. Whole Skeleton Mode:
     _BoneSegment3D? hitBone;
-    double minDistance = 85.0;
-
-    for (final bone in bones) {
-      if (_focusNotifier.value != SkeletalRegionFocus.full && bone.region != _focusNotifier.value) {
-        continue;
-      }
-
-      final rotated = bone.center.transform(yaw, pitch);
-      final scale = (fov / (fov + rotated.z)) * zoom;
-      final projX = cx + pan.dx + rotated.x * scale;
-      final projY = cy + pan.dy - rotated.y * scale;
-      final dist = (tapPos - Offset(projX, projY)).distance;
-
-      if (dist < minDistance) {
-        minDistance = dist;
-        hitBone = bone;
-      }
-    }
+    ({BonePoint3D point, BonePoint3D normal})? hitSurface;
 
     if (activeTool != null) {
-      // Placing hardware in Whole Skeleton Mode:
+      for (final bone in bones) {
+        if (_focusNotifier.value != SkeletalRegionFocus.full && bone.region != _focusNotifier.value) {
+          continue;
+        }
+        final candidate = _raycastBoneSurface(
+          bone: bone,
+          tapPos: tapPos,
+          cx: cx,
+          cy: cy,
+          yaw: yaw,
+          pitch: pitch,
+          zoom: zoom,
+          pan: pan,
+          scaleMultiplier: 1.0,
+          isSolo: false,
+        );
+        if (candidate != null) {
+          hitBone = bone;
+          hitSurface = candidate;
+          break;
+        }
+      }
+
       hitBone ??= (_selectedBoneNotifier.value != null ? _SkeletalMeshDatabase.getBone(_selectedBoneNotifier.value!) : bones.first);
       if (hitBone != null) {
-        final rotated = hitBone.center.transform(yaw, pitch);
-        final scale = (fov / (fov + rotated.z)) * zoom;
-        final projCenter = Offset(cx + pan.dx + rotated.x * scale, cy + pan.dy - rotated.y * scale);
-        final screenDx = tapPos.dx - projCenter.dx;
-        final screenDy = projCenter.dy - tapPos.dy;
-        final camX = screenDx / scale;
-        final camY = screenDy / scale;
-        final localOffset = BonePoint3D(camX, camY, 0.0).inverseTransform(yaw, pitch);
+        hitSurface ??= _raycastBoneSurface(
+          bone: hitBone,
+          tapPos: tapPos,
+          cx: cx,
+          cy: cy,
+          yaw: yaw,
+          pitch: pitch,
+          zoom: zoom,
+          pan: pan,
+          scaleMultiplier: 1.0,
+          isSolo: false,
+        );
+
+        final localOffset = hitSurface?.point ??
+            BonePoint3D(
+              (tapPos.dx - (cx + pan.dx)) / zoom,
+              ((cy + pan.dy) - tapPos.dy) / zoom,
+              0.0,
+            ).inverseTransform(yaw, pitch);
+
+        final normal = hitSurface?.normal ?? const BonePoint3D(0, 0, 1).inverseTransform(yaw, pitch).normalized();
 
         final intervention = BoneInterventionPoint(
           id: 'hw_${DateTime.now().microsecondsSinceEpoch}',
           boneId: hitBone.id,
           type: activeTool,
           localOffset: localOffset,
+          normal: normal,
         );
         final updated = [..._interventionsNotifier.value, intervention];
         _interventionsNotifier.value = updated;
@@ -1158,6 +1327,22 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
       }
     } else {
       // Normal bone selection
+      double minDistance = 85.0;
+      for (final bone in bones) {
+        if (_focusNotifier.value != SkeletalRegionFocus.full && bone.region != _focusNotifier.value) {
+          continue;
+        }
+        final rotated = bone.center.transform(yaw, pitch);
+        final scale = (fov / (fov + rotated.z)) * zoom;
+        final projX = cx + pan.dx + rotated.x * scale;
+        final projY = cy + pan.dy - rotated.y * scale;
+        final dist = (tapPos - Offset(projX, projY)).distance;
+        if (dist < minDistance) {
+          minDistance = dist;
+          hitBone = bone;
+        }
+      }
+
       if (hitBone != null) {
         _selectedBoneNotifier.value = hitBone.id;
         widget.onBoneSelected?.call(hitBone.code, hitBone.nameEn, hitBone.nameAr);
@@ -1239,17 +1424,23 @@ class _Skeletal3DPainter extends CustomPainter {
       _paintGeriatricKyphosisAndSpurs(canvas, cx, cy);
     }
 
-    // Paint All Surgical Interventions across the Whole Skeleton!
+    // Paint All Surgical Interventions across the Whole Skeleton in TRUE 3D
     for (final intervention in interventions) {
       final bone = _SkeletalMeshDatabase.getBone(intervention.boneId);
       if (bone == null) continue;
       if (regionFocus != SkeletalRegionFocus.full && bone.region != regionFocus) continue;
 
-      final boneCenterWorld = bone.center;
-      final intervWorld = boneCenterWorld + intervention.localOffset;
-      final rotatedInterv = intervWorld.transform(yaw, pitch);
-      final proj = _project(rotatedInterv, cx, cy);
-      _paintIntervention(canvas, proj, intervention.type, zoom * 0.85, yaw, pitch);
+      _paintIntervention3D(
+        canvas: canvas,
+        cx: cx,
+        cy: cy,
+        center3D: bone.center + intervention.localOffset,
+        normal3D: intervention.normal,
+        type: intervention.type,
+        scale: zoom * 0.85,
+        yaw: yaw,
+        pitch: pitch,
+      );
     }
   }
 
@@ -1352,179 +1543,426 @@ class _Skeletal3DPainter extends CustomPainter {
       }
     }
 
-    // Paint Surgical Interventions for this Solo Bone
+    // Paint Surgical Interventions for this Solo Bone in TRUE 3D
     final soloInterventions = interventions.where((i) => i.boneId == soloBone.id || i.boneId == soloBone.code);
     for (final intervention in soloInterventions) {
-      final scaledLocal = intervention.localOffset * soloScale;
-      final rotated = scaledLocal.transform(yaw, pitch);
-      final proj = _project(rotated, cx, cy);
-      _paintIntervention(canvas, proj, intervention.type, zoom * 1.8, yaw, pitch);
+      _paintIntervention3D(
+        canvas: canvas,
+        cx: cx,
+        cy: cy,
+        center3D: intervention.localOffset * soloScale,
+        normal3D: intervention.normal,
+        type: intervention.type,
+        scale: zoom * 1.6,
+        yaw: yaw,
+        pitch: pitch,
+      );
     }
   }
 
-  void _paintIntervention(
-    Canvas canvas,
-    Offset screenPos,
-    SurgicalHardwareType type,
-    double scale,
-    double yaw,
-    double pitch,
-  ) {
-    canvas.save();
-    canvas.translate(screenPos.dx, screenPos.dy);
+  void _paintIntervention3D({
+    required Canvas canvas,
+    required double cx,
+    required double cy,
+    required BonePoint3D center3D,
+    required BonePoint3D normal3D,
+    required SurgicalHardwareType type,
+    required double scale,
+    required double yaw,
+    required double pitch,
+  }) {
+    // 1. Compute Orthonormal Basis in 3D Space (Normal, Tangent U, Bitangent V)
+    final norm = normal3D.normalized();
+    BonePoint3D u;
+    if (norm.y.abs() < 0.88) {
+      u = norm.cross(const BonePoint3D(0, 1, 0)).normalized();
+    } else {
+      u = norm.cross(const BonePoint3D(1, 0, 0)).normalized();
+    }
+    final v = norm.cross(u).normalized();
+
+    final lightDir = const BonePoint3D(0.4, 0.7, -0.6).normalized();
+
+    Offset project3D(BonePoint3D pt) {
+      final camPt = pt.transform(yaw, pitch);
+      return _project(camPt, cx, cy);
+    }
+
+    double shadeFace(BonePoint3D faceNorm) {
+      final camNorm = faceNorm.transform(yaw, pitch).normalized();
+      final dot = (camNorm.x * lightDir.x + camNorm.y * lightDir.y + camNorm.z * lightDir.z).clamp(-1.0, 1.0);
+      return (0.42 + 0.58 * math.max(0.0, -dot)).clamp(0.25, 1.0);
+    }
 
     switch (type) {
       case SurgicalHardwareType.drillHole:
-        // 1. Countersunk Drill Hole (Burrhole)
-        final r = (7.0 * scale).clamp(4.0, 26.0);
-        final rimPaint = Paint()
-          ..color = const Color(0xFF94A3B8)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.0 * scale;
-        canvas.drawCircle(Offset.zero, r, rimPaint);
+        // ---------------------------------------------------------------------
+        // 1. TRUE 3D COUNTERSUNK CYLINDRICAL DRILL HOLE (BURRHOLE)
+        // ---------------------------------------------------------------------
+        final r = (4.8 * scale).clamp(2.5, 20.0);
+        final depth = (18.0 * scale).clamp(8.0, 60.0);
+        final bevelR = r * 1.35;
 
-        final cavityPaint = Paint()
-          ..color = const Color(0xFF090D16)
+        const segments = 8;
+        final rimPts = <BonePoint3D>[];
+        final bevelPts = <BonePoint3D>[];
+        final bottomPts = <BonePoint3D>[];
+
+        for (int i = 0; i < segments; i++) {
+          final theta = (i / segments) * 2 * math.pi;
+          final cosT = math.cos(theta);
+          final sinT = math.sin(theta);
+          final radialVec = u * cosT + v * sinT;
+
+          rimPts.add(center3D + radialVec * r);
+          bevelPts.add(center3D + radialVec * bevelR);
+          bottomPts.add(center3D - norm * depth + radialVec * r);
+        }
+
+        // Draw Countersink Bevel Ring on Bone Surface
+        for (int i = 0; i < segments; i++) {
+          final next = (i + 1) % segments;
+          final p0 = project3D(rimPts[i]);
+          final p1 = project3D(rimPts[next]);
+          final p2 = project3D(bevelPts[next]);
+          final p3 = project3D(bevelPts[i]);
+
+          final path = Path()..moveTo(p0.dx, p0.dy)..lineTo(p1.dx, p1.dy)..lineTo(p2.dx, p2.dy)..lineTo(p3.dx, p3.dy)..close();
+          final bevelPaint = Paint()
+            ..color = const Color(0xFFCBD5E1).withValues(alpha: 0.85)
+            ..style = PaintingStyle.fill;
+          canvas.drawPath(path, bevelPaint);
+
+          final bevelEdge = Paint()
+            ..color = const Color(0xFF475569)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.8;
+          canvas.drawPath(path, bevelEdge);
+        }
+
+        // Draw 3D Borehole Cylinder Wall Faces
+        for (int i = 0; i < segments; i++) {
+          final next = (i + 1) % segments;
+          final pRim0 = project3D(rimPts[i]);
+          final pRim1 = project3D(rimPts[next]);
+          final pBot1 = project3D(bottomPts[next]);
+          final pBot0 = project3D(bottomPts[i]);
+
+          final wallPath = Path()..moveTo(pRim0.dx, pRim0.dy)..lineTo(pRim1.dx, pRim1.dy)..lineTo(pBot1.dx, pBot1.dy)..lineTo(pBot0.dx, pBot0.dy)..close();
+          final wallPaint = Paint()
+            ..color = Color.fromARGB(255, 12 + (i * 3) % 25, 18 + (i * 4) % 25, 28 + (i * 5) % 25)
+            ..style = PaintingStyle.fill;
+          canvas.drawPath(wallPath, wallPaint);
+
+          final wallStroke = Paint()
+            ..color = Colors.black45
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.7;
+          canvas.drawPath(wallPath, wallStroke);
+        }
+
+        // Draw 3D Bottom Base Cap
+        final bottomPath = Path();
+        final b0 = project3D(bottomPts[0]);
+        bottomPath.moveTo(b0.dx, b0.dy);
+        for (int i = 1; i < segments; i++) {
+          final bp = project3D(bottomPts[i]);
+          bottomPath.lineTo(bp.dx, bp.dy);
+        }
+        bottomPath.close();
+        final bottomPaint = Paint()
+          ..color = const Color(0xFF030712)
           ..style = PaintingStyle.fill;
-        canvas.drawCircle(Offset.zero, r - 1.2 * scale, cavityPaint);
+        canvas.drawPath(bottomPath, bottomPaint);
+        break;
 
-        final shadowPaint = Paint()
-          ..color = Colors.black.withValues(alpha: 0.8)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5 * scale;
-        canvas.drawArc(
-          Rect.fromCircle(center: Offset.zero, radius: r - 2.0 * scale),
-          -math.pi * 0.75,
-          math.pi * 0.9,
-          false,
-          shadowPaint,
-        );
+      case SurgicalHardwareType.corticalScrew:
+        // ---------------------------------------------------------------------
+        // 2. TRUE 3D CORTICAL BONE SCREW (HEAD + THREADED SHAFT)
+        // ---------------------------------------------------------------------
+        final headR = (4.6 * scale).clamp(2.5, 18.0);
+        final headH = (3.2 * scale).clamp(1.5, 12.0);
+        final shaftR = headR * 0.46;
+        final shaftL = (20.0 * scale).clamp(10.0, 70.0);
 
-        final highlightPaint = Paint()
-          ..color = Colors.white.withValues(alpha: 0.6)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0 * scale;
-        canvas.drawArc(
-          Rect.fromCircle(center: Offset.zero, radius: r - 0.5 * scale),
-          math.pi * 0.25,
-          math.pi * 0.6,
-          false,
-          highlightPaint,
-        );
+        const segs = 8;
+        final shaftTip = center3D - norm * shaftL;
+
+        final shaftBasePts = <BonePoint3D>[];
+        final shaftTipPts = <BonePoint3D>[];
+        for (int i = 0; i < segs; i++) {
+          final theta = (i / segs) * 2 * math.pi;
+          final radial = u * math.cos(theta) + v * math.sin(theta);
+          shaftBasePts.add(center3D + radial * shaftR);
+          shaftTipPts.add(shaftTip + radial * shaftR);
+        }
+
+        // Draw 3D Shaft cylinder faces into bone
+        for (int i = 0; i < segs; i++) {
+          final next = (i + 1) % segs;
+          final p0 = project3D(shaftBasePts[i]);
+          final p1 = project3D(shaftBasePts[next]);
+          final p2 = project3D(shaftTipPts[next]);
+          final p3 = project3D(shaftTipPts[i]);
+
+          final path = Path()..moveTo(p0.dx, p0.dy)..lineTo(p1.dx, p1.dy)..lineTo(p2.dx, p2.dy)..lineTo(p3.dx, p3.dy)..close();
+          final sh = 0.5 + 0.5 * math.cos((i / segs) * 2 * math.pi);
+          final col = Color.fromARGB(255, (120 * sh).toInt(), (145 * sh).toInt(), (165 * sh).toInt());
+          canvas.drawPath(path, Paint()..color = col..style = PaintingStyle.fill);
+        }
+
+        // Draw 3D Screw Threads (Helical Rings)
+        for (double d = 3.0; d < shaftL - 2.0; d += 4.0 * scale) {
+          final ringCenter = center3D - norm * d;
+          final pStart = project3D(ringCenter - u * (shaftR * 1.35));
+          final pEnd = project3D(ringCenter + u * (shaftR * 1.35) - norm * (0.8 * scale));
+          canvas.drawLine(pStart, pEnd, Paint()..color = const Color(0xFF94A3B8)..strokeWidth = 1.2 * scale);
+        }
+
+        // 3D Screw Head (+norm)
+        final headBasePts = <BonePoint3D>[];
+        final headTopPts = <BonePoint3D>[];
+        final headTopCenter = center3D + norm * headH;
+
+        for (int i = 0; i < segs; i++) {
+          final theta = (i / segs) * 2 * math.pi;
+          final radial = u * math.cos(theta) + v * math.sin(theta);
+          headBasePts.add(center3D + radial * headR);
+          headTopPts.add(headTopCenter + radial * (headR * 1.15));
+        }
+
+        // Head Beveled Cylinder Sides
+        for (int i = 0; i < segs; i++) {
+          final next = (i + 1) % segs;
+          final p0 = project3D(headBasePts[i]);
+          final p1 = project3D(headBasePts[next]);
+          final p2 = project3D(headTopPts[next]);
+          final p3 = project3D(headTopPts[i]);
+
+          final path = Path()..moveTo(p0.dx, p0.dy)..lineTo(p1.dx, p1.dy)..lineTo(p2.dx, p2.dy)..lineTo(p3.dx, p3.dy)..close();
+          final faceNorm = (headBasePts[next] - headBasePts[i]).cross(norm).normalized();
+          final sh = shadeFace(faceNorm);
+          final c = Color.fromARGB(255, (210 * sh).toInt(), (225 * sh).toInt(), (235 * sh).toInt());
+          canvas.drawPath(path, Paint()..color = c..style = PaintingStyle.fill);
+          canvas.drawPath(path, Paint()..color = const Color(0xFF475569)..style = PaintingStyle.stroke..strokeWidth = 0.8);
+        }
+
+        // Head Top Crown Polygon
+        final crownPath = Path();
+        final c0 = project3D(headTopPts[0]);
+        crownPath.moveTo(c0.dx, c0.dy);
+        for (int i = 1; i < segs; i++) {
+          final cp = project3D(headTopPts[i]);
+          crownPath.lineTo(cp.dx, cp.dy);
+        }
+        crownPath.close();
+        final crownSh = shadeFace(norm);
+        final crownCol = Color.fromARGB(255, (235 * crownSh).toInt(), (245 * crownSh).toInt(), (255 * crownSh).toInt());
+        canvas.drawPath(crownPath, Paint()..color = crownCol..style = PaintingStyle.fill);
+        canvas.drawPath(crownPath, Paint()..color = const Color(0xFF334155)..style = PaintingStyle.stroke..strokeWidth = 1.0);
+
+        // Phillips Cross Drive Recess in 3D
+        final crossA0 = project3D(headTopCenter - u * (headR * 0.55));
+        final crossA1 = project3D(headTopCenter + u * (headR * 0.55));
+        final crossB0 = project3D(headTopCenter - v * (headR * 0.55));
+        final crossB1 = project3D(headTopCenter + v * (headR * 0.55));
+        final crossPaint = Paint()..color = const Color(0xFF0F172A)..strokeWidth = 1.6 * scale..strokeCap = StrokeCap.round;
+        canvas.drawLine(crossA0, crossA1, crossPaint);
+        canvas.drawLine(crossB0, crossB1, crossPaint);
         break;
 
       case SurgicalHardwareType.fixationPlate:
-        // 2. Dynamic Compression Bone Plate (Titanium plate with screw holes)
-        final w = (38.0 * scale).clamp(20.0, 90.0);
-        final h = (14.0 * scale).clamp(8.0, 32.0);
-        final rect = RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset.zero, width: w, height: h),
-          Radius.circular(5.0 * scale),
-        );
+        // ---------------------------------------------------------------------
+        // 3. TRUE 3D TITANIUM DYNAMIC COMPRESSION PLATE (DCP)
+        // ---------------------------------------------------------------------
+        final len = (38.0 * scale).clamp(20.0, 110.0);
+        final wid = (10.0 * scale).clamp(5.0, 30.0);
+        final th = (3.4 * scale).clamp(1.8, 12.0);
 
-        final platePaint = Paint()
-          ..shader = const LinearGradient(
-            colors: [Color(0xFFE2E8F0), Color(0xFF94A3B8), Color(0xFF64748B)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ).createShader(rect.outerRect)
-          ..style = PaintingStyle.fill;
-        canvas.drawRRect(rect, platePaint);
+        final halfL = len * 0.5;
+        final halfW = wid * 0.5;
 
-        final plateStroke = Paint()
-          ..color = const Color(0xFF334155)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5 * scale;
-        canvas.drawRRect(rect, plateStroke);
+        final b0 = center3D - u * halfL - v * halfW;
+        final b1 = center3D + u * halfL - v * halfW;
+        final b2 = center3D + u * halfL + v * halfW;
+        final b3 = center3D - u * halfL + v * halfW;
 
-        final eyeletR = 2.4 * scale;
-        final offsets = [-w * 0.32, 0.0, w * 0.32];
-        for (int i = 0; i < offsets.length; i++) {
-          final ox = offsets[i];
-          final eyeletPaint = Paint()
-            ..color = const Color(0xFF1E293B)
-            ..style = PaintingStyle.fill;
-          canvas.drawCircle(Offset(ox, 0), eyeletR, eyeletPaint);
+        final t0 = b0 + norm * th;
+        final t1 = b1 + norm * th;
+        final t2 = b2 + norm * th;
+        final t3 = b3 + norm * th;
+
+        void drawQuad(BonePoint3D p0, BonePoint3D p1, BonePoint3D p2, BonePoint3D p3, Color baseCol) {
+          final s0 = project3D(p0);
+          final s1 = project3D(p1);
+          final s2 = project3D(p2);
+          final s3 = project3D(p3);
+
+          final fn = (p1 - p0).cross(p2 - p0).normalized();
+          final sh = shadeFace(fn);
+          final fillCol = Color.fromARGB(
+            255,
+            (baseCol.r * 255 * sh).toInt().clamp(0, 255),
+            (baseCol.g * 255 * sh).toInt().clamp(0, 255),
+            (baseCol.b * 255 * sh).toInt().clamp(0, 255),
+          );
+
+          final path = Path()..moveTo(s0.dx, s0.dy)..lineTo(s1.dx, s1.dy)..lineTo(s2.dx, s2.dy)..lineTo(s3.dx, s3.dy)..close();
+          canvas.drawPath(path, Paint()..color = fillCol..style = PaintingStyle.fill);
+          canvas.drawPath(path, Paint()..color = const Color(0xFF334155)..style = PaintingStyle.stroke..strokeWidth = 1.0);
+        }
+
+        const titaniumCol = Color(0xFFCBD5E1);
+        drawQuad(b0, b1, t1, t0, titaniumCol);
+        drawQuad(b1, b2, t2, t1, titaniumCol);
+        drawQuad(b2, b3, t3, t2, titaniumCol);
+        drawQuad(b3, b0, t0, t3, titaniumCol);
+        drawQuad(t0, t1, t2, t3, const Color(0xFFE2E8F0));
+
+        final holeOffsets = [-halfL * 0.65, 0.0, halfL * 0.65];
+        for (int i = 0; i < holeOffsets.length; i++) {
+          final ox = holeOffsets[i];
+          final holeCenter = center3D + u * ox + norm * th;
+          final holeR = 2.2 * scale;
+
+          final holePts = <Offset>[];
+          for (int k = 0; k < 6; k++) {
+            final a = (k / 6) * 2 * math.pi;
+            final pt = holeCenter + (u * math.cos(a) + v * math.sin(a)) * holeR;
+            holePts.add(project3D(pt));
+          }
+          final hp = Path()..moveTo(holePts[0].dx, holePts[0].dy);
+          for (int k = 1; k < 6; k++) {
+            hp.lineTo(holePts[k].dx, holePts[k].dy);
+          }
+          hp.close();
+          canvas.drawPath(hp, Paint()..color = const Color(0xFF1E293B)..style = PaintingStyle.fill);
 
           if (i != 1) {
-            final screwCap = Paint()
-              ..color = const Color(0xFF0D9488)
-              ..style = PaintingStyle.fill;
-            canvas.drawCircle(Offset(ox, 0), eyeletR * 0.85, screwCap);
-
-            final cross = Paint()
-              ..color = Colors.white
-              ..strokeWidth = 0.9 * scale;
-            canvas.drawLine(Offset(ox - eyeletR * 0.5, 0), Offset(ox + eyeletR * 0.5, 0), cross);
-            canvas.drawLine(Offset(ox, -eyeletR * 0.5), Offset(ox, eyeletR * 0.5), cross);
+            final screwCrown = holeCenter + norm * (0.8 * scale);
+            final sP = project3D(screwCrown);
+            canvas.drawCircle(sP, holeR * 0.88, Paint()..color = const Color(0xFF0D9488)..style = PaintingStyle.fill);
+            final c1 = project3D(screwCrown - u * (holeR * 0.5));
+            final c2 = project3D(screwCrown + u * (holeR * 0.5));
+            canvas.drawLine(c1, c2, Paint()..color = Colors.white..strokeWidth = 0.9 * scale);
           }
         }
         break;
 
-      case SurgicalHardwareType.corticalScrew:
-        // 3. Cortical Bone Screw Head
-        final r = (6.0 * scale).clamp(3.5, 22.0);
-        final washerPaint = Paint()
-          ..color = const Color(0xFF64748B)
-          ..style = PaintingStyle.fill;
-        canvas.drawCircle(Offset.zero, r, washerPaint);
-
-        final screwHead = Paint()
-          ..shader = const RadialGradient(
-            colors: [Color(0xFFF1F5F9), Color(0xFF94A3B8)],
-          ).createShader(Rect.fromCircle(center: Offset.zero, radius: r * 0.8))
-          ..style = PaintingStyle.fill;
-        canvas.drawCircle(Offset.zero, r * 0.8, screwHead);
-
-        final crossPaint = Paint()
-          ..color = const Color(0xFF0F172A)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.3 * scale;
-        canvas.drawLine(Offset(-r * 0.48, 0), Offset(r * 0.48, 0), crossPaint);
-        canvas.drawLine(Offset(0, -r * 0.48), Offset(0, r * 0.48), crossPaint);
-        break;
-
       case SurgicalHardwareType.intramedullaryNail:
-        // 4. Intramedullary Rod / Nail (Long titanium shaft)
-        final nailLen = (48.0 * scale).clamp(24.0, 120.0);
-        final nailWidth = (6.0 * scale).clamp(3.0, 16.0);
-        final rodRect = RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset.zero, width: nailWidth, height: nailLen),
-          Radius.circular(3.0 * scale),
-        );
-        final rodPaint = Paint()
-          ..shader = const LinearGradient(
-            colors: [Color(0xFF38BDF8), Color(0xFF0284C7), Color(0xFF0369A1)],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ).createShader(rodRect.outerRect)
-          ..style = PaintingStyle.fill;
-        canvas.drawRRect(rodRect, rodPaint);
+        // ---------------------------------------------------------------------
+        // 4. TRUE 3D TITANIUM INTRAMEDULLARY NAIL (IM NAIL ROD + LOCKING BOLTS)
+        // ---------------------------------------------------------------------
+        final rodLen = (48.0 * scale).clamp(24.0, 140.0);
+        final rodR = (3.4 * scale).clamp(1.8, 12.0);
+        final halfRLen = rodLen * 0.5;
 
-        final boltPaint = Paint()
-          ..color = Colors.white
-          ..style = PaintingStyle.fill;
-        canvas.drawCircle(Offset(0, -nailLen * 0.38), 1.6 * scale, boltPaint);
-        canvas.drawCircle(Offset(0, nailLen * 0.38), 1.6 * scale, boltPaint);
+        final axis = v;
+        final perp = u;
+
+        const nSegs = 8;
+        final topCapPts = <BonePoint3D>[];
+        final botCapPts = <BonePoint3D>[];
+        final topCenter = center3D + axis * halfRLen;
+        final botCenter = center3D - axis * halfRLen;
+
+        for (int i = 0; i < nSegs; i++) {
+          final theta = (i / nSegs) * 2 * math.pi;
+          final rVec = perp * math.cos(theta) + norm * math.sin(theta);
+          topCapPts.add(topCenter + rVec * rodR);
+          botCapPts.add(botCenter + rVec * rodR);
+        }
+
+        for (int i = 0; i < nSegs; i++) {
+          final next = (i + 1) % nSegs;
+          final p0 = project3D(topCapPts[i]);
+          final p1 = project3D(topCapPts[next]);
+          final p2 = project3D(botCapPts[next]);
+          final p3 = project3D(botCapPts[i]);
+
+          final path = Path()..moveTo(p0.dx, p0.dy)..lineTo(p1.dx, p1.dy)..lineTo(p2.dx, p2.dy)..lineTo(p3.dx, p3.dy)..close();
+          final theta = (i / nSegs) * 2 * math.pi;
+          final rNorm = (perp * math.cos(theta) + norm * math.sin(theta)).normalized();
+          final sh = shadeFace(rNorm);
+          final c = Color.fromARGB(255, (40 + 180 * sh).toInt().clamp(0, 255), (140 + 110 * sh).toInt().clamp(0, 255), (210 + 45 * sh).toInt().clamp(0, 255));
+          canvas.drawPath(path, Paint()..color = c..style = PaintingStyle.fill);
+        }
+
+        final topPath = Path();
+        topPath.moveTo(project3D(topCapPts[0]).dx, project3D(topCapPts[0]).dy);
+        for (int i = 1; i < nSegs; i++) {
+          topPath.lineTo(project3D(topCapPts[i]).dx, project3D(topCapPts[i]).dy);
+        }
+        topPath.close();
+        canvas.drawPath(topPath, Paint()..color = const Color(0xFF38BDF8)..style = PaintingStyle.fill);
+
+        final tipPt = project3D(botCenter - axis * (6.0 * scale));
+        for (int i = 0; i < nSegs; i++) {
+          final next = (i + 1) % nSegs;
+          final p0 = project3D(botCapPts[i]);
+          final p1 = project3D(botCapPts[next]);
+          final tipTri = Path()..moveTo(p0.dx, p0.dy)..lineTo(p1.dx, p1.dy)..lineTo(tipPt.dx, tipPt.dy)..close();
+          canvas.drawPath(tipTri, Paint()..color = const Color(0xFF0284C7)..style = PaintingStyle.fill);
+        }
+
+        final boltOffsets = [halfRLen * 0.65, -halfRLen * 0.65];
+        for (final bo in boltOffsets) {
+          final boltCenter = center3D + axis * bo;
+          final bStart = project3D(boltCenter - perp * (rodR * 2.2));
+          final bEnd = project3D(boltCenter + perp * (rodR * 2.2));
+          canvas.drawLine(bStart, bEnd, Paint()..color = Colors.white..strokeWidth = 2.4 * scale..strokeCap = StrokeCap.round);
+          canvas.drawCircle(bStart, 1.8 * scale, Paint()..color = const Color(0xFF0F172A)..style = PaintingStyle.fill);
+          canvas.drawCircle(bEnd, 1.8 * scale, Paint()..color = const Color(0xFF0F172A)..style = PaintingStyle.fill);
+        }
         break;
 
       case SurgicalHardwareType.kWirePin:
-        // 5. Kirschner Wire (K-Wire) Pin
-        final wireLen = (52.0 * scale).clamp(26.0, 130.0);
-        final wirePaint = Paint()
-          ..color = const Color(0xFFF43F5E)
-          ..strokeWidth = 2.2 * scale
-          ..strokeCap = StrokeCap.round;
-        canvas.drawLine(Offset(-wireLen * 0.5, wireLen * 0.3), Offset(wireLen * 0.5, -wireLen * 0.3), wirePaint);
+        // ---------------------------------------------------------------------
+        // 5. TRUE 3D KIRSCHNER WIRE (K-WIRE PIN)
+        // ---------------------------------------------------------------------
+        final pinLen = (52.0 * scale).clamp(25.0, 150.0);
+        final pinR = (1.5 * scale).clamp(0.8, 4.0);
 
-        final tipPaint = Paint()
-          ..color = Colors.white
-          ..style = PaintingStyle.fill;
-        canvas.drawCircle(Offset(wireLen * 0.5, -wireLen * 0.3), 2.0 * scale, tipPaint);
+        final pinDir = (norm * 0.8 + v * 0.6).normalized();
+        final pEntry = center3D + pinDir * (pinLen * 0.45);
+        final pExit = center3D - pinDir * (pinLen * 0.55);
+
+        const kwSegs = 6;
+        final entryPts = <BonePoint3D>[];
+        final exitPts = <BonePoint3D>[];
+        for (int i = 0; i < kwSegs; i++) {
+          final theta = (i / kwSegs) * 2 * math.pi;
+          final rVec = u * math.cos(theta) + norm.cross(u) * math.sin(theta);
+          entryPts.add(pEntry + rVec * pinR);
+          exitPts.add(pExit + rVec * pinR);
+        }
+
+        for (int i = 0; i < kwSegs; i++) {
+          final next = (i + 1) % kwSegs;
+          final p0 = project3D(entryPts[i]);
+          final p1 = project3D(entryPts[next]);
+          final p2 = project3D(exitPts[next]);
+          final p3 = project3D(exitPts[i]);
+
+          final path = Path()..moveTo(p0.dx, p0.dy)..lineTo(p1.dx, p1.dy)..lineTo(p2.dx, p2.dy)..lineTo(p3.dx, p3.dy)..close();
+          final sh = 0.5 + 0.5 * math.cos((i / kwSegs) * 2 * math.pi);
+          final c = Color.fromARGB(255, (244 * sh).toInt().clamp(0, 255), (63 * sh).toInt().clamp(0, 255), (94 * sh).toInt().clamp(0, 255));
+          canvas.drawPath(path, Paint()..color = c..style = PaintingStyle.fill);
+        }
+
+        final trocarTip = project3D(pExit - pinDir * (5.0 * scale));
+        for (int i = 0; i < kwSegs; i++) {
+          final next = (i + 1) % kwSegs;
+          final p0 = project3D(exitPts[i]);
+          final p1 = project3D(exitPts[next]);
+          final tri = Path()..moveTo(p0.dx, p0.dy)..lineTo(p1.dx, p1.dy)..lineTo(trocarTip.dx, trocarTip.dy)..close();
+          canvas.drawPath(tri, Paint()..color = Colors.white..style = PaintingStyle.fill);
+        }
+
+        final loopCenter = project3D(pEntry + pinDir * (3.0 * scale));
+        canvas.drawCircle(loopCenter, pinR * 2.2, Paint()..color = const Color(0xFFF43F5E)..style = PaintingStyle.stroke..strokeWidth = 1.6 * scale);
         break;
     }
-
-    canvas.restore();
   }
 
   void _draw3DGroundGrid(Canvas canvas, double cx, double cy) {
