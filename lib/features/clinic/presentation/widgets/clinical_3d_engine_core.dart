@@ -1,0 +1,700 @@
+import 'dart:math' as math;
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import '../../../../core/localization/app_language.dart';
+import '../../domain/entities/clinical_anatomy_status_entry.dart';
+
+/// Universal Clinical Age Progression Stages for all medical disciplines
+enum ClinicalAgeStage {
+  infant('Infant / Neonate', 'رضيع / حديث الولادة', '0 - 12 Months', 'خصائص ولادية ونمو أولي'),
+  child('Child / Pediatric', 'طفل', '1 - 11 Years', 'مرحلة الطفولة وتطور الأنسجة'),
+  adolescent('Adolescent / Youth', 'يافع / مراهق', '12 - 18 Years', 'اكتمال التمايز الهيكلي والهرموني'),
+  adult('Mature Adult', 'بالغ مكتمل', '19 - 64 Years', 'الكتلة التشريحية النموذجية'),
+  geriatric('Geriatric / Senior', 'مسن / كبير السن', '65+ Years', 'تغيرات الشيخوخة والضمور والصلابة');
+
+  final String titleEn;
+  final String titleAr;
+  final String ageRange;
+  final String descAr;
+
+  const ClinicalAgeStage(this.titleEn, this.titleAr, this.ageRange, this.descAr);
+
+  String get localizedTitle => AppLanguage.isArabic ? titleAr : titleEn;
+}
+
+/// Simple 3D point with vector operations and rotation
+class Point3D {
+  final double x;
+  final double y;
+  final double z;
+
+  const Point3D(this.x, this.y, this.z);
+
+  Point3D operator +(Point3D other) => Point3D(x + other.x, y + other.y, z + other.z);
+  Point3D operator -(Point3D other) => Point3D(x - other.x, y - other.y, z - other.z);
+  Point3D operator *(double scalar) => Point3D(x * scalar, y * scalar, z * scalar);
+
+  double dot(Point3D o) => x * o.x + y * o.y + z * o.z;
+
+  Point3D cross(Point3D o) => Point3D(
+        y * o.z - z * o.y,
+        z * o.x - x * o.z,
+        x * o.y - y * o.x,
+      );
+
+  double get length => math.sqrt(x * x + y * y + z * z);
+
+  Point3D normalized() {
+    final len = length;
+    if (len < 0.000001) return const Point3D(0, 1, 0);
+    return Point3D(x / len, y / len, z / len);
+  }
+
+  Point3D rotateX(double angle) {
+    final cosA = math.cos(angle);
+    final sinA = math.sin(angle);
+    return Point3D(x, y * cosA - z * sinA, y * sinA + z * cosA);
+  }
+
+  Point3D rotateY(double angle) {
+    final cosA = math.cos(angle);
+    final sinA = math.sin(angle);
+    return Point3D(x * cosA + z * sinA, y, -x * sinA + z * cosA);
+  }
+
+  Point3D rotateZ(double angle) {
+    final cosA = math.cos(angle);
+    final sinA = math.sin(angle);
+    return Point3D(x * cosA - y * sinA, x * sinA + y * cosA, z);
+  }
+
+  Point3D rotateEuler(double yaw, double pitch) {
+    // Rotate pitch around X, then yaw around Y
+    final p = rotateX(pitch);
+    return p.rotateY(yaw);
+  }
+
+  Offset toScreen(Size size, double scale, {double fov = 400.0}) {
+    final cx = size.width * 0.5;
+    final cy = size.height * 0.5;
+    final dist = fov / (fov + z + 200.0);
+    return Offset(cx + x * scale * dist, cy + y * scale * dist);
+  }
+}
+
+/// 3D Polygonal or Parametric Mesh Face
+class MeshFace3D {
+  final List<Point3D> vertices;
+  final Color baseColor;
+  final String? partKey;
+  final String? partNameEn;
+  final String? partNameAr;
+  final bool isWireframe;
+
+  MeshFace3D({
+    required this.vertices,
+    required this.baseColor,
+    this.partKey,
+    this.partNameEn,
+    this.partNameAr,
+    this.isWireframe = false,
+  });
+
+  Point3D get centroid {
+    double sx = 0, sy = 0, sz = 0;
+    for (final v in vertices) {
+      sx += v.x;
+      sy += v.y;
+      sz += v.z;
+    }
+    final n = vertices.length;
+    return Point3D(sx / n, sy / n, sz / n);
+  }
+
+  Point3D computeNormal() {
+    if (vertices.length < 3) return const Point3D(0, 0, 1);
+    final v0 = vertices[0];
+    final v1 = vertices[1];
+    final v2 = vertices[2];
+    return (v1 - v0).cross(v2 - v0).normalized();
+  }
+}
+
+/// Interactive 3D Anatomical Scene Viewer Widget
+class Clinical3dSceneViewer extends StatefulWidget {
+  final List<MeshFace3D> Function(ClinicalAgeStage ageStage) sceneMeshBuilder;
+  final void Function(String partKey, String nameEn, String nameAr)? onPartSelected;
+  final Map<String, ClinicalAnatomyStatusEntry>? activeStatuses;
+  final ClinicalAgeStage initialAgeStage;
+  final void Function(ClinicalAgeStage stage)? onAgeStageChanged;
+  final String specialtyTitle;
+  final String specialtyTitleAr;
+  final IconData specialtyIcon;
+  final Color primaryColor;
+  final double initialZoom;
+  final double initialPitch;
+  final double initialYaw;
+  final double height;
+  final Widget? overlayBottomWidget;
+
+  const Clinical3dSceneViewer({
+    super.key,
+    required this.sceneMeshBuilder,
+    this.onPartSelected,
+    this.activeStatuses,
+    this.initialAgeStage = ClinicalAgeStage.adult,
+    this.onAgeStageChanged,
+    required this.specialtyTitle,
+    required this.specialtyTitleAr,
+    required this.specialtyIcon,
+    required this.primaryColor,
+    this.initialZoom = 1.0,
+    this.initialPitch = 0.2,
+    this.initialYaw = 0.3,
+    this.height = 360,
+    this.overlayBottomWidget,
+  });
+
+  @override
+  State<Clinical3dSceneViewer> createState() => _Clinical3dSceneViewerState();
+}
+
+class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with SingleTickerProviderStateMixin {
+  late ClinicalAgeStage _currentAgeStage;
+  late double _yaw;
+  late double _pitch;
+  late double _zoom;
+  Offset? _lastPanPos;
+  String? _hoveredPartKey;
+  bool _autoRotate = false;
+  late final AnimationController _autoRotController;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentAgeStage = widget.initialAgeStage;
+    _yaw = widget.initialYaw;
+    _pitch = widget.initialPitch;
+    _zoom = widget.initialZoom;
+
+    _autoRotController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 18),
+    )..addListener(() {
+        if (_autoRotate) {
+          setState(() {
+            _yaw += 0.015;
+            if (_yaw > math.pi * 2) _yaw -= math.pi * 2;
+          });
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _autoRotController.dispose();
+    super.dispose();
+  }
+
+  void _resetCamera() {
+    setState(() {
+      _yaw = widget.initialYaw;
+      _pitch = widget.initialPitch;
+      _zoom = widget.initialZoom;
+    });
+  }
+
+  void _toggleAutoRotate() {
+    setState(() {
+      _autoRotate = !_autoRotate;
+      if (_autoRotate) {
+        _autoRotController.repeat();
+      } else {
+        _autoRotController.stop();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final faces = widget.sceneMeshBuilder(_currentAgeStage);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: widget.primaryColor.withValues(alpha: isDark ? 0.08 : 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. TOP HEADER WITH SPECIALTY BADGE & CONTROLS
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF131D34) : Colors.white,
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: widget.primaryColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(widget.specialtyIcon, color: widget.primaryColor, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AppLanguage.isArabic ? widget.specialtyTitleAr : widget.specialtyTitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                      Text(
+                        'Interactive 3D Anatomical Projection (3D مجسم تفاعلي)',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: isDark ? Colors.white54 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Auto rotate button
+                IconButton(
+                  icon: Icon(
+                    _autoRotate ? Icons.pause_circle_filled : Icons.play_circle_outline,
+                    size: 20,
+                    color: _autoRotate ? widget.primaryColor : (isDark ? Colors.white70 : Colors.black54),
+                  ),
+                  tooltip: 'Auto Rotate (دوران تلقائي)',
+                  onPressed: _toggleAutoRotate,
+                ),
+                // Reset camera button
+                IconButton(
+                  icon: Icon(Icons.refresh, size: 20, color: isDark ? Colors.white70 : Colors.black54),
+                  tooltip: 'Reset View (إعادة ضبط)',
+                  onPressed: _resetCamera,
+                ),
+              ],
+            ),
+          ),
+
+          // 2. UNIVERSAL AGE PROGRESSION SELECTOR BAR
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0B1120) : const Color(0xFFF1F5F9),
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                ),
+              ),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(LucideIcons.clock, size: 14, color: widget.primaryColor),
+                      const SizedBox(width: 6),
+                      Text(
+                        AppLanguage.tr('Age Stage:', 'المرحلة العمرية:'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 10),
+                  ...ClinicalAgeStage.values.map((stage) {
+                    final isSel = stage == _currentAgeStage;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: InkWell(
+                        onTap: () {
+                          setState(() => _currentAgeStage = stage);
+                          widget.onAgeStageChanged?.call(stage);
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isSel
+                                ? widget.primaryColor
+                                : (isDark ? const Color(0xFF1E293B) : Colors.white),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isSel
+                                  ? widget.primaryColor
+                                  : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                stage.localizedTitle,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                  color: isSel
+                                      ? Colors.white
+                                      : (isDark ? Colors.white70 : const Color(0xFF334155)),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '(${stage.ageRange})',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: isSel
+                                      ? Colors.white.withValues(alpha: 0.8)
+                                      : (isDark ? Colors.white38 : Colors.black38),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ),
+
+          // 3. MAIN 3D INTERACTIVE CANVAS VIEWPORT
+          SizedBox(
+            height: widget.height,
+            child: Stack(
+              children: [
+                // Interactive Gesture area
+                Positioned.fill(
+                  child: GestureDetector(
+                    onPanStart: (details) => _lastPanPos = details.localPosition,
+                    onPanUpdate: (details) {
+                      if (_lastPanPos != null) {
+                        final dx = details.localPosition.dx - _lastPanPos!.dx;
+                        final dy = details.localPosition.dy - _lastPanPos!.dy;
+                        setState(() {
+                          _yaw += dx * 0.012;
+                          _pitch = (_pitch + dy * 0.012).clamp(-1.4, 1.4);
+                        });
+                        _lastPanPos = details.localPosition;
+                      }
+                    },
+                    onPanEnd: (_) => _lastPanPos = null,
+                    onTapUp: (details) {
+                      _handleCanvasTap(details.localPosition, faces);
+                    },
+                    child: CustomPaint(
+                      painter: _Generic3DScenePainter(
+                        faces: faces,
+                        yaw: _yaw,
+                        pitch: _pitch,
+                        zoom: _zoom,
+                        isDark: isDark,
+                        primaryColor: widget.primaryColor,
+                        activeStatuses: widget.activeStatuses,
+                        hoveredPartKey: _hoveredPartKey,
+                      ),
+                      size: Size.infinite,
+                    ),
+                  ),
+                ),
+
+                // Zoom in / Zoom out floating controls
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildFloatingCircleBtn(
+                        icon: Icons.add,
+                        tooltip: 'Zoom In',
+                        onTap: () => setState(() => _zoom = (_zoom * 1.15).clamp(0.4, 3.5)),
+                        isDark: isDark,
+                      ),
+                      const SizedBox(height: 6),
+                      _buildFloatingCircleBtn(
+                        icon: Icons.remove,
+                        tooltip: 'Zoom Out',
+                        onTap: () => setState(() => _zoom = (_zoom / 1.15).clamp(0.4, 3.5)),
+                        isDark: isDark,
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Hint overlay pill
+                Positioned(
+                  left: 12,
+                  bottom: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.hand, size: 12, color: widget.primaryColor),
+                        const SizedBox(width: 5),
+                        Text(
+                          AppLanguage.tr('Drag to rotate 3D • Tap to select part', 'اسحب للتدوير 3D • انقر للتحديد'),
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (widget.overlayBottomWidget != null) widget.overlayBottomWidget!,
+        ],
+      ),
+    );
+  }
+
+  void _handleCanvasTap(Offset tapPos, List<MeshFace3D> faces) {
+    // Find closest projected face centroid
+    final size = Size(double.infinity, widget.height);
+    final scale = 1.0 * _zoom;
+
+    MeshFace3D? closestFace;
+    double minSqDist = 55.0 * 55.0; // hit threshold
+
+    for (final face in faces) {
+      if (face.partKey == null) continue;
+      final rotC = face.centroid.rotateEuler(_yaw, _pitch);
+      final screenPos = rotC.toScreen(size, scale);
+      final distSq = (screenPos.dx - tapPos.dx) * (screenPos.dx - tapPos.dx) +
+          (screenPos.dy - tapPos.dy) * (screenPos.dy - tapPos.dy);
+      if (distSq < minSqDist) {
+        minSqDist = distSq;
+        closestFace = face;
+      }
+    }
+
+    if (closestFace != null) {
+      setState(() => _hoveredPartKey = closestFace!.partKey);
+      widget.onPartSelected?.call(
+        closestFace.partKey!,
+        closestFace.partNameEn ?? closestFace.partKey!,
+        closestFace.partNameAr ?? closestFace.partNameEn ?? closestFace.partKey!,
+      );
+    }
+  }
+
+  Widget _buildFloatingCircleBtn({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: (isDark ? const Color(0xFF1E293B) : Colors.white).withValues(alpha: 0.9),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Icon(icon, size: 16, color: isDark ? Colors.white : const Color(0xFF0F172A)),
+        ),
+      ),
+    );
+  }
+}
+
+/// Custom painter that projects 3D faces, performs depth sorting, and applies lighting
+class _Generic3DScenePainter extends CustomPainter {
+  final List<MeshFace3D> faces;
+  final double yaw;
+  final double pitch;
+  final double zoom;
+  final bool isDark;
+  final Color primaryColor;
+  final Map<String, ClinicalAnatomyStatusEntry>? activeStatuses;
+  final String? hoveredPartKey;
+
+  _Generic3DScenePainter({
+    required this.faces,
+    required this.yaw,
+    required this.pitch,
+    required this.zoom,
+    required this.isDark,
+    required this.primaryColor,
+    this.activeStatuses,
+    this.hoveredPartKey,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (faces.isEmpty) return;
+
+    final lightDir = const Point3D(-0.577, -0.577, 0.577).normalized();
+
+    // Transform and compute transformed depth for each face
+    final transformedFaces = <_RenderFace>[];
+
+    for (final face in faces) {
+      final rotVertices = face.vertices.map((v) => v.rotateEuler(yaw, pitch)).toList();
+      double sumZ = 0;
+      for (final v in rotVertices) {
+        sumZ += v.z;
+      }
+      final avgZ = sumZ / rotVertices.length;
+
+      // Compute transformed normal
+      Point3D norm = const Point3D(0, 0, 1);
+      if (rotVertices.length >= 3) {
+        norm = (rotVertices[1] - rotVertices[0]).cross(rotVertices[2] - rotVertices[0]).normalized();
+      }
+
+      transformedFaces.add(_RenderFace(
+        original: face,
+        rotatedVertices: rotVertices,
+        normal: norm,
+        avgZ: avgZ,
+      ));
+    }
+
+    // Depth sort: painter's algorithm (far to near)
+    transformedFaces.sort((a, b) => a.avgZ.compareTo(b.avgZ));
+
+    final scale = 1.0 * zoom;
+
+    for (final rf in transformedFaces) {
+      final face = rf.original;
+      final rotVerts = rf.rotatedVertices;
+      if (rotVerts.isEmpty) continue;
+
+      // Project vertices to screen
+      final screenPts = rotVerts.map((v) => v.toScreen(size, scale)).toList();
+
+      final path = Path()..moveTo(screenPts[0].dx, screenPts[0].dy);
+      for (int i = 1; i < screenPts.length; i++) {
+        path.lineTo(screenPts[i].dx, screenPts[i].dy);
+      }
+      path.close();
+
+      // Check if this part has active status
+      Color faceColor = face.baseColor;
+      if (face.partKey != null && activeStatuses != null) {
+        final status = activeStatuses![face.partKey];
+        if (status != null) {
+          faceColor = status.visualColor;
+        }
+      }
+
+      // Compute directional shading
+      final dot = (rf.normal.dot(lightDir) * -1.0).clamp(0.0, 1.0);
+      final ambient = 0.42;
+      final lightIntensity = (ambient + (1.0 - ambient) * dot).clamp(0.0, 1.0);
+
+      final r = (faceColor.r * 255 * lightIntensity).toInt().clamp(0, 255);
+      final g = (faceColor.g * 255 * lightIntensity).toInt().clamp(0, 255);
+      final b = (faceColor.b * 255 * lightIntensity).toInt().clamp(0, 255);
+      final shadedColor = Color.fromARGB(faceColor.a > 0.05 ? (faceColor.a * 255).toInt() : 255, r, g, b);
+
+      if (!face.isWireframe) {
+        final fillPaint = Paint()
+          ..color = shadedColor
+          ..style = PaintingStyle.fill;
+        canvas.drawPath(path, fillPaint);
+      }
+
+      // Edge outline
+      final borderPaint = Paint()
+        ..color = face.partKey == hoveredPartKey
+            ? Colors.amberAccent
+            : (face.isWireframe
+                ? shadedColor
+                : faceColor.withValues(alpha: isDark ? 0.35 : 0.25))
+        ..strokeWidth = face.partKey == hoveredPartKey ? 2.2 : (face.isWireframe ? 1.5 : 0.8)
+        ..style = PaintingStyle.stroke;
+      canvas.drawPath(path, borderPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _Generic3DScenePainter old) {
+    return old.yaw != yaw ||
+        old.pitch != pitch ||
+        old.zoom != zoom ||
+        old.isDark != isDark ||
+        old.hoveredPartKey != hoveredPartKey ||
+        old.faces != faces ||
+        old.activeStatuses != activeStatuses;
+  }
+}
+
+class _RenderFace {
+  final MeshFace3D original;
+  final List<Point3D> rotatedVertices;
+  final Point3D normal;
+  final double avgZ;
+
+  _RenderFace({
+    required this.original,
+    required this.rotatedVertices,
+    required this.normal,
+    required this.avgZ,
+  });
+}

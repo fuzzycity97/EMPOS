@@ -10,6 +10,8 @@ import 'package:empos/features/clinic/presentation/widgets/tooth_editor_sheet.da
 import 'package:empos/features/clinic/domain/entities/clinical_status_catalog.dart';
 import 'package:empos/features/clinic/domain/entities/tooth_chart_entry.dart';
 import 'package:empos/features/clinic/presentation/widgets/skeletal_bone_3d_canvas_widget.dart';
+import 'package:empos/features/clinic/presentation/widgets/clinical_3d_engine_core.dart';
+import 'package:empos/features/clinic/presentation/widgets/specialty_3d_anatomical_models.dart';
 import 'package:empos/core/localization/app_language.dart';
 
 void main() {
@@ -1319,6 +1321,126 @@ void main() {
       await tester.pumpAndSettle();
       expect(recordedInterventions.length, 0);
       expect(find.byKey(const ValueKey('btn_clear_hardware')), findsNothing);
+    });
+
+    testWidgets('30. Interactive 3D Visualizer renders for Cardiology, Physiotherapy, Gastroenterology and Dermatology', (tester) async {
+      // 1. Cardiology 3D Visualizer
+      final cardioBp = StoreBlueprintModel.defaultCardiologyBlueprint();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: MultiSpecialtyAnatomyCanvasWidget(
+                key: const ValueKey('canvas_cardio'),
+                blueprint: cardioBp,
+                doctorName: 'Dr. Samir (Cardiologist)',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(Clinical3dSceneViewer), findsOneWidget);
+      expect(
+        find.text(AppLanguage.isArabic ? 'المجسم القلبي ثلاثي الأبعاد والشرايين التاجية' : '3D Cardiovascular Chambers & Coronary Artery Tree'),
+        findsOneWidget,
+      );
+
+      // 2. Physiotherapy 3D Visualizer
+      final physioBp = StoreBlueprintModel.defaultPhysiotherapyBlueprint();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: MultiSpecialtyAnatomyCanvasWidget(
+                key: const ValueKey('canvas_physio'),
+                blueprint: physioBp,
+                doctorName: 'Dr. Physiotherapist',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(Clinical3dSceneViewer), findsOneWidget);
+      expect(
+        find.text(AppLanguage.isArabic ? 'المجسم العضلي الحركي ثلاثي الأبعاد وتحديد الإصابات' : '3D Muscular Anatomy & Kinetic Matrix'),
+        findsOneWidget,
+      );
+
+      // 3. Gastroenterology 3D Visualizer
+      final gastroBp = StoreBlueprintModel.defaultGastroenterologyBlueprint();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: MultiSpecialtyAnatomyCanvasWidget(
+                key: const ValueKey('canvas_gastro'),
+                blueprint: gastroBp,
+                doctorName: 'Dr. Gastroenterologist',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(Clinical3dSceneViewer), findsOneWidget);
+      expect(
+        find.text(AppLanguage.isArabic ? 'الجهاز الهضمي والأحشاء الباطنية ثلاثي الأبعاد' : '3D Digestive Tract & Visceral Organ Matrix'),
+        findsOneWidget,
+      );
+
+      // 4. Dermatology 3D Visualizer
+      final dermaBp = StoreBlueprintModel.defaultDermatologyBlueprint();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: MultiSpecialtyAnatomyCanvasWidget(
+                key: const ValueKey('canvas_derma'),
+                blueprint: dermaBp,
+                doctorName: 'Dr. Dermatologist',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(Clinical3dSceneViewer), findsOneWidget);
+      expect(
+        find.text(AppLanguage.isArabic ? 'طبقات الجلد والبشرة والنسيج الشحمي ثلاثية الأبعاد' : '3D Dermatology & Skin Cutis Cross-Section'),
+        findsOneWidget,
+      );
+    });
+
+    test('31. 3D Anatomical Mesh Generators morph across all 5 age stages with distinct characteristics', () {
+      for (final stage in ClinicalAgeStage.values) {
+        // Cardiology
+        final cardioFaces = Specialty3dAnatomicalModels.buildCardiologyMesh(stage);
+        expect(cardioFaces.isNotEmpty, isTrue);
+        final hasAorta = cardioFaces.any((f) => f.partKey == 'cardio_aorta');
+        expect(hasAorta, isTrue);
+
+        if (stage == ClinicalAgeStage.infant) {
+          final hasPda = cardioFaces.any((f) => f.partKey == 'cardio_pda');
+          expect(hasPda, isTrue);
+        }
+
+        // Physiotherapy
+        final physioFaces = Specialty3dAnatomicalModels.buildPhysiotherapyMesh(stage);
+        expect(physioFaces.isNotEmpty, isTrue);
+        expect(physioFaces.any((f) => f.partKey == 'physio_PT-97140'), isTrue);
+
+        // Gastroenterology
+        final gastroFaces = Specialty3dAnatomicalModels.buildGastroenterologyMesh(stage);
+        expect(gastroFaces.isNotEmpty, isTrue);
+        expect(gastroFaces.any((f) => f.partKey == 'gi_GI-43239'), isTrue);
+
+        // Dermatology
+        final dermaFaces = Specialty3dAnatomicalModels.buildDermatologyMesh(stage);
+        expect(dermaFaces.isNotEmpty, isTrue);
+        expect(dermaFaces.any((f) => f.partKey == 'derma_face'), isTrue);
+      }
     });
   });
 }

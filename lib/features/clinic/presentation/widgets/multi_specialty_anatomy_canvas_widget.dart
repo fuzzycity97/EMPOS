@@ -12,6 +12,8 @@ import 'dermatology_action_widget.dart';
 import 'ophthalmology_action_widget.dart';
 import 'orthopedics_trauma_action_widget.dart';
 import 'skeletal_bone_3d_canvas_widget.dart';
+import 'clinical_3d_engine_core.dart';
+import 'specialty_3d_anatomical_models.dart';
 import '../../domain/entities/clinical_anatomy_status_entry.dart';
 import '../../../../core/localization/app_language.dart';
 
@@ -586,6 +588,7 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
   late final ValueNotifier<int> _pediatricAgeMonthsNotifier;
   late final ValueNotifier<double> _pediatricYawNotifier;
   late final ValueNotifier<double> _pediatricPitchNotifier;
+  late final ValueNotifier<ClinicalAgeStage> _activeAgeStageNotifier;
   late final ValueNotifier<String?> _selectedPartNotifier;
   late ValueNotifier<Map<String, ClinicalAnatomyStatusEntry>> _partStatusesNotifier;
   bool _ownsPartStatusesNotifier = false;
@@ -662,6 +665,9 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
     _pediatricYawNotifier = ValueNotifier<double>(0.0);
     _pediatricPitchNotifier = ValueNotifier<double>(0.0);
     _selectedPartNotifier = ValueNotifier<String?>(null);
+    _activeAgeStageNotifier = ValueNotifier<ClinicalAgeStage>(
+      widget.isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+    );
   }
 
   @override
@@ -682,6 +688,8 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
       }
     } else if (widget.initialDiscipline != null && widget.initialDiscipline != oldWidget.initialDiscipline) {
       _activeDisciplineNotifier.value = widget.initialDiscipline!;
+    } else if (widget.blueprint != oldWidget.blueprint && _ownsDisciplineNotifier) {
+      _activeDisciplineNotifier.value = widget.initialDiscipline ?? MultiSpecialtyAnatomyCanvasWidget.inferDiscipline(widget.blueprint);
     }
 
     if (widget.partStatusesNotifier != oldWidget.partStatusesNotifier) {
@@ -772,6 +780,7 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
     _pediatricYawNotifier.dispose();
     _pediatricPitchNotifier.dispose();
     _selectedPartNotifier.dispose();
+    _activeAgeStageNotifier.dispose();
     super.dispose();
   }
 
@@ -815,6 +824,7 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                 children: [
                   // ── SPECIALTY DISCIPLINE HEADER ────────────────────────────────
                   _buildHeader(context, discipline, isDark),
+                  _buildUniversalAgeStageBar(context, discipline, isDark),
 
                   // ── SPECIALTY SPECIFIC ANATOMICAL WORKBENCH ─────────────────────
                   Padding(
@@ -1080,6 +1090,115 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
             ),
         ],
       ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // UNIVERSAL AGE PROGRESSION SELECTOR BAR (FOR ALL SPECIALTIES)
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildUniversalAgeStageBar(
+    BuildContext context,
+    ClinicalSpecialtyDiscipline discipline,
+    bool isDark,
+  ) {
+    return ValueListenableBuilder<ClinicalAgeStage>(
+      valueListenable: _activeAgeStageNotifier,
+      builder: (context, currentStage, _) {
+        final accentColor = _getDisciplineColor(discipline);
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+            border: Border(
+              bottom: BorderSide(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+              ),
+            ),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.clock, size: 14, color: accentColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      AppLanguage.tr('Patient Age Progression:', 'المرحلة العمرية للمريض:'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 10),
+                ...ClinicalAgeStage.values.map((stage) {
+                  final isSel = stage == currentStage;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: InkWell(
+                      onTap: () {
+                        _activeAgeStageNotifier.value = stage;
+                        if (stage == ClinicalAgeStage.infant) {
+                          _pediatricAgeMonthsNotifier.value = 6;
+                        } else if (stage == ClinicalAgeStage.child) {
+                          _pediatricAgeMonthsNotifier.value = 36;
+                        } else if (stage == ClinicalAgeStage.adolescent) {
+                          _pediatricAgeMonthsNotifier.value = 168;
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isSel
+                              ? accentColor
+                              : (isDark ? const Color(0xFF1E293B) : Colors.white),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSel
+                                ? accentColor
+                                : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              stage.localizedTitle,
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                color: isSel
+                                    ? Colors.white
+                                    : (isDark ? Colors.white70 : const Color(0xFF334155)),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '(${stage.ageRange})',
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: isSel
+                                    ? Colors.white.withValues(alpha: 0.85)
+                                    : (isDark ? Colors.white38 : Colors.black38),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -2119,6 +2238,27 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
         ),
         const SizedBox(height: 14),
 
+        // Interactive 3D Muscular Anatomy & Kinetic Matrix with Age Stages
+        Clinical3dSceneViewer(
+          specialtyTitle: '3D Muscular Anatomy & Kinetic Matrix',
+          specialtyTitleAr: 'المجسم العضلي الحركي ثلاثي الأبعاد وتحديد الإصابات',
+          specialtyIcon: LucideIcons.activity,
+          primaryColor: const Color(0xFF10B981),
+          initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+          activeStatuses: activeStatuses,
+          sceneMeshBuilder: (stage) => Specialty3dAnatomicalModels.buildPhysiotherapyMesh(stage),
+          onPartSelected: (partKey, nameEn, nameAr) {
+            _openStatusInspector(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
+              discipline: ClinicalSpecialtyDiscipline.physiotherapy,
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -2249,6 +2389,27 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
         ),
         const SizedBox(height: 14),
 
+        // Interactive 3D Digestive & Visceral Organ Matrix with Age Stages
+        Clinical3dSceneViewer(
+          specialtyTitle: '3D Digestive Tract & Visceral Organ Matrix',
+          specialtyTitleAr: 'الجهاز الهضمي والأحشاء الباطنية ثلاثي الأبعاد',
+          specialtyIcon: LucideIcons.utensils,
+          primaryColor: const Color(0xFFF59E0B),
+          initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+          activeStatuses: activeStatuses,
+          sceneMeshBuilder: (stage) => Specialty3dAnatomicalModels.buildGastroenterologyMesh(stage),
+          onPartSelected: (partKey, nameEn, nameAr) {
+            _openStatusInspector(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
+              discipline: ClinicalSpecialtyDiscipline.gastroenterology,
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -2374,6 +2535,27 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           subtitle: 'Select any vessel or chamber to search and assign clinical statuses (stenosis, STEMI, aneurysm, regurgitation).',
           color: const Color(0xFFEF4444),
           isDark: isDark,
+        ),
+        const SizedBox(height: 14),
+
+        // Interactive 3D Beating / Morphing Heart & Coronary Tree with Age Stages
+        Clinical3dSceneViewer(
+          specialtyTitle: '3D Cardiovascular Chambers & Coronary Artery Tree',
+          specialtyTitleAr: 'المجسم القلبي ثلاثي الأبعاد والشرايين التاجية',
+          specialtyIcon: LucideIcons.heartPulse,
+          primaryColor: const Color(0xFFEF4444),
+          initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+          activeStatuses: activeStatuses,
+          sceneMeshBuilder: (stage) => Specialty3dAnatomicalModels.buildCardiologyMesh(stage),
+          onPartSelected: (partKey, nameEn, nameAr) {
+            _openStatusInspector(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
+              discipline: ClinicalSpecialtyDiscipline.cardiology,
+            );
+          },
         ),
         const SizedBox(height: 14),
 
@@ -2513,6 +2695,27 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           subtitle: 'Select any skin zone to search and assign clinical statuses (melanoma, psoriasis, burns, keloids) or calculate TBSA.',
           color: const Color(0xFFEC4899),
           isDark: isDark,
+        ),
+        const SizedBox(height: 14),
+
+        // Interactive 3D Dermatology & Skin Cutis Cross-Section with Age Stages
+        Clinical3dSceneViewer(
+          specialtyTitle: '3D Dermatology & Skin Cutis Cross-Section',
+          specialtyTitleAr: 'طبقات الجلد والبشرة والنسيج الشحمي ثلاثية الأبعاد',
+          specialtyIcon: LucideIcons.sparkles,
+          primaryColor: const Color(0xFFEC4899),
+          initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+          activeStatuses: activeStatuses,
+          sceneMeshBuilder: (stage) => Specialty3dAnatomicalModels.buildDermatologyMesh(stage),
+          onPartSelected: (partKey, nameEn, nameAr) {
+            _openStatusInspector(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
+              discipline: ClinicalSpecialtyDiscipline.dermatology,
+            );
+          },
         ),
         const SizedBox(height: 14),
 
