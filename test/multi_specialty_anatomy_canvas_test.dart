@@ -9,6 +9,7 @@ import 'package:empos/features/clinic/presentation/widgets/clinical_status_inspe
 import 'package:empos/features/clinic/presentation/widgets/tooth_editor_sheet.dart';
 import 'package:empos/features/clinic/domain/entities/clinical_status_catalog.dart';
 import 'package:empos/features/clinic/domain/entities/tooth_chart_entry.dart';
+import 'package:empos/features/clinic/presentation/widgets/skeletal_bone_3d_canvas_widget.dart';
 import 'package:empos/core/localization/app_language.dart';
 
 void main() {
@@ -303,6 +304,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap on Femur bone
+      await tester.ensureVisible(find.text('عظم الفخذ'));
       await tester.tap(find.text('عظم الفخذ'));
       await tester.pumpAndSettle();
 
@@ -1125,6 +1127,64 @@ void main() {
 
       // Verify CustomPaint continues rendering without overflow or error
       expect(find.byType(CustomPaint), findsWidgets);
+    });
+
+    testWidgets('27. SkeletalBone3dCanvasWidget supports Multi-Age morphing (Pediatric, Adult, Geriatric) and 3D rotation', (tester) async {
+      String? selectedCode;
+      String? selectedName;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 800,
+                height: 520,
+                child: SkeletalBone3dCanvasWidget(
+                  initialAgeStage: SkeletalAgeStage.adult,
+                  onBoneSelected: (code, nameEn, nameAr) {
+                    selectedCode = code;
+                    selectedName = nameEn;
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. Initial State: Adult Skeleton
+      expect(find.text(SkeletalAgeStage.adult.label), findsOneWidget);
+      expect(find.text('الهيكل العظمي البالغ الكامل (206 عظمة مندمجة بالكامل)'), findsOneWidget);
+
+      // 2. Morph to Pediatric Stage (Open fontanelles & epiphyseal growth plates)
+      await tester.tap(find.byKey(const ValueKey('btn_age_pediatric')));
+      await tester.pumpAndSettle();
+      expect(find.text('صفائح نمو نشطة (Physis) وغضاريف تكلس قيد التطور'), findsOneWidget);
+
+      // 3. Morph to Geriatric Stage (Kyphosis, bone density thinning, spurs)
+      await tester.tap(find.byKey(const ValueKey('btn_age_geriatric')));
+      await tester.pumpAndSettle();
+      expect(find.text('تحدب فقري (Kyphosis)، ترقق عظمي وتنكس غضروفي'), findsOneWidget);
+
+      // 4. Test 3D Orbit Gesture Drag (Yaw & Pitch)
+      final canvas3d = find.byType(CustomPaint).first;
+      await tester.drag(canvas3d, const Offset(80, -50));
+      await tester.pumpAndSettle();
+
+      // 5. Test Camera Angle Preset Buttons (Front, Back, Side)
+      expect(find.text('Front'), findsOneWidget);
+      expect(find.text('Back'), findsOneWidget);
+      expect(find.text('Side'), findsOneWidget);
+      await tester.tap(find.text('Back'));
+      await tester.pumpAndSettle();
+
+      // 6. Test 3D Raycast Bone Tap Selection on Canvas
+      await tester.tapAt(tester.getCenter(canvas3d));
+      await tester.pumpAndSettle();
+      expect(selectedCode, isNotNull);
+      expect(selectedName, isNotNull);
     });
   });
 }

@@ -11,6 +11,7 @@ import 'dental_tooth_matrix_widget.dart';
 import 'dermatology_action_widget.dart';
 import 'ophthalmology_action_widget.dart';
 import 'orthopedics_trauma_action_widget.dart';
+import 'skeletal_bone_3d_canvas_widget.dart';
 import '../../domain/entities/clinical_anatomy_status_entry.dart';
 import '../../../../core/localization/app_language.dart';
 
@@ -1954,6 +1955,21 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           subtitle: 'Select any bone or joint to search and assign clinical statuses (fractures, tears, spurs) with live ICD-10 codes.',
           color: const Color(0xFF0D9488),
           isDark: isDark,
+        ),
+        const SizedBox(height: 14),
+
+        // Interactive 3D Skeletal Bone Model with Multi-Age Morphing
+        SkeletalBone3dCanvasWidget(
+          activeStatuses: activeStatuses,
+          onBoneSelected: (code, nameEn, nameAr) {
+            _openStatusInspector(
+              context,
+              partKey: 'ortho_$code',
+              partName: nameEn,
+              partNameAr: nameAr,
+              discipline: ClinicalSpecialtyDiscipline.orthopedics,
+            );
+          },
         ),
         const SizedBox(height: 14),
 
