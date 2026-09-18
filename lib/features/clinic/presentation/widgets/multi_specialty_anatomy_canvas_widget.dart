@@ -1,3 +1,4 @@
+// ignore_for_file: unused_element
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -16,6 +17,7 @@ import 'clinical_3d_engine_core.dart';
 import 'specialty_3d_anatomical_models.dart';
 import '../../domain/entities/clinical_anatomy_status_entry.dart';
 import '../../domain/entities/specialty_instrument_registry.dart';
+import 'doctor_attachments_lightbox.dart';
 import '../../../../core/localization/app_language.dart';
 
 /// Supported Clinical Anatomical Disciplines across 7 Major Medical Groups
@@ -63,7 +65,11 @@ enum ClinicalSpecialtyDiscipline {
   pediatrics,
 
   // Universal
-  general,
+  general;
+
+  String get renderMode => SpecialtyInstrumentRegistry.getRenderMode(this);
+  bool get is3D => renderMode == '3D';
+  bool get is2D => renderMode == '2D';
 }
 
 /// Eye Anatomical Layer Filter (Ophthalmology)
@@ -488,6 +494,7 @@ class MultiSpecialtyAnatomyCanvasWidget extends StatefulWidget {
   final ValueNotifier<Map<String, ClinicalAnatomyStatusEntry>>? partStatusesNotifier;
   final ValueNotifier<double>? eyeCdRatioOdNotifier;
   final ValueNotifier<double>? eyeCdRatioOsNotifier;
+  final ValueNotifier<List<MedicalAttachment>>? attachmentsNotifier;
   final void Function(ClinicalSpecialtyDiscipline discipline)? onDisciplineChanged;
 
   const MultiSpecialtyAnatomyCanvasWidget({
@@ -503,6 +510,7 @@ class MultiSpecialtyAnatomyCanvasWidget extends StatefulWidget {
     this.partStatusesNotifier,
     this.eyeCdRatioOdNotifier,
     this.eyeCdRatioOsNotifier,
+    this.attachmentsNotifier,
     this.onDisciplineChanged,
   });
 
@@ -593,6 +601,8 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
   late final ValueNotifier<String?> _selectedPartNotifier;
   late ValueNotifier<Map<String, ClinicalAnatomyStatusEntry>> _partStatusesNotifier;
   bool _ownsPartStatusesNotifier = false;
+  late ValueNotifier<List<MedicalAttachment>> _attachmentsNotifier;
+  bool _ownsAttachmentsNotifier = false;
   late final ValueNotifier<bool> _showInstrumentTrayNotifier;
   late final ValueNotifier<ClinicalInstrumentCategory?> _selectedInstrumentCategoryNotifier;
   late final ValueNotifier<String?> _selectedInstrumentIdNotifier;
@@ -616,6 +626,14 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
     } else {
       _partStatusesNotifier = ValueNotifier<Map<String, ClinicalAnatomyStatusEntry>>({});
       _ownsPartStatusesNotifier = true;
+    }
+
+    if (widget.attachmentsNotifier != null) {
+      _attachmentsNotifier = widget.attachmentsNotifier!;
+      _ownsAttachmentsNotifier = false;
+    } else {
+      _attachmentsNotifier = ValueNotifier<List<MedicalAttachment>>([]);
+      _ownsAttachmentsNotifier = true;
     }
 
     if (widget.eyeCdRatioOdNotifier != null) {
@@ -712,6 +730,19 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
       }
     }
 
+    if (widget.attachmentsNotifier != oldWidget.attachmentsNotifier) {
+      if (_ownsAttachmentsNotifier) {
+        _attachmentsNotifier.dispose();
+      }
+      if (widget.attachmentsNotifier != null) {
+        _attachmentsNotifier = widget.attachmentsNotifier!;
+        _ownsAttachmentsNotifier = false;
+      } else {
+        _attachmentsNotifier = ValueNotifier<List<MedicalAttachment>>([]);
+        _ownsAttachmentsNotifier = true;
+      }
+    }
+
     if (widget.eyeCdRatioOdNotifier != oldWidget.eyeCdRatioOdNotifier) {
       if (_ownsEyeCdRatioOdNotifier) {
         _eyeCdRatioOdNotifier.dispose();
@@ -746,6 +777,9 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
     }
     if (_ownsPartStatusesNotifier) {
       _partStatusesNotifier.dispose();
+    }
+    if (_ownsAttachmentsNotifier) {
+      _attachmentsNotifier.dispose();
     }
     if (_ownsEyeCdRatioOdNotifier) {
       _eyeCdRatioOdNotifier.dispose();
@@ -2330,6 +2364,14 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               discipline: ClinicalSpecialtyDiscipline.physiotherapy,
             );
           },
+          onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+            _openPartScanInspectionDialog(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
+            );
+          },
         ),
         const SizedBox(height: 14),
 
@@ -2493,6 +2535,14 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               discipline: ClinicalSpecialtyDiscipline.gastroenterology,
             );
           },
+          onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+            _openPartScanInspectionDialog(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
+            );
+          },
         ),
         const SizedBox(height: 14),
 
@@ -2652,6 +2702,14 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               partName: nameEn,
               partNameAr: nameAr,
               discipline: ClinicalSpecialtyDiscipline.cardiology,
+            );
+          },
+          onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+            _openPartScanInspectionDialog(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
             );
           },
         ),
@@ -2824,6 +2882,14 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               partName: nameEn,
               partNameAr: nameAr,
               discipline: ClinicalSpecialtyDiscipline.dermatology,
+            );
+          },
+          onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+            _openPartScanInspectionDialog(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
             );
           },
         ),
@@ -3190,117 +3256,132 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               color: const Color(0xFF8B5CF6),
             ),
             const SizedBox(height: 14),
-            Container(
-              height: 270,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0C071E) : const Color(0xFFFAF5FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3)),
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _NeurologyBrainPainter(activeLayer: activeLayer, isDark: isDark),
-                    ),
+            Clinical3dSceneViewer(
+              specialtyTitle: '3D Neurology & Neurosurgery Intracranial Matrix',
+              specialtyTitleAr: 'المجسم الدماغي والجهاز العصبي ثلاثي الأبعاد',
+              specialtyIcon: LucideIcons.brain,
+              primaryColor: const Color(0xFF8B5CF6),
+              initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+              activeStatuses: activeStatuses,
+              availableInstruments: const [
+                SpecialtyInstrument.stereotacticBurrhole,
+                SpecialtyInstrument.dbsElectrode,
+                SpecialtyInstrument.aneurysmClip,
+              ],
+              sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                  Specialty3dAnatomicalModels.buildNeurologyMesh(
+                    stage,
+                    instrument: instrument,
+                    isSoloMode: isSoloMode,
+                    soloPartKey: soloPartKey,
                   ),
-                  Positioned.fill(
-                    child: LayoutBuilder(
-                      builder: (ctx, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        final cx = w * 0.5;
-                        final cy = h * 0.48;
+              onPartSelected: (partKey, nameEn, nameAr) {
+                _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                  discipline: ClinicalSpecialtyDiscipline.neurology,
+                );
+              },
+              onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+                _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.3,
+              ),
+              itemCount: 5,
+              itemBuilder: (ctx, idx) {
+                final parts = [
+                  {'key': 'neuro_cortex', 'name': 'Cerebral Cortical Lobes', 'nameAr': 'فصوص القشرة المخية'},
+                  {'key': 'neuro_ventricles', 'name': 'Ventricular System & CSF', 'nameAr': 'البطينات الدماغية وسائله'},
+                  {'key': 'neuro_basal_ganglia', 'name': 'Deep Basal Ganglia', 'nameAr': 'العقد القاعدية والمهاد'},
+                  {'key': 'neuro_cranial_nerves', 'name': 'Cranial Nerves (I–XII)', 'nameAr': 'الأعصاب القحفية وجذع المخ'},
+                  {'key': 'neuro_circle_of_willis', 'name': 'Circle of Willis', 'nameAr': 'الدورة الدماغية ويلس'},
+                ];
+                final p = parts[idx];
+                final partKey = p['key']!;
+                final statusEntry = activeStatuses[partKey];
+                final hasStatus = statusEntry != null;
+                final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFF8B5CF6);
 
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapUp: (details) {
-                                  final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                                  final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                                  _openAddCustomPinNoteDialog(
-                                    context,
-                                    normX: normX,
-                                    normY: normY,
-                                    discipline: ClinicalSpecialtyDiscipline.neurology,
-                                  );
-                                },
-                              ),
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _openStatusInspector(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                      discipline: ClinicalSpecialtyDiscipline.neurology,
+                    ),
+                    onSecondaryTap: () => _openPartScanInspectionDialog(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: hasStatus
+                            ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF1E1333) : const Color(0xFFF5F3FF)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: hasStatus ? cardColor : const Color(0xFF8B5CF6).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            p['name']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
                             ),
-                            if (activeLayer == NeurologyLayer.all || activeLayer == NeurologyLayer.cortical)
-                              _buildHotspot(
-                                context,
-                                partKey: 'neuro_cortex',
-                                x: cx - 140,
-                                y: cy - 70,
-                                label: 'Cerebral Lobes (القشرة المخية)',
-                                sublabel: 'Glioma & Stroke Mapping',
-                                partName: 'Cerebral Cortical Lobes',
-                                partNameAr: 'فصوص القشرة المخية',
-                                discipline: ClinicalSpecialtyDiscipline.neurology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == NeurologyLayer.all || activeLayer == NeurologyLayer.ventricular)
-                              _buildHotspot(
-                                context,
-                                partKey: 'neuro_ventricles',
-                                x: cx - 50,
-                                y: cy - 25,
-                                label: 'Ventricles / CSF (البطينات المخية)',
-                                sublabel: 'Hydrocephalus & Shunt',
-                                partName: 'Ventricular System & CSF',
-                                partNameAr: 'البطينات الدماغية وسائله',
-                                discipline: ClinicalSpecialtyDiscipline.neurology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == NeurologyLayer.all || activeLayer == NeurologyLayer.basalGanglia)
-                              _buildHotspot(
-                                context,
-                                partKey: 'neuro_basal_ganglia',
-                                x: cx + 15,
-                                y: cy - 10,
-                                label: 'Basal Ganglia / STN (العقد القاعدية)',
-                                sublabel: 'DBS Trajectory Target',
-                                partName: 'Deep Basal Ganglia',
-                                partNameAr: 'العقد القاعدية والمهاد',
-                                discipline: ClinicalSpecialtyDiscipline.neurology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == NeurologyLayer.all || activeLayer == NeurologyLayer.cranialNerves)
-                              _buildHotspot(
-                                context,
-                                partKey: 'neuro_cranial_nerves',
-                                x: cx - 60,
-                                y: cy + 55,
-                                label: 'Cranial Nerves I-XII (الأعصاب القحفية)',
-                                sublabel: 'Brainstem & Nerve Trunks',
-                                partName: 'Cranial Nerves (I–XII)',
-                                partNameAr: 'الأعصاب القحفية وجذع المخ',
-                                discipline: ClinicalSpecialtyDiscipline.neurology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == NeurologyLayer.all || activeLayer == NeurologyLayer.vascular)
-                              _buildHotspot(
-                                context,
-                                partKey: 'neuro_circle_of_willis',
-                                x: cx + 60,
-                                y: cy + 50,
-                                label: 'Circle of Willis (شرايين ويليس)',
-                                sublabel: 'Aneurysm Coiling & MCA',
-                                partName: 'Circle of Willis',
-                                partNameAr: 'الدورة الدماغية ويلس',
-                                discipline: ClinicalSpecialtyDiscipline.neurology,
-                                activeStatuses: activeStatuses,
-                              ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            p['nameAr']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 9.5, color: Color(0xFF8B5CF6)),
+                          ),
+                          if (hasStatus) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
+                            ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ],
         );
@@ -3342,104 +3423,130 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               color: const Color(0xFF6366F1),
             ),
             const SizedBox(height: 14),
-            Container(
-              height: 270,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF090A1E) : const Color(0xFFEEF2FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _NeuroOtologyPainter(activeLayer: activeLayer, isDark: isDark),
-                    ),
+            Clinical3dSceneViewer(
+              specialtyTitle: '3D Neuro-Otology & Vestibular Labyrinth',
+              specialtyTitleAr: 'مجسم التوازن والقوقعة والقنوات الهلالية ثلاثي الأبعاد',
+              specialtyIcon: LucideIcons.ear,
+              primaryColor: const Color(0xFF6366F1),
+              initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+              activeStatuses: activeStatuses,
+              availableInstruments: const [
+                SpecialtyInstrument.audiometricProbe,
+                SpecialtyInstrument.tympanostomyTube,
+              ],
+              sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                  Specialty3dAnatomicalModels.buildNeuroOtologyMesh(
+                    stage,
+                    instrument: instrument,
+                    isSoloMode: isSoloMode,
+                    soloPartKey: soloPartKey,
                   ),
-                  Positioned.fill(
-                    child: LayoutBuilder(
-                      builder: (ctx, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        final cx = w * 0.5;
-                        final cy = h * 0.5;
+              onPartSelected: (partKey, nameEn, nameAr) {
+                _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                  discipline: ClinicalSpecialtyDiscipline.neuroOtology,
+                );
+              },
+              onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+                _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.8,
+              ),
+              itemCount: 4,
+              itemBuilder: (ctx, idx) {
+                final parts = [
+                  {'key': 'otol_cochlea', 'name': 'Cochlea & Hearing Organ', 'nameAr': 'القوقعة والعضو السمعي'},
+                  {'key': 'otol_post_canal', 'name': 'Posterior Semicircular Canal', 'nameAr': 'القناة الهلالية الخلفية'},
+                  {'key': 'otol_otoliths', 'name': 'Otolith Organs', 'nameAr': 'أعضاء التوازن الصخرية'},
+                  {'key': 'otol_cn8', 'name': 'Vestibulocochlear Nerve (CN VIII)', 'nameAr': 'عصب التوازن والسمع القحفي'},
+                ];
+                final p = parts[idx];
+                final partKey = p['key']!;
+                final statusEntry = activeStatuses[partKey];
+                final hasStatus = statusEntry != null;
+                final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFF6366F1);
 
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapUp: (details) {
-                                  final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                                  final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                                  _openAddCustomPinNoteDialog(
-                                    context,
-                                    normX: normX,
-                                    normY: normY,
-                                    discipline: ClinicalSpecialtyDiscipline.neuroOtology,
-                                  );
-                                },
-                              ),
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _openStatusInspector(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                      discipline: ClinicalSpecialtyDiscipline.neuroOtology,
+                    ),
+                    onSecondaryTap: () => _openPartScanInspectionDialog(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: hasStatus
+                            ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF13152C) : const Color(0xFFEEF2FF)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: hasStatus ? cardColor : const Color(0xFF6366F1).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            p['name']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
                             ),
-                            if (activeLayer == NeuroOtologyLayer.all || activeLayer == NeuroOtologyLayer.cochlea)
-                              _buildHotspot(
-                                context,
-                                partKey: 'otol_cochlea',
-                                x: cx - 110,
-                                y: cy + 30,
-                                label: 'Cochlea (القوقعة)',
-                                sublabel: 'Implant Electrode Fitting',
-                                partName: 'Cochlea & Hearing Organ',
-                                partNameAr: 'القوقعة والعضو السمعي',
-                                discipline: ClinicalSpecialtyDiscipline.neuroOtology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == NeuroOtologyLayer.all || activeLayer == NeuroOtologyLayer.canals)
-                              _buildHotspot(
-                                context,
-                                partKey: 'otol_post_canal',
-                                x: cx + 10,
-                                y: cy - 70,
-                                label: 'Posterior Canal (القناة الهلالية الخلفية)',
-                                sublabel: 'BPPV Canalith Tracking',
-                                partName: 'Posterior Semicircular Canal',
-                                partNameAr: 'القناة الهلالية الخلفية',
-                                discipline: ClinicalSpecialtyDiscipline.neuroOtology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == NeuroOtologyLayer.all || activeLayer == NeuroOtologyLayer.otoliths)
-                              _buildHotspot(
-                                context,
-                                partKey: 'otol_otoliths',
-                                x: cx - 20,
-                                y: cy - 10,
-                                label: 'Otoliths (أعضاء التوازن الصخرية)',
-                                sublabel: 'Utricle & Saccule',
-                                partName: 'Otolith Organs',
-                                partNameAr: 'أعضاء التوازن الصخرية',
-                                discipline: ClinicalSpecialtyDiscipline.neuroOtology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == NeuroOtologyLayer.all || activeLayer == NeuroOtologyLayer.nerve)
-                              _buildHotspot(
-                                context,
-                                partKey: 'otol_cn8',
-                                x: cx + 60,
-                                y: cy + 40,
-                                label: 'CN VIII Nerve (عصب التوازن)',
-                                sublabel: 'Vestibulocochlear Trunk',
-                                partName: 'Vestibulocochlear Nerve (CN VIII)',
-                                partNameAr: 'عصب التوازن والسمع القحفي',
-                                discipline: ClinicalSpecialtyDiscipline.neuroOtology,
-                                activeStatuses: activeStatuses,
-                              ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            p['nameAr']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 9.5, color: Color(0xFF6366F1)),
+                          ),
+                          if (hasStatus) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
+                            ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ],
         );
@@ -3481,91 +3588,129 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               color: const Color(0xFFA855F7),
             ),
             const SizedBox(height: 14),
-            Container(
-              height: 270,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF0F071D) : const Color(0xFFFAF5FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFA855F7).withValues(alpha: 0.3)),
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _NeuroPsychiatryPainter(activeLayer: activeLayer, isDark: isDark),
-                    ),
+            Clinical3dSceneViewer(
+              specialtyTitle: '3D Neuro-Psychiatry & TMS Brain Surface',
+              specialtyTitleAr: 'مجسم القشرة الدماغية والشبكات العصبية وجلسات TMS',
+              specialtyIcon: LucideIcons.sparkles,
+              primaryColor: const Color(0xFFA855F7),
+              initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+              activeStatuses: activeStatuses,
+              availableInstruments: const [
+                SpecialtyInstrument.tmsFigure8Coil,
+                SpecialtyInstrument.eegCapElectrode,
+              ],
+              sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                  Specialty3dAnatomicalModels.buildNeuroPsychiatryMesh(
+                    stage,
+                    instrument: instrument,
+                    isSoloMode: isSoloMode,
+                    soloPartKey: soloPartKey,
                   ),
-                  Positioned.fill(
-                    child: LayoutBuilder(
-                      builder: (ctx, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        final cx = w * 0.5;
-                        final cy = h * 0.48;
+              onPartSelected: (partKey, nameEn, nameAr) {
+                _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                  discipline: ClinicalSpecialtyDiscipline.neuroPsychiatry,
+                );
+              },
+              onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+                _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.3,
+              ),
+              itemCount: 3,
+              itemBuilder: (ctx, idx) {
+                final parts = [
+                  {'key': 'psych_dlpfc', 'name': 'Dorsolateral Prefrontal Cortex', 'nameAr': 'القشرة الجبهية الظهرانية'},
+                  {'key': 'psych_limbic', 'name': 'Limbic Amygdala & Hippocampus', 'nameAr': 'اللوزة الدماغية والحصين'},
+                  {'key': 'psych_dmn', 'name': 'Default Mode Network', 'nameAr': 'شبكة الوضع الافتراضي'},
+                ];
+                final p = parts[idx];
+                final partKey = p['key']!;
+                final statusEntry = activeStatuses[partKey];
+                final hasStatus = statusEntry != null;
+                final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFFA855F7);
 
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapUp: (details) {
-                                  final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                                  final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                                  _openAddCustomPinNoteDialog(
-                                    context,
-                                    normX: normX,
-                                    normY: normY,
-                                    discipline: ClinicalSpecialtyDiscipline.neuroPsychiatry,
-                                  );
-                                },
-                              ),
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _openStatusInspector(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                      discipline: ClinicalSpecialtyDiscipline.neuroPsychiatry,
+                    ),
+                    onSecondaryTap: () => _openPartScanInspectionDialog(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: hasStatus
+                            ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF1B0F2A) : const Color(0xFFFAF5FF)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: hasStatus ? cardColor : const Color(0xFFA855F7).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            p['name']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
                             ),
-                            if (activeLayer == NeuroPsychiatryLayer.all || activeLayer == NeuroPsychiatryLayer.prefrontal)
-                              _buildHotspot(
-                                context,
-                                partKey: 'psych_dlpfc',
-                                x: cx - 130,
-                                y: cy - 60,
-                                label: 'Left DLPFC (القشرة الجبهية)',
-                                sublabel: 'rTMS F3 Coil Target',
-                                partName: 'Dorsolateral Prefrontal Cortex',
-                                partNameAr: 'القشرة الجبهية الظهرانية',
-                                discipline: ClinicalSpecialtyDiscipline.neuroPsychiatry,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == NeuroPsychiatryLayer.all || activeLayer == NeuroPsychiatryLayer.limbic)
-                              _buildHotspot(
-                                context,
-                                partKey: 'psych_limbic',
-                                x: cx - 20,
-                                y: cy + 10,
-                                label: 'Limbic Amygdala (الجهاز الحوفي)',
-                                sublabel: 'Fear & Anhedonia Circuit',
-                                partName: 'Limbic Amygdala & Hippocampus',
-                                partNameAr: 'اللوزة الدماغية والحصين',
-                                discipline: ClinicalSpecialtyDiscipline.neuroPsychiatry,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == NeuroPsychiatryLayer.all || activeLayer == NeuroPsychiatryLayer.dmn)
-                              _buildHotspot(
-                                context,
-                                partKey: 'psych_dmn',
-                                x: cx + 70,
-                                y: cy - 40,
-                                label: 'Default Mode Hub (شبكة الوضع الافتراضي)',
-                                sublabel: 'Rumination & fMRI Biomarker',
-                                partName: 'Default Mode Network',
-                                partNameAr: 'شبكة الوضع الافتراضي',
-                                discipline: ClinicalSpecialtyDiscipline.neuroPsychiatry,
-                                activeStatuses: activeStatuses,
-                              ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            p['nameAr']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 9.5, color: Color(0xFFA855F7)),
+                          ),
+                          if (hasStatus) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
+                            ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ],
         );
@@ -3607,104 +3752,132 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               color: const Color(0xFF14B8A6),
             ),
             const SizedBox(height: 14),
-            Container(
-              height: 270,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF041816) : const Color(0xFFF0FDFA),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF14B8A6).withValues(alpha: 0.3)),
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _RhinologySinusPainter(activeLayer: activeLayer, isDark: isDark),
-                    ),
+            Clinical3dSceneViewer(
+              specialtyTitle: '3D Paranasal Sinuses & Turbinates Architecture',
+              specialtyTitleAr: 'مجسم الجيوب الأنفية والقرينات ثلاثي الأبعاد',
+              specialtyIcon: LucideIcons.wind,
+              primaryColor: const Color(0xFF14B8A6),
+              initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+              activeStatuses: activeStatuses,
+              availableInstruments: const [
+                SpecialtyInstrument.sinusEndoscope,
+                SpecialtyInstrument.sinusBalloon,
+              ],
+              sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                  Specialty3dAnatomicalModels.buildRhinologyMesh(
+                    stage,
+                    instrument: instrument,
+                    isSoloMode: isSoloMode,
+                    soloPartKey: soloPartKey,
                   ),
-                  Positioned.fill(
-                    child: LayoutBuilder(
-                      builder: (ctx, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        final cx = w * 0.5;
-                        final cy = h * 0.5;
+              onPartSelected: (partKey, nameEn, nameAr) {
+                _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                  discipline: ClinicalSpecialtyDiscipline.rhinologyEnt,
+                );
+              },
+              onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+                _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.3,
+              ),
+              itemCount: 6,
+              itemBuilder: (ctx, idx) {
+                final parts = [
+                  {'key': 'rhino_septum', 'name': 'Nasal Septum', 'nameAr': 'الحاجز الأنفي'},
+                  {'key': 'rhino_turbinates', 'name': 'Inferior Turbinates', 'nameAr': 'القرينات الأنفية'},
+                  {'key': 'rhino_maxillary', 'name': 'Maxillary Sinus', 'nameAr': 'الجيب الأنفي الفكي'},
+                  {'key': 'rhino_frontal', 'name': 'Frontal Sinus', 'nameAr': 'الجيب الأنفي الجبهي'},
+                  {'key': 'rhino_ethmoid', 'name': 'Ethmoid Air Cells', 'nameAr': 'الخلايا الغربالية'},
+                  {'key': 'rhino_sphenoid', 'name': 'Sphenoid Sinus', 'nameAr': 'الجيب الوتدي'},
+                ];
+                final p = parts[idx];
+                final partKey = p['key']!;
+                final statusEntry = activeStatuses[partKey];
+                final hasStatus = statusEntry != null;
+                final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFF14B8A6);
 
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapUp: (details) {
-                                  final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                                  final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                                  _openAddCustomPinNoteDialog(
-                                    context,
-                                    normX: normX,
-                                    normY: normY,
-                                    discipline: ClinicalSpecialtyDiscipline.rhinologyEnt,
-                                  );
-                                },
-                              ),
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _openStatusInspector(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                      discipline: ClinicalSpecialtyDiscipline.rhinologyEnt,
+                    ),
+                    onSecondaryTap: () => _openPartScanInspectionDialog(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: hasStatus
+                            ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF041816) : const Color(0xFFF0FDFA)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: hasStatus ? cardColor : const Color(0xFF14B8A6).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            p['name']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
                             ),
-                            if (activeLayer == RhinologyLayer.all || activeLayer == RhinologyLayer.septum)
-                              _buildHotspot(
-                                context,
-                                partKey: 'rhino_septum',
-                                x: cx - 60,
-                                y: cy,
-                                label: 'Nasal Septum (الحاجز الأنفي)',
-                                sublabel: 'Septoplasty Deviation Path',
-                                partName: 'Nasal Septum',
-                                partNameAr: 'الحاجز الأنفي',
-                                discipline: ClinicalSpecialtyDiscipline.rhinologyEnt,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == RhinologyLayer.all || activeLayer == RhinologyLayer.turbinates)
-                              _buildHotspot(
-                                context,
-                                partKey: 'rhino_turbinate',
-                                x: cx + 30,
-                                y: cy + 20,
-                                label: 'Turbinates (القرنيات الأنفية)',
-                                sublabel: 'Hypertrophy & Reduction',
-                                partName: 'Inferior Turbinate',
-                                partNameAr: 'القرنية الأنفية السفلية',
-                                discipline: ClinicalSpecialtyDiscipline.rhinologyEnt,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == RhinologyLayer.all || activeLayer == RhinologyLayer.sinuses)
-                              _buildHotspot(
-                                context,
-                                partKey: 'rhino_maxillary',
-                                x: cx + 70,
-                                y: cy - 20,
-                                label: 'Maxillary Sinus (الجيب الفكي)',
-                                sublabel: 'FESS & Balloon Sinuplasty',
-                                partName: 'Maxillary Sinus',
-                                partNameAr: 'الجيب الأنفي الفكي',
-                                discipline: ClinicalSpecialtyDiscipline.rhinologyEnt,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == RhinologyLayer.all || activeLayer == RhinologyLayer.sinuses)
-                              _buildHotspot(
-                                context,
-                                partKey: 'rhino_frontal',
-                                x: cx - 40,
-                                y: cy - 80,
-                                label: 'Frontal Sinus (الجيب الجبهي)',
-                                sublabel: 'Frontal Recess Draff',
-                                partName: 'Frontal Sinus',
-                                partNameAr: 'الجيب الأنفي الجبهي',
-                                discipline: ClinicalSpecialtyDiscipline.rhinologyEnt,
-                                activeStatuses: activeStatuses,
-                              ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            p['nameAr']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 9.5, color: Color(0xFF14B8A6)),
+                          ),
+                          if (hasStatus) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
+                            ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ],
         );
@@ -3731,100 +3904,130 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           isDark: isDark,
         ),
         const SizedBox(height: 14),
-        Container(
-          height: 270,
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E0707) : const Color(0xFFFEF2F2),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.3)),
-          ),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _VascularVeinPainter(isDark: isDark),
-                ),
+        Clinical3dSceneViewer(
+          specialtyTitle: '3D Peripheral Vascular & Venous Matrix',
+          specialtyTitleAr: 'مجسم الأوعية الدموية والأوردة السطحية والعميقة',
+          specialtyIcon: LucideIcons.gitFork,
+          primaryColor: const Color(0xFFDC2626),
+          initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+          activeStatuses: activeStatuses,
+          availableInstruments: const [
+            SpecialtyInstrument.evlaLaserFiber,
+            SpecialtyInstrument.scleroMicroNeedle,
+          ],
+          sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+              Specialty3dAnatomicalModels.buildVascularVeinMesh(
+                stage,
+                instrument: instrument,
+                isSoloMode: isSoloMode,
+                soloPartKey: soloPartKey,
               ),
-              Positioned.fill(
-                child: LayoutBuilder(
-                  builder: (ctx, constraints) {
-                    final w = constraints.maxWidth;
-                    final h = constraints.maxHeight;
-                    final cx = w * 0.5;
-                    final cy = h * 0.5;
+          onPartSelected: (partKey, nameEn, nameAr) {
+            _openStatusInspector(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
+              discipline: ClinicalSpecialtyDiscipline.vascularVein,
+            );
+          },
+          onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+            _openPartScanInspectionDialog(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 2.8,
+          ),
+          itemCount: 4,
+          itemBuilder: (ctx, idx) {
+            final parts = [
+              {'key': 'vasc_sfj', 'name': 'Saphenofemoral Junction', 'nameAr': 'المفصل الصافني الفخذي'},
+              {'key': 'vasc_gsv', 'name': 'Great Saphenous Vein', 'nameAr': 'الوريد الصافن الكبير'},
+              {'key': 'vasc_spider', 'name': 'Spider & Reticular Veins', 'nameAr': 'الأوردة الشبكية والعنكبوتية'},
+              {'key': 'vasc_dvt_site', 'name': 'Deep Femoral Vein (DVT)', 'nameAr': 'الوريد الفخذي العميق (خثرة DVT)'},
+            ];
+            final p = parts[idx];
+            final partKey = p['key']!;
+            final statusEntry = activeStatuses[partKey];
+            final hasStatus = statusEntry != null;
+            final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFFDC2626);
 
-                    return Stack(
-                      children: [
-                        Positioned.fill(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTapUp: (details) {
-                              final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                              final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                              _openAddCustomPinNoteDialog(
-                                context,
-                                normX: normX,
-                                normY: normY,
-                                discipline: ClinicalSpecialtyDiscipline.vascularVein,
-                              );
-                            },
-                          ),
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: p['name']!,
+                  partNameAr: p['nameAr']!,
+                  discipline: ClinicalSpecialtyDiscipline.vascularVein,
+                ),
+                onSecondaryTap: () => _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: p['name']!,
+                  partNameAr: p['nameAr']!,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: hasStatus
+                        ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                        : (isDark ? const Color(0xFF1E0707) : const Color(0xFFFEF2F2)),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: hasStatus ? cardColor : const Color(0xFFDC2626).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        p['name']!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          color: isDark ? Colors.white : const Color(0xFF1E293B),
                         ),
-                        _buildHotspot(
-                          context,
-                          partKey: 'vasc_sfj',
-                          x: cx - 110,
-                          y: cy - 70,
-                          label: 'SFJ Junction (مفصل الوريد الصافن)',
-                          sublabel: 'Reflux & Crossectomy Point',
-                          partName: 'Saphenofemoral Junction',
-                          partNameAr: 'المفصل الصافني الفخذي',
-                          discipline: ClinicalSpecialtyDiscipline.vascularVein,
-                          activeStatuses: activeStatuses,
-                        ),
-                        _buildHotspot(
-                          context,
-                          partKey: 'vasc_gsv',
-                          x: cx - 50,
-                          y: cy,
-                          label: 'Great Saphenous (الصافن الكبير)',
-                          sublabel: 'EVLA Laser Fiber Path',
-                          partName: 'Great Saphenous Vein',
-                          partNameAr: 'الوريد الصافن الكبير',
-                          discipline: ClinicalSpecialtyDiscipline.vascularVein,
-                          activeStatuses: activeStatuses,
-                        ),
-                        _buildHotspot(
-                          context,
-                          partKey: 'vasc_spider',
-                          x: cx + 40,
-                          y: cy + 40,
-                          label: 'Spider Veins (الأوردة العنكبوتية)',
-                          sublabel: 'Sclerotherapy Polidocanol',
-                          partName: 'Spider & Reticular Veins',
-                          partNameAr: 'الأوردة الشبكية والعنكبوتية',
-                          discipline: ClinicalSpecialtyDiscipline.vascularVein,
-                          activeStatuses: activeStatuses,
-                        ),
-                        _buildHotspot(
-                          context,
-                          partKey: 'vasc_dvt_site',
-                          x: cx + 30,
-                          y: cy - 60,
-                          label: 'Deep Femoral (الوريد الفخذي العميق)',
-                          sublabel: 'DVT Thrombus & Clot Map',
-                          partName: 'Deep Femoral Vein',
-                          partNameAr: 'الوريد الفخذي العميق (خثرة DVT)',
-                          discipline: ClinicalSpecialtyDiscipline.vascularVein,
-                          activeStatuses: activeStatuses,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        p['nameAr']!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 9.5, color: Color(0xFFDC2626)),
+                      ),
+                      if (hasStatus) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
                         ),
                       ],
-                    );
-                  },
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ],
     );
@@ -3864,104 +4067,131 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               color: const Color(0xFF0EA5E9),
             ),
             const SizedBox(height: 14),
-            Container(
-              height: 270,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF061424) : const Color(0xFFF0F9FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF0EA5E9).withValues(alpha: 0.3)),
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _PulmonologyPainter(activeLayer: activeLayer, isDark: isDark),
-                    ),
+            Clinical3dSceneViewer(
+              specialtyTitle: '3D Tracheobronchial Tree & Pleural Architecture',
+              specialtyTitleAr: 'مجسم الشجرة الرغامية القصبية والرئتين ثلاثي الأبعاد',
+              specialtyIcon: LucideIcons.wind,
+              primaryColor: const Color(0xFF0EA5E9),
+              initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+              activeStatuses: activeStatuses,
+              availableInstruments: const [
+                SpecialtyInstrument.flexibleBronchoscope,
+                SpecialtyInstrument.chestTube,
+                SpecialtyInstrument.endobronchialValve,
+              ],
+              sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                  Specialty3dAnatomicalModels.buildPulmonologyMesh(
+                    stage,
+                    instrument: instrument,
+                    isSoloMode: isSoloMode,
+                    soloPartKey: soloPartKey,
                   ),
-                  Positioned.fill(
-                    child: LayoutBuilder(
-                      builder: (ctx, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        final cx = w * 0.5;
-                        final cy = h * 0.5;
+              onPartSelected: (partKey, nameEn, nameAr) {
+                _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                  discipline: ClinicalSpecialtyDiscipline.pulmonology,
+                );
+              },
+              onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+                _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.8,
+              ),
+              itemCount: 4,
+              itemBuilder: (ctx, idx) {
+                final parts = [
+                  {'key': 'pulm_trachea', 'name': 'Trachea & Carina', 'nameAr': 'القصبة الهوائية والمهماز'},
+                  {'key': 'pulm_right_lung', 'name': 'Right Lung Parenchyma', 'nameAr': 'فصوص الرئة اليمنى'},
+                  {'key': 'pulm_left_lung', 'name': 'Left Lung Parenchyma', 'nameAr': 'فصوص الرئة اليسرى'},
+                  {'key': 'pulm_pleural', 'name': 'Pleural Cavity', 'nameAr': 'التجويف والغشاء البلوري'},
+                ];
+                final p = parts[idx];
+                final partKey = p['key']!;
+                final statusEntry = activeStatuses[partKey];
+                final hasStatus = statusEntry != null;
+                final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFF0EA5E9);
 
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapUp: (details) {
-                                  final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                                  final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                                  _openAddCustomPinNoteDialog(
-                                    context,
-                                    normX: normX,
-                                    normY: normY,
-                                    discipline: ClinicalSpecialtyDiscipline.pulmonology,
-                                  );
-                                },
-                              ),
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _openStatusInspector(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                      discipline: ClinicalSpecialtyDiscipline.pulmonology,
+                    ),
+                    onSecondaryTap: () => _openPartScanInspectionDialog(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: hasStatus
+                            ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF061424) : const Color(0xFFF0F9FF)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: hasStatus ? cardColor : const Color(0xFF0EA5E9).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            p['name']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
                             ),
-                            if (activeLayer == PulmonologyLayer.all || activeLayer == PulmonologyLayer.airways)
-                              _buildHotspot(
-                                context,
-                                partKey: 'pulm_trachea',
-                                x: cx - 50,
-                                y: cy - 90,
-                                label: 'Trachea & Carina (القصبة الهوائية)',
-                                sublabel: 'EBUS Station 7 Subcarinal',
-                                partName: 'Trachea & Carina',
-                                partNameAr: 'القصبة الهوائية والمهماز',
-                                discipline: ClinicalSpecialtyDiscipline.pulmonology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == PulmonologyLayer.all || activeLayer == PulmonologyLayer.parenchyma)
-                              _buildHotspot(
-                                context,
-                                partKey: 'pulm_right_lung',
-                                x: cx - 140,
-                                y: cy - 10,
-                                label: 'Right Lung Segments (الرئة اليمنى)',
-                                sublabel: 'COPD & Thermoplasty Zone',
-                                partName: 'Right Lung Parenchyma',
-                                partNameAr: 'فصوص الرئة اليمنى',
-                                discipline: ClinicalSpecialtyDiscipline.pulmonology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == PulmonologyLayer.all || activeLayer == PulmonologyLayer.parenchyma)
-                              _buildHotspot(
-                                context,
-                                partKey: 'pulm_left_lung',
-                                x: cx + 60,
-                                y: cy - 10,
-                                label: 'Left Lung Segments (الرئة اليسرى)',
-                                sublabel: 'Consolidation & Atelectasis',
-                                partName: 'Left Lung Parenchyma',
-                                partNameAr: 'فصوص الرئة اليسرى',
-                                discipline: ClinicalSpecialtyDiscipline.pulmonology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == PulmonologyLayer.all || activeLayer == PulmonologyLayer.pleura)
-                              _buildHotspot(
-                                context,
-                                partKey: 'pulm_pleura',
-                                x: cx - 110,
-                                y: cy + 60,
-                                label: 'Pleural Space (الغشاء البلوري)',
-                                sublabel: 'Effusion & Chest Tube',
-                                partName: 'Pleural Cavity',
-                                partNameAr: 'التجويف والغشاء البلوري',
-                                discipline: ClinicalSpecialtyDiscipline.pulmonology,
-                                activeStatuses: activeStatuses,
-                              ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            p['nameAr']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 9.5, color: Color(0xFF0EA5E9)),
+                          ),
+                          if (hasStatus) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
+                            ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ],
         );
@@ -4121,104 +4351,131 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               color: const Color(0xFF3B82F6),
             ),
             const SizedBox(height: 14),
-            Container(
-              height: 270,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF071226) : const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.3)),
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _UrologyPelvisPainter(activeLayer: activeLayer, isDark: isDark),
-                    ),
+            Clinical3dSceneViewer(
+              specialtyTitle: '3D Genitourinary System & Prostate Zonal Anatomy',
+              specialtyTitleAr: 'مجسم الجهاز البولي والبروستاتا ثلاثي الأبعاد',
+              specialtyIcon: LucideIcons.droplets,
+              primaryColor: const Color(0xFF3B82F6),
+              initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+              activeStatuses: activeStatuses,
+              availableInstruments: const [
+                SpecialtyInstrument.rigidCystoscope,
+                SpecialtyInstrument.doubleJStent,
+                SpecialtyInstrument.prostateNeedle,
+              ],
+              sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                  Specialty3dAnatomicalModels.buildUrologyMesh(
+                    stage,
+                    instrument: instrument,
+                    isSoloMode: isSoloMode,
+                    soloPartKey: soloPartKey,
                   ),
-                  Positioned.fill(
-                    child: LayoutBuilder(
-                      builder: (ctx, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        final cx = w * 0.5;
-                        final cy = h * 0.5;
+              onPartSelected: (partKey, nameEn, nameAr) {
+                _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                  discipline: ClinicalSpecialtyDiscipline.urology,
+                );
+              },
+              onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+                _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.8,
+              ),
+              itemCount: 4,
+              itemBuilder: (ctx, idx) {
+                final parts = [
+                  {'key': 'uro_kidneys', 'name': 'Bilateral Kidneys', 'nameAr': 'الكليتان والنيفرون'},
+                  {'key': 'uro_ureters', 'name': 'Bilateral Ureters', 'nameAr': 'الحالبان ومسار الحصوة'},
+                  {'key': 'uro_bladder', 'name': 'Urinary Bladder', 'nameAr': 'المثانة البولية'},
+                  {'key': 'uro_prostate', 'name': 'Prostate Zonal Gland', 'nameAr': 'غدة البروستاتا التشريحية'},
+                ];
+                final p = parts[idx];
+                final partKey = p['key']!;
+                final statusEntry = activeStatuses[partKey];
+                final hasStatus = statusEntry != null;
+                final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFF3B82F6);
 
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapUp: (details) {
-                                  final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                                  final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                                  _openAddCustomPinNoteDialog(
-                                    context,
-                                    normX: normX,
-                                    normY: normY,
-                                    discipline: ClinicalSpecialtyDiscipline.urology,
-                                  );
-                                },
-                              ),
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _openStatusInspector(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                      discipline: ClinicalSpecialtyDiscipline.urology,
+                    ),
+                    onSecondaryTap: () => _openPartScanInspectionDialog(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: hasStatus
+                            ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF071226) : const Color(0xFFEFF6FF)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: hasStatus ? cardColor : const Color(0xFF3B82F6).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            p['name']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
                             ),
-                            if (activeLayer == UrologyLayer.all || activeLayer == UrologyLayer.kidney)
-                              _buildHotspot(
-                                context,
-                                partKey: 'uro_renal_pelvis',
-                                x: cx - 130,
-                                y: cy - 70,
-                                label: 'Renal Pelvis (حوض الكلية)',
-                                sublabel: 'Laser Lithotripsy Path',
-                                partName: 'Renal Pelvis & Stone',
-                                partNameAr: 'حوض الكلية وحصوة الحالب',
-                                discipline: ClinicalSpecialtyDiscipline.urology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == UrologyLayer.all || activeLayer == UrologyLayer.uretersBladder)
-                              _buildHotspot(
-                                context,
-                                partKey: 'uro_bladder',
-                                x: cx - 45,
-                                y: cy,
-                                label: 'Urinary Bladder (المثانة)',
-                                sublabel: 'Detrusor & Trabeculation',
-                                partName: 'Urinary Bladder',
-                                partNameAr: 'المثانة البولية',
-                                discipline: ClinicalSpecialtyDiscipline.urology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == UrologyLayer.all || activeLayer == UrologyLayer.prostate)
-                              _buildHotspot(
-                                context,
-                                partKey: 'uro_prostate_peripheral',
-                                x: cx + 20,
-                                y: cy + 45,
-                                label: 'Prostate Peripheral (البروستاتا المحيطية)',
-                                sublabel: 'MRI-TRUS Fusion Biopsy',
-                                partName: 'Prostate Peripheral Zone',
-                                partNameAr: 'المنطقة المحيطية للبروستاتا',
-                                discipline: ClinicalSpecialtyDiscipline.urology,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == UrologyLayer.all || activeLayer == UrologyLayer.prostate)
-                              _buildHotspot(
-                                context,
-                                partKey: 'uro_prostate_transition',
-                                x: cx - 90,
-                                y: cy + 45,
-                                label: 'Transition Zone (المنطقة الانتقالية)',
-                                sublabel: 'BPH & HoLEP Enucleation',
-                                partName: 'Prostate Transition Zone',
-                                partNameAr: 'المنطقة الانتقالية وتضخم BPH',
-                                discipline: ClinicalSpecialtyDiscipline.urology,
-                                activeStatuses: activeStatuses,
-                              ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            p['nameAr']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 9.5, color: Color(0xFF3B82F6)),
+                          ),
+                          if (hasStatus) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
+                            ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ],
         );
@@ -4260,91 +4517,131 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               color: const Color(0xFFF43F5E),
             ),
             const SizedBox(height: 14),
-            Container(
-              height: 270,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E0610) : const Color(0xFFFFF1F2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFF43F5E).withValues(alpha: 0.3)),
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _ObGynPelvisPainter(activeLayer: activeLayer, isDark: isDark),
-                    ),
+            Clinical3dSceneViewer(
+              specialtyTitle: '3D Female Reproductive System & Pelvic Anatomy',
+              specialtyTitleAr: 'مجسم الجهاز التناسلي الأنثوي والرحم والمبيض ثلاثي الأبعاد',
+              specialtyIcon: LucideIcons.baby,
+              primaryColor: const Color(0xFFF43F5E),
+              initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+              activeStatuses: activeStatuses,
+              availableInstruments: const [
+                SpecialtyInstrument.hysteroscopyShaft,
+                SpecialtyInstrument.iudDevice,
+                SpecialtyInstrument.follicleAspirationNeedle,
+              ],
+              sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                  Specialty3dAnatomicalModels.buildObGynMesh(
+                    stage,
+                    instrument: instrument,
+                    isSoloMode: isSoloMode,
+                    soloPartKey: soloPartKey,
                   ),
-                  Positioned.fill(
-                    child: LayoutBuilder(
-                      builder: (ctx, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        final cx = w * 0.5;
-                        final cy = h * 0.5;
+              onPartSelected: (partKey, nameEn, nameAr) {
+                _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                  discipline: ClinicalSpecialtyDiscipline.obgyn,
+                );
+              },
+              onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+                _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.8,
+              ),
+              itemCount: 4,
+              itemBuilder: (ctx, idx) {
+                final parts = [
+                  {'key': 'obgyn_uterus', 'name': 'Uterus & Myometrium', 'nameAr': 'الرحم وعضلات المايومتريوم'},
+                  {'key': 'obgyn_tubes', 'name': 'Fallopian Tubes', 'nameAr': 'قناتا فالوب'},
+                  {'key': 'obgyn_ovaries', 'name': 'Bilateral Ovaries', 'nameAr': 'المبيضان والجريبات'},
+                  {'key': 'obgyn_cervix', 'name': 'Cervix & Os', 'nameAr': 'عنق الرحم'},
+                ];
+                final p = parts[idx];
+                final partKey = p['key']!;
+                final statusEntry = activeStatuses[partKey];
+                final hasStatus = statusEntry != null;
+                final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFFF43F5E);
 
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapUp: (details) {
-                                  final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                                  final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                                  _openAddCustomPinNoteDialog(
-                                    context,
-                                    normX: normX,
-                                    normY: normY,
-                                    discipline: ClinicalSpecialtyDiscipline.obgyn,
-                                  );
-                                },
-                              ),
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _openStatusInspector(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                      discipline: ClinicalSpecialtyDiscipline.obgyn,
+                    ),
+                    onSecondaryTap: () => _openPartScanInspectionDialog(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: hasStatus
+                            ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF1E0610) : const Color(0xFFFFF1F2)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: hasStatus ? cardColor : const Color(0xFFF43F5E).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            p['name']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
                             ),
-                            if (activeLayer == ObGynLayer.all || activeLayer == ObGynLayer.uterus)
-                              _buildHotspot(
-                                context,
-                                partKey: 'obgyn_endometrium',
-                                x: cx - 55,
-                                y: cy - 40,
-                                label: 'Uterine Cavity (تجويف وبطانة الرحم)',
-                                sublabel: 'FIGO Fibroid & IUI Path',
-                                partName: 'Endometrium & Myometrium',
-                                partNameAr: 'بطانة وعضلة الرحم',
-                                discipline: ClinicalSpecialtyDiscipline.obgyn,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == ObGynLayer.all || activeLayer == ObGynLayer.adnexa)
-                              _buildHotspot(
-                                context,
-                                partKey: 'obgyn_ovary',
-                                x: cx + 70,
-                                y: cy - 50,
-                                label: 'Ovary & Adnexa (المبيض وقناة فالوب)',
-                                sublabel: 'Endometrioma & Follicles',
-                                partName: 'Ovaries & Fallopian Tubes',
-                                partNameAr: 'المبيضان وقناتا فالوب',
-                                discipline: ClinicalSpecialtyDiscipline.obgyn,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == ObGynLayer.all || activeLayer == ObGynLayer.pelvicFloor)
-                              _buildHotspot(
-                                context,
-                                partKey: 'obgyn_cervix',
-                                x: cx - 50,
-                                y: cy + 40,
-                                label: 'Cervix & Pelvic Floor (عنق الرحم وقاع الحوض)',
-                                sublabel: 'IUD Placement Vector',
-                                partName: 'Cervix & Pelvic Floor',
-                                partNameAr: 'عنق الرحم وعضلات قاع الحوض',
-                                discipline: ClinicalSpecialtyDiscipline.obgyn,
-                                activeStatuses: activeStatuses,
-                              ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            p['nameAr']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 9.5, color: Color(0xFFF43F5E)),
+                          ),
+                          if (hasStatus) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
+                            ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ],
         );
@@ -4371,88 +4668,130 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           isDark: isDark,
         ),
         const SizedBox(height: 14),
-        Container(
-          height: 270,
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF101904) : const Color(0xFFF7FEE7),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF84CC16).withValues(alpha: 0.3)),
-          ),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _PodiatryPainter(isDark: isDark),
-                ),
+        Clinical3dSceneViewer(
+          specialtyTitle: '3D Podiatry, Tarsal/Metatarsal & Gait Kinetic Matrix',
+          specialtyTitleAr: 'مجسم عظام وأوتار القدم وتوزيع الضغط الحركي ثلاثي الأبعاد',
+          specialtyIcon: LucideIcons.footprints,
+          primaryColor: const Color(0xFF84CC16),
+          initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+          activeStatuses: activeStatuses,
+          availableInstruments: const [
+            SpecialtyInstrument.orthoticInsole,
+            SpecialtyInstrument.fasciotomyBlade,
+          ],
+          sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+              Specialty3dAnatomicalModels.buildPodiatryMesh(
+                stage,
+                instrument: instrument,
+                isSoloMode: isSoloMode,
+                soloPartKey: soloPartKey,
               ),
-              Positioned.fill(
-                child: LayoutBuilder(
-                  builder: (ctx, constraints) {
-                    final w = constraints.maxWidth;
-                    final h = constraints.maxHeight;
-                    final cx = w * 0.5;
-                    final cy = h * 0.5;
+          onPartSelected: (partKey, nameEn, nameAr) {
+            _openStatusInspector(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
+              discipline: ClinicalSpecialtyDiscipline.podiatry,
+            );
+          },
+          onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+            _openPartScanInspectionDialog(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 2.8,
+          ),
+          itemCount: 4,
+          itemBuilder: (ctx, idx) {
+            final parts = [
+              {'key': 'pod_calcaneus', 'name': 'Plantar Fascia & Calcaneus', 'nameAr': 'اللفافة الأخمصية وعظم الكعب'},
+              {'key': 'pod_first_mtp', 'name': '1st MTP Joint & Bunion', 'nameAr': 'مفصل إبهام القدم والوكنة'},
+              {'key': 'pod_metatarsals', 'name': 'Metatarsal Arch & Heads', 'nameAr': 'رؤوس مشط القدم والضغط الحركي'},
+              {'key': 'podiatry_hindfoot', 'name': 'Hindfoot, Talus & Navicular', 'nameAr': 'القدم الخلفية وعظم الكاحل'},
+            ];
+            final p = parts[idx];
+            final partKey = p['key']!;
+            final statusEntry = activeStatuses[partKey];
+            final hasStatus = statusEntry != null;
+            final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFF84CC16);
 
-                    return Stack(
-                      children: [
-                        Positioned.fill(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTapUp: (details) {
-                              final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                              final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                              _openAddCustomPinNoteDialog(
-                                context,
-                                normX: normX,
-                                normY: normY,
-                                discipline: ClinicalSpecialtyDiscipline.podiatry,
-                              );
-                            },
-                          ),
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: p['name']!,
+                  partNameAr: p['nameAr']!,
+                  discipline: ClinicalSpecialtyDiscipline.podiatry,
+                ),
+                onSecondaryTap: () => _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: p['name']!,
+                  partNameAr: p['nameAr']!,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                        color: hasStatus
+                            ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF101904) : const Color(0xFFF7FEE7)),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: hasStatus ? cardColor : const Color(0xFF84CC16).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        p['name']!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          color: isDark ? Colors.white : const Color(0xFF1E293B),
                         ),
-                        _buildHotspot(
-                          context,
-                          partKey: 'pod_calcaneus',
-                          x: cx - 130,
-                          y: cy,
-                          label: 'Calcaneal Tuberosity (عظم الكعب)',
-                          sublabel: 'Plantar Fasciitis Injection',
-                          partName: 'Plantar Fascia & Calcaneus',
-                          partNameAr: 'اللفافة الأخمصية وعظم الكعب',
-                          discipline: ClinicalSpecialtyDiscipline.podiatry,
-                          activeStatuses: activeStatuses,
-                        ),
-                        _buildHotspot(
-                          context,
-                          partKey: 'pod_first_mtp',
-                          x: cx + 50,
-                          y: cy - 40,
-                          label: '1st MTP Joint (مفصل إبهام القدم)',
-                          sublabel: 'Hallux Valgus Bunion Osteotomy',
-                          partName: '1st Metatarsophalangeal Joint',
-                          partNameAr: 'مفصل إبهام القدم ووكنة Bunion',
-                          discipline: ClinicalSpecialtyDiscipline.podiatry,
-                          activeStatuses: activeStatuses,
-                        ),
-                        _buildHotspot(
-                          context,
-                          partKey: 'pod_metatarsals',
-                          x: cx + 20,
-                          y: cy + 30,
-                          label: 'Metatarsal Heads (مشط القدم)',
-                          sublabel: 'Diabetic Ulcer Offloading',
-                          partName: 'Metatarsal Arch & Heads',
-                          partNameAr: 'رؤوس مشط القدم والضغط الحركي',
-                          discipline: ClinicalSpecialtyDiscipline.podiatry,
-                          activeStatuses: activeStatuses,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        p['nameAr']!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 9.5, color: Color(0xFF84CC16)),
+                      ),
+                      if (hasStatus) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
                         ),
                       ],
-                    );
-                  },
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ],
     );
@@ -4492,91 +4831,130 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               color: const Color(0xFFE11D48),
             ),
             const SizedBox(height: 14),
-            Container(
-              height: 270,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E060D) : const Color(0xFFFFF1F2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE11D48).withValues(alpha: 0.3)),
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _PlasticAestheticsPainter(activeLayer: activeLayer, isDark: isDark),
-                    ),
+            Clinical3dSceneViewer(
+              specialtyTitle: '3D Aesthetic Facial Subunits & Surgical Flap Planning',
+              specialtyTitleAr: 'مجسم وحدات التجميل الجراحي وخطوط الشد ثلاثي الأبعاد',
+              specialtyIcon: LucideIcons.scissors,
+              primaryColor: const Color(0xFFE11D48),
+              initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+              activeStatuses: activeStatuses,
+              availableInstruments: const [
+                SpecialtyInstrument.vectorLiftThread,
+                SpecialtyInstrument.liposuctionCannula,
+              ],
+              sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                  Specialty3dAnatomicalModels.buildPlasticSurgeryMesh(
+                    stage,
+                    instrument: instrument,
+                    isSoloMode: isSoloMode,
+                    soloPartKey: soloPartKey,
                   ),
-                  Positioned.fill(
-                    child: LayoutBuilder(
-                      builder: (ctx, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        final cx = w * 0.5;
-                        final cy = h * 0.5;
+              onPartSelected: (partKey, nameEn, nameAr) {
+                _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                  discipline: ClinicalSpecialtyDiscipline.plasticSurgery,
+                );
+              },
+              onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+                _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.8,
+              ),
+              itemCount: 4,
+              itemBuilder: (ctx, idx) {
+                final parts = [
+                  {'key': 'plast_nasal_dorsum', 'name': 'Nasal Vault & Dorsum', 'nameAr': 'حدبة الأنف والغضاريف'},
+                  {'key': 'plast_smas_midface', 'name': 'SMAS Midface Vector', 'nameAr': 'طبقة سماص الوجهية'},
+                  {'key': 'plast_lipo_zone', 'name': 'Subcutaneous Adipose', 'nameAr': 'الوسائد الدهنية العميقة'},
+                  {'key': 'plastic_neck', 'name': 'Cervical Platysma & Neck', 'nameAr': 'عضلات العنق والبلاتيزما'},
+                ];
+                final p = parts[idx];
+                final partKey = p['key']!;
+                final statusEntry = activeStatuses[partKey];
+                final hasStatus = statusEntry != null;
+                final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFFE11D48);
 
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapUp: (details) {
-                                  final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                                  final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                                  _openAddCustomPinNoteDialog(
-                                    context,
-                                    normX: normX,
-                                    normY: normY,
-                                    discipline: ClinicalSpecialtyDiscipline.plasticSurgery,
-                                  );
-                                },
-                              ),
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _openStatusInspector(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                      discipline: ClinicalSpecialtyDiscipline.plasticSurgery,
+                    ),
+                    onSecondaryTap: () => _openPartScanInspectionDialog(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: hasStatus
+                            ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF1E060D) : const Color(0xFFFFF1F2)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: hasStatus ? cardColor : const Color(0xFFE11D48).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            p['name']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
                             ),
-                            if (activeLayer == PlasticAestheticsLayer.all || activeLayer == PlasticAestheticsLayer.skin)
-                              _buildHotspot(
-                                context,
-                                partKey: 'plast_nasal_dorsum',
-                                x: cx - 40,
-                                y: cy - 70,
-                                label: 'Nasal Dorsum (حدبة الأنف)',
-                                sublabel: 'Rhinoplasty Cartilage Graft',
-                                partName: 'Nasal Osteocartilaginous Vault',
-                                partNameAr: 'حدبة الأنف والغضاريف',
-                                discipline: ClinicalSpecialtyDiscipline.plasticSurgery,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == PlasticAestheticsLayer.all || activeLayer == PlasticAestheticsLayer.smas)
-                              _buildHotspot(
-                                context,
-                                partKey: 'plast_smas_midface',
-                                x: cx + 40,
-                                y: cy - 10,
-                                label: 'Midface SMAS Vector (شد طبقة سماص)',
-                                sublabel: 'Deep-Plane Rhytidectomy',
-                                partName: 'Superficial Musculoaponeurotic System',
-                                partNameAr: 'طبقة سماص الوجهية',
-                                discipline: ClinicalSpecialtyDiscipline.plasticSurgery,
-                                activeStatuses: activeStatuses,
-                              ),
-                            if (activeLayer == PlasticAestheticsLayer.all || activeLayer == PlasticAestheticsLayer.fatPads)
-                              _buildHotspot(
-                                context,
-                                partKey: 'plast_lipo_zone',
-                                x: cx - 110,
-                                y: cy + 35,
-                                label: 'Body Adipose Compartment (الدهون ونحت القوام)',
-                                sublabel: 'Tumescent Liposuction Plane',
-                                partName: 'Subcutaneous Adipose Compartment',
-                                partNameAr: 'الوسائد والطبقات الدهنية العميقة',
-                                discipline: ClinicalSpecialtyDiscipline.plasticSurgery,
-                                activeStatuses: activeStatuses,
-                              ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            p['nameAr']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 9.5, color: Color(0xFFE11D48)),
+                          ),
+                          if (hasStatus) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
+                            ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ],
         );
@@ -4618,88 +4996,130 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               color: const Color(0xFFF472B6),
             ),
             const SizedBox(height: 14),
-            Container(
-              height: 270,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E0715) : const Color(0xFFFDF2F8),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFF472B6).withValues(alpha: 0.3)),
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _PlasticAestheticsPainter(activeLayer: activeLayer, isDark: isDark),
-                    ),
+            Clinical3dSceneViewer(
+              specialtyTitle: '3D Facial Danger Zones & Injection Plane Matrix',
+              specialtyTitleAr: 'مجسم مناطق الخطر وحقن الفيلر والبوتوكس ثلاثي الأبعاد',
+              specialtyIcon: LucideIcons.sparkles,
+              primaryColor: const Color(0xFFF472B6),
+              initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+              activeStatuses: activeStatuses,
+              availableInstruments: const [
+                SpecialtyInstrument.microCannula,
+                SpecialtyInstrument.botoxSyringe,
+              ],
+              sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                  Specialty3dAnatomicalModels.buildMedicalAestheticsMesh(
+                    stage,
+                    instrument: instrument,
+                    isSoloMode: isSoloMode,
+                    soloPartKey: soloPartKey,
                   ),
-                  Positioned.fill(
-                    child: LayoutBuilder(
-                      builder: (ctx, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        final cx = w * 0.5;
-                        final cy = h * 0.5;
+              onPartSelected: (partKey, nameEn, nameAr) {
+                _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                  discipline: ClinicalSpecialtyDiscipline.medicalAesthetics,
+                );
+              },
+              onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+                _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.8,
+              ),
+              itemCount: 4,
+              itemBuilder: (ctx, idx) {
+                final parts = [
+                  {'key': 'aesth_danger_glabella', 'name': 'Glabella / Supratrochlear', 'nameAr': 'منطقة خطر ما بين الحاجبين'},
+                  {'key': 'aesth_danger_nasolabial', 'name': 'Nasolabial / Facial Artery', 'nameAr': 'منطقة خطر الشريان الوجهي'},
+                  {'key': 'aesth_danger_temple', 'name': 'Temple / Superficial Temporal', 'nameAr': 'منطقة خطر الشريان الصدغي'},
+                  {'key': 'aesth_danger_infraorbital', 'name': 'Infraorbital / Tear Trough', 'nameAr': 'منطقة خطر تحت الحجاج'},
+                ];
+                final p = parts[idx];
+                final partKey = p['key']!;
+                final statusEntry = activeStatuses[partKey];
+                final hasStatus = statusEntry != null;
+                final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFFF472B6);
 
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapUp: (details) {
-                                  final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                                  final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                                  _openAddCustomPinNoteDialog(
-                                    context,
-                                    normX: normX,
-                                    normY: normY,
-                                    discipline: ClinicalSpecialtyDiscipline.medicalAesthetics,
-                                  );
-                                },
-                              ),
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _openStatusInspector(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                      discipline: ClinicalSpecialtyDiscipline.medicalAesthetics,
+                    ),
+                    onSecondaryTap: () => _openPartScanInspectionDialog(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: hasStatus
+                            ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF1E0715) : const Color(0xFFFDF2F8)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: hasStatus ? cardColor : const Color(0xFFF472B6).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            p['name']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
                             ),
-                            _buildHotspot(
-                              context,
-                              partKey: 'aes_glabella',
-                              x: cx - 45,
-                              y: cy - 70,
-                              label: 'Glabellar Lines (تجاعيد ما بين الحاجبين)',
-                              sublabel: 'Botox 20 Units Target',
-                              partName: 'Corrugator & Procerus Complex',
-                              partNameAr: 'عضلات الجبهة وما بين الحاجبين',
-                              discipline: ClinicalSpecialtyDiscipline.medicalAesthetics,
-                              activeStatuses: activeStatuses,
-                            ),
-                            _buildHotspot(
-                              context,
-                              partKey: 'aes_malar_apex',
-                              x: cx + 45,
-                              y: cy - 10,
-                              label: 'Malar Cheek Apex (قمة الخدين)',
-                              sublabel: 'High G-Prime Filler Bolus',
-                              partName: 'Malar Fat Pad & Zygoma',
-                              partNameAr: 'وسائد الخدين العلوية',
-                              discipline: ClinicalSpecialtyDiscipline.medicalAesthetics,
-                              activeStatuses: activeStatuses,
-                            ),
-                            _buildHotspot(
-                              context,
-                              partKey: 'aes_facial_artery_danger',
-                              x: cx - 110,
-                              y: cy + 20,
-                              label: 'Facial Artery (الشريان الوجهي - منطقة خطر)',
-                              sublabel: 'Aspiration & Hyaluronidase Ready',
-                              partName: 'Facial & Angular Artery Danger Zone',
-                              partNameAr: 'منطقة خطر الشريان الوجهي والزاوي',
-                              discipline: ClinicalSpecialtyDiscipline.medicalAesthetics,
-                              activeStatuses: activeStatuses,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            p['nameAr']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 9.5, color: Color(0xFFF472B6)),
+                          ),
+                          if (hasStatus) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
                             ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ],
         );
@@ -4741,88 +5161,130 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               color: const Color(0xFFF97316),
             ),
             const SizedBox(height: 14),
-            Container(
-              height: 270,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E0E05) : const Color(0xFFFFF7ED),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFF97316).withValues(alpha: 0.3)),
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _PainSpinePainter(activeLayer: activeLayer, isDark: isDark),
-                    ),
+            Clinical3dSceneViewer(
+              specialtyTitle: '3D Spinal Column, Facet Joints & Epidural Target Matrix',
+              specialtyTitleAr: 'مجسم الفقرات القطنية والعجزية وحقن الألم والتردد الحراري',
+              specialtyIcon: LucideIcons.zap,
+              primaryColor: const Color(0xFFF97316),
+              initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+              activeStatuses: activeStatuses,
+              availableInstruments: const [
+                SpecialtyInstrument.tuohyEpiduralNeedle,
+                SpecialtyInstrument.rfAblationElectrode,
+              ],
+              sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                  Specialty3dAnatomicalModels.buildPainManagementMesh(
+                    stage,
+                    instrument: instrument,
+                    isSoloMode: isSoloMode,
+                    soloPartKey: soloPartKey,
                   ),
-                  Positioned.fill(
-                    child: LayoutBuilder(
-                      builder: (ctx, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        final cx = w * 0.5;
-                        final cy = h * 0.5;
+              onPartSelected: (partKey, nameEn, nameAr) {
+                _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                  discipline: ClinicalSpecialtyDiscipline.painManagement,
+                );
+              },
+              onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+                _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.8,
+              ),
+              itemCount: 4,
+              itemBuilder: (ctx, idx) {
+                final parts = [
+                  {'key': 'pain_l4_l5_epidural', 'name': 'L4-L5 Epidural Interspace', 'nameAr': 'الفضاء فوق الجافية L4-L5'},
+                  {'key': 'pain_facet_joint', 'name': 'Lumbar Facet Joint & MB', 'nameAr': 'المفصل الفقرى الوجيهي'},
+                  {'key': 'pain_scs_target', 'name': 'Spinal Dorsal Column (SCS)', 'nameAr': 'الحبل الشوكي ومحفز SCS'},
+                  {'key': 'pain_si_joint', 'name': 'Sacroiliac (SI) Joint', 'nameAr': 'المفصل العجزي الحرقفي'},
+                ];
+                final p = parts[idx];
+                final partKey = p['key']!;
+                final statusEntry = activeStatuses[partKey];
+                final hasStatus = statusEntry != null;
+                final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFFF97316);
 
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapUp: (details) {
-                                  final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                                  final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                                  _openAddCustomPinNoteDialog(
-                                    context,
-                                    normX: normX,
-                                    normY: normY,
-                                    discipline: ClinicalSpecialtyDiscipline.painManagement,
-                                  );
-                                },
-                              ),
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _openStatusInspector(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                      discipline: ClinicalSpecialtyDiscipline.painManagement,
+                    ),
+                    onSecondaryTap: () => _openPartScanInspectionDialog(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: hasStatus
+                            ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF1E0E05) : const Color(0xFFFFF7ED)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: hasStatus ? cardColor : const Color(0xFFF97316).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            p['name']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
                             ),
-                            _buildHotspot(
-                              context,
-                              partKey: 'pain_l4_l5_epidural',
-                              x: cx - 120,
-                              y: cy + 20,
-                              label: 'L4-L5 Epidural Space (فوق الجافية القطنية)',
-                              sublabel: 'Transforaminal Injection Trajectory',
-                              partName: 'L4-L5 Epidural Interspace',
-                              partNameAr: 'الفضاء فوق الجافية L4-L5',
-                              discipline: ClinicalSpecialtyDiscipline.painManagement,
-                              activeStatuses: activeStatuses,
-                            ),
-                            _buildHotspot(
-                              context,
-                              partKey: 'pain_facet_joint',
-                              x: cx + 30,
-                              y: cy - 30,
-                              label: 'Facet Joint (المفصل الوجيهي)',
-                              sublabel: 'RFA Medial Branch Neurotomy',
-                              partName: 'Lumbar Facet Joint & Medial Branch',
-                              partNameAr: 'المفصل الفقرى الوجيهي والعصب الإنسي',
-                              discipline: ClinicalSpecialtyDiscipline.painManagement,
-                              activeStatuses: activeStatuses,
-                            ),
-                            _buildHotspot(
-                              context,
-                              partKey: 'pain_scs_target',
-                              x: cx - 50,
-                              y: cy - 80,
-                              label: 'Dorsal Column T8-T10 (محفز النخاع)',
-                              sublabel: 'SCS Lead Implantation Zone',
-                              partName: 'Spinal Cord Dorsal Column',
-                              partNameAr: 'الحبل الشوكي وزراعة المحفز',
-                              discipline: ClinicalSpecialtyDiscipline.painManagement,
-                              activeStatuses: activeStatuses,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            p['nameAr']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 9.5, color: Color(0xFFF97316)),
+                          ),
+                          if (hasStatus) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
                             ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ],
         );
@@ -4864,88 +5326,130 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               color: const Color(0xFF10B981),
             ),
             const SizedBox(height: 14),
-            Container(
-              height: 270,
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF041812) : const Color(0xFFECFDF5),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _AcupunctureMeridianPainter(activeLayer: activeLayer, isDark: isDark),
-                    ),
+            Clinical3dSceneViewer(
+              specialtyTitle: '3D Acupuncture Meridians & Deep Tissue Danger Zones',
+              specialtyTitleAr: 'مجسم مسارات الطاقة الصينية ونقاط الوخز والأمان ثلاثي الأبعاد',
+              specialtyIcon: LucideIcons.compass,
+              primaryColor: const Color(0xFF10B981),
+              initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+              activeStatuses: activeStatuses,
+              availableInstruments: const [
+                SpecialtyInstrument.filiformNeedle,
+                SpecialtyInstrument.moxibustionCone,
+              ],
+              sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                  Specialty3dAnatomicalModels.buildAcupunctureMesh(
+                    stage,
+                    instrument: instrument,
+                    isSoloMode: isSoloMode,
+                    soloPartKey: soloPartKey,
                   ),
-                  Positioned.fill(
-                    child: LayoutBuilder(
-                      builder: (ctx, constraints) {
-                        final w = constraints.maxWidth;
-                        final h = constraints.maxHeight;
-                        final cx = w * 0.5;
-                        final cy = h * 0.5;
+              onPartSelected: (partKey, nameEn, nameAr) {
+                _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                  discipline: ClinicalSpecialtyDiscipline.acupuncture,
+                );
+              },
+              onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+                _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: nameEn,
+                  partNameAr: nameAr,
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.8,
+              ),
+              itemCount: 4,
+              itemBuilder: (ctx, idx) {
+                final parts = [
+                  {'key': 'acu_hegu_li4', 'name': 'Hegu (LI4)', 'nameAr': 'نقطة هيكو LI4'},
+                  {'key': 'acu_zusanli_st36', 'name': 'Zusanli (ST36)', 'nameAr': 'نقطة تسوسانلي ST36'},
+                  {'key': 'acu_jianjing_gb21', 'name': 'Jianjing (GB21)', 'nameAr': 'نقطة جيانجينغ GB21'},
+                  {'key': 'acu_taichong_lv3', 'name': 'Taichong (LV3)', 'nameAr': 'نقطة تايتشونغ LV3'},
+                ];
+                final p = parts[idx];
+                final partKey = p['key']!;
+                final statusEntry = activeStatuses[partKey];
+                final hasStatus = statusEntry != null;
+                final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFF10B981);
 
-                        return Stack(
-                          children: [
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapUp: (details) {
-                                  final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                                  final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                                  _openAddCustomPinNoteDialog(
-                                    context,
-                                    normX: normX,
-                                    normY: normY,
-                                    discipline: ClinicalSpecialtyDiscipline.acupuncture,
-                                  );
-                                },
-                              ),
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => _openStatusInspector(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                      discipline: ClinicalSpecialtyDiscipline.acupuncture,
+                    ),
+                    onSecondaryTap: () => _openPartScanInspectionDialog(
+                      context,
+                      partKey: partKey,
+                      partName: p['name']!,
+                      partNameAr: p['nameAr']!,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: hasStatus
+                            ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                            : (isDark ? const Color(0xFF041812) : const Color(0xFFECFDF5)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: hasStatus ? cardColor : const Color(0xFF10B981).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            p['name']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : const Color(0xFF1E293B),
                             ),
-                            _buildHotspot(
-                              context,
-                              partKey: 'acu_hegu_li4',
-                              x: cx - 120,
-                              y: cy + 30,
-                              label: 'Hegu LI4 (نقطة هيكو المعي الغليظ)',
-                              sublabel: 'Analgesia & Headache Acupoint',
-                              partName: 'Large Intestine 4 (Hegu)',
-                              partNameAr: 'نقطة هيكو LI4 في مسار القولون',
-                              discipline: ClinicalSpecialtyDiscipline.acupuncture,
-                              activeStatuses: activeStatuses,
-                            ),
-                            _buildHotspot(
-                              context,
-                              partKey: 'acu_zusanli_st36',
-                              x: cx + 40,
-                              y: cy + 40,
-                              label: 'Zusanli ST36 (نقطة تسوسانلي المعدة)',
-                              sublabel: 'Immunity & Digestive Qi',
-                              partName: 'Stomach 36 (Zusanli)',
-                              partNameAr: 'نقطة تسوسانلي ST36 في مسار المعدة',
-                              discipline: ClinicalSpecialtyDiscipline.acupuncture,
-                              activeStatuses: activeStatuses,
-                            ),
-                            _buildHotspot(
-                              context,
-                              partKey: 'acu_jianjing_gb21',
-                              x: cx - 40,
-                              y: cy - 70,
-                              label: 'Jianjing GB21 (نقطة جيانجينغ - فحص أمان)',
-                              sublabel: 'Pneumothorax Avoidance Check',
-                              partName: 'Gallbladder 21 Danger Zone',
-                              partNameAr: 'نقطة جيانجينغ GB21 وفحص قمة الرئة',
-                              discipline: ClinicalSpecialtyDiscipline.acupuncture,
-                              activeStatuses: activeStatuses,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            p['nameAr']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 9.5, color: Color(0xFF10B981)),
+                          ),
+                          if (hasStatus) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
                             ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ],
         );
@@ -4972,100 +5476,130 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           isDark: isDark,
         ),
         const SizedBox(height: 14),
-        Container(
-          height: 270,
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF071424) : const Color(0xFFF0F9FF),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.3)),
-          ),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _SpeechPathologyPainter(isDark: isDark),
-                ),
+        Clinical3dSceneViewer(
+          specialtyTitle: '3D Vocal Tract, Larynx & Deglutition Apparatus',
+          specialtyTitleAr: 'مجسم الحنجرة والحبال الصوتية وعضلات البلع ثلاثي الأبعاد',
+          specialtyIcon: LucideIcons.mic,
+          primaryColor: const Color(0xFF38BDF8),
+          initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+          activeStatuses: activeStatuses,
+          availableInstruments: const [
+            SpecialtyInstrument.feesLaryngoscope,
+            SpecialtyInstrument.passyMuirValve,
+          ],
+          sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+              Specialty3dAnatomicalModels.buildSpeechPathologyMesh(
+                stage,
+                instrument: instrument,
+                isSoloMode: isSoloMode,
+                soloPartKey: soloPartKey,
               ),
-              Positioned.fill(
-                child: LayoutBuilder(
-                  builder: (ctx, constraints) {
-                    final w = constraints.maxWidth;
-                    final h = constraints.maxHeight;
-                    final cx = w * 0.5;
-                    final cy = h * 0.5;
+          onPartSelected: (partKey, nameEn, nameAr) {
+            _openStatusInspector(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
+              discipline: ClinicalSpecialtyDiscipline.speechPathology,
+            );
+          },
+          onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+            _openPartScanInspectionDialog(
+              context,
+              partKey: partKey,
+              partName: nameEn,
+              partNameAr: nameAr,
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 2.8,
+          ),
+          itemCount: 4,
+          itemBuilder: (ctx, idx) {
+            final parts = [
+              {'key': 'slp_tongue', 'name': 'Lingual Motor Apparatus', 'nameAr': 'عضلات اللسان والدفع الحركي'},
+              {'key': 'slp_soft_palate', 'name': 'Velopharyngeal Seal', 'nameAr': 'الحنك الرخو والصمام اللهاتي'},
+              {'key': 'slp_valleculae', 'name': 'Valleculae & Epiglottis', 'nameAr': 'فوهة لسان المزمار'},
+              {'key': 'slp_vocal_cords', 'name': 'True Vocal Folds & Glottis', 'nameAr': 'الحبال الصوتية الحقيقية والمزمار'},
+            ];
+            final p = parts[idx];
+            final partKey = p['key']!;
+            final statusEntry = activeStatuses[partKey];
+            final hasStatus = statusEntry != null;
+            final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFF38BDF8);
 
-                    return Stack(
-                      children: [
-                        Positioned.fill(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTapUp: (details) {
-                              final normX = (details.localPosition.dx / w).clamp(0.05, 0.95);
-                              final normY = (details.localPosition.dy / h).clamp(0.05, 0.95);
-                              _openAddCustomPinNoteDialog(
-                                context,
-                                normX: normX,
-                                normY: normY,
-                                discipline: ClinicalSpecialtyDiscipline.speechPathology,
-                              );
-                            },
-                          ),
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => _openStatusInspector(
+                  context,
+                  partKey: partKey,
+                  partName: p['name']!,
+                  partNameAr: p['nameAr']!,
+                  discipline: ClinicalSpecialtyDiscipline.speechPathology,
+                ),
+                onSecondaryTap: () => _openPartScanInspectionDialog(
+                  context,
+                  partKey: partKey,
+                  partName: p['name']!,
+                  partNameAr: p['nameAr']!,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: hasStatus
+                        ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                        : (isDark ? const Color(0xFF071424) : const Color(0xFFF0F9FF)),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: hasStatus ? cardColor : const Color(0xFF38BDF8).withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        p['name']!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          color: isDark ? Colors.white : const Color(0xFF1E293B),
                         ),
-                        _buildHotspot(
-                          context,
-                          partKey: 'slp_tongue',
-                          x: cx - 110,
-                          y: cy - 20,
-                          label: 'Tongue Musculature (عضلات اللسان)',
-                          sublabel: 'Motor Propulsion & Dysphagia',
-                          partName: 'Lingual Motor Apparatus',
-                          partNameAr: 'عضلات اللسان والدفع الحركي',
-                          discipline: ClinicalSpecialtyDiscipline.speechPathology,
-                          activeStatuses: activeStatuses,
-                        ),
-                        _buildHotspot(
-                          context,
-                          partKey: 'slp_soft_palate',
-                          x: cx + 20,
-                          y: cy - 70,
-                          label: 'Soft Palate (الحنك الرخو واللهاة)',
-                          sublabel: 'Velopharyngeal Incompetence',
-                          partName: 'Velopharyngeal Mechanism',
-                          partNameAr: 'الحنك الرخو والصمام اللهاتي',
-                          discipline: ClinicalSpecialtyDiscipline.speechPathology,
-                          activeStatuses: activeStatuses,
-                        ),
-                        _buildHotspot(
-                          context,
-                          partKey: 'slp_valleculae',
-                          x: cx - 30,
-                          y: cy + 30,
-                          label: 'Valleculae (فوهة لسان المزمار)',
-                          sublabel: 'FEES Aspiration Trajectory',
-                          partName: 'Valleculae & Epiglottis',
-                          partNameAr: 'فوهة لسان المزمار والتسرب الرئوي',
-                          discipline: ClinicalSpecialtyDiscipline.speechPathology,
-                          activeStatuses: activeStatuses,
-                        ),
-                        _buildHotspot(
-                          context,
-                          partKey: 'slp_vocal_cords',
-                          x: cx + 50,
-                          y: cy + 40,
-                          label: 'Vocal Cords (الحبال الصوتية)',
-                          sublabel: 'Videostroboscopy Nodules',
-                          partName: 'True Vocal Folds & Glottis',
-                          partNameAr: 'الحبال الصوتية الحقيقية والمزمار',
-                          discipline: ClinicalSpecialtyDiscipline.speechPathology,
-                          activeStatuses: activeStatuses,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        p['nameAr']!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 9.5, color: Color(0xFF38BDF8)),
+                      ),
+                      if (hasStatus) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
                         ),
                       ],
-                    );
-                  },
+                    ],
+                  ),
                 ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ],
     );
@@ -5224,134 +5758,136 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                         ),
                         const SizedBox(height: 12),
                         // 3D Canvas
-                        Container(
-                          height: 290,
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF041811) : const Color(0xFFF0FDF4),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.3)),
+                        Clinical3dSceneViewer(
+                          specialtyTitle: isCanine
+                              ? '3D Canine (Dog) Quadruped Skeleton & Viscera'
+                              : '3D Feline (Cat) Quadruped Skeleton & Viscera',
+                          specialtyTitleAr: isCanine
+                              ? 'مجسم الهيكل العظمي والأحشاء للكلاب ثلاثي الأبعاد'
+                              : 'مجسم الهيكل العظمي والأحشاء للقطط ثلاثي الأبعاد',
+                          specialtyIcon: LucideIcons.pawPrint,
+                          primaryColor: const Color(0xFF10B981),
+                          initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
+                          activeStatuses: activeStatuses,
+                          availableInstruments: const [
+                            SpecialtyInstrument.vetBonePlate,
+                            SpecialtyInstrument.vetDentalScaler,
+                          ],
+                          sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                              Specialty3dAnatomicalModels.buildVeterinaryMesh(
+                                stage,
+                                instrument: instrument,
+                                isSoloMode: isSoloMode,
+                                soloPartKey: soloPartKey,
+                              ),
+                          onPartSelected: (partKey, nameEn, nameAr) {
+                            _openStatusInspector(
+                              context,
+                              partKey: partKey,
+                              partName: nameEn,
+                              partNameAr: nameAr,
+                              discipline: ClinicalSpecialtyDiscipline.veterinary,
+                            );
+                          },
+                          onPartSecondaryTap: (partKey, nameEn, nameAr, globalPos) {
+                            _openPartScanInspectionDialog(
+                              context,
+                              partKey: partKey,
+                              partName: nameEn,
+                              partNameAr: nameAr,
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            childAspectRatio: 2.3,
                           ),
-                          child: Stack(
-                            children: [
-                              Positioned.fill(
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onPanUpdate: (d) {
-                                    _vetYawNotifier.value += d.delta.dx * 0.01;
-                                    _vetPitchNotifier.value = (_vetPitchNotifier.value + d.delta.dy * 0.01).clamp(-0.8, 0.8);
-                                  },
-                                  child: CustomPaint(
-                                    painter: _VeterinaryQuadrupedPainter(
-                                      isDark: isDark,
-                                      isCanine: isCanine,
-                                      activeLayer: activeLayer,
-                                      yaw: yaw,
-                                      pitch: pitch,
+                          itemCount: 6,
+                          itemBuilder: (ctx, idx) {
+                            final parts = [
+                              {'key': 'vet_cranial', 'name': 'Cranial & Dental', 'nameAr': 'الجمجمة والأسنان'},
+                              {'key': 'vet_cervical', 'name': 'Cervical Spine', 'nameAr': 'الفقرات العنقية'},
+                              {'key': 'vet_thoracic', 'name': 'Thorax & Lungs', 'nameAr': 'الصدر والرئتين'},
+                              {'key': 'vet_abdominal', 'name': 'Abdominal Viscera', 'nameAr': 'الأحشاء والبطن'},
+                              {'key': 'vet_pelvic', 'name': 'Pelvis & Hip', 'nameAr': 'الحوض والورك'},
+                              {'key': 'vet_hindlimb_r', 'name': 'Hindlimb & Stifle', 'nameAr': 'الطرف الخلفي والركبة'},
+                            ];
+                            final p = parts[idx];
+                            final partKey = p['key']!;
+                            final statusEntry = activeStatuses[partKey];
+                            final hasStatus = statusEntry != null;
+                            final cardColor = hasStatus ? statusEntry.visualColor : const Color(0xFF10B981);
+
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(10),
+                                onTap: () => _openStatusInspector(
+                                  context,
+                                  partKey: partKey,
+                                  partName: p['name']!,
+                                  partNameAr: p['nameAr']!,
+                                  discipline: ClinicalSpecialtyDiscipline.veterinary,
+                                ),
+                                onSecondaryTap: () => _openPartScanInspectionDialog(
+                                  context,
+                                  partKey: partKey,
+                                  partName: p['name']!,
+                                  partNameAr: p['nameAr']!,
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: hasStatus
+                                        ? cardColor.withValues(alpha: isDark ? 0.2 : 0.1)
+                                        : (isDark ? const Color(0xFF041811) : const Color(0xFFF0FDF4)),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: hasStatus ? cardColor : const Color(0xFF10B981).withValues(alpha: 0.3),
                                     ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        p['name']!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                          color: isDark ? Colors.white : const Color(0xFF1E293B),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        p['nameAr']!,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 9.5, color: Color(0xFF10B981)),
+                                      ),
+                                      if (hasStatus) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${statusEntry.status.title} (${statusEntry.status.icd10Code})',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(fontSize: 9, color: cardColor, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ),
                               ),
-                              Positioned.fill(
-                                child: LayoutBuilder(
-                                  builder: (ctx, constraints) {
-                                    final w = constraints.maxWidth;
-                                    final h = constraints.maxHeight;
-                                    final cx = w * 0.5;
-                                    final cy = h * 0.5;
-
-                                    return Stack(
-                                      children: [
-                                        _buildHotspot(
-                                          context,
-                                          partKey: 'vet_cranial',
-                                          x: cx + 90,
-                                          y: cy - 40,
-                                          label: AppLanguage.tr('Skull & Muzzle / Dental', 'الجمجمة والفك والأسنان'),
-                                          sublabel: isCanine ? '42 Teeth Formula' : '30 Teeth Formula',
-                                          partName: 'Cranial & Dental Apparatus',
-                                          partNameAr: 'منطقة الرأس والفك والأسنان',
-                                          discipline: ClinicalSpecialtyDiscipline.veterinary,
-                                          activeStatuses: activeStatuses,
-                                        ),
-                                        _buildHotspot(
-                                          context,
-                                          partKey: 'vet_cervical',
-                                          x: cx + 55,
-                                          y: cy - 20,
-                                          label: AppLanguage.tr('Cervical Spine (C1-C7)', 'الفقرات العنقية C1-C7'),
-                                          sublabel: 'IVDD Cervical Trajectory',
-                                          partName: 'Cervical Vertebrae',
-                                          partNameAr: 'الفقرات العنقية',
-                                          discipline: ClinicalSpecialtyDiscipline.veterinary,
-                                          activeStatuses: activeStatuses,
-                                        ),
-                                        _buildHotspot(
-                                          context,
-                                          partKey: 'vet_thoracic',
-                                          x: cx + 15,
-                                          y: cy - 5,
-                                          label: AppLanguage.tr('Thorax, Heart & Lungs', 'القفص الصدري والقلب والرئتين'),
-                                          sublabel: 'Cardiopulmonary Murmur',
-                                          partName: 'Thoracic Cage & Viscera',
-                                          partNameAr: 'القفص الصدري والأحشاء',
-                                          discipline: ClinicalSpecialtyDiscipline.veterinary,
-                                          activeStatuses: activeStatuses,
-                                        ),
-                                        _buildHotspot(
-                                          context,
-                                          partKey: 'vet_abdominal',
-                                          x: cx - 35,
-                                          y: cy - 5,
-                                          label: AppLanguage.tr('Abdominal Viscera', 'الأحشاء البطنية والمعدة'),
-                                          sublabel: 'GDV & Foreign Body Palpation',
-                                          partName: 'Abdominal Organs',
-                                          partNameAr: 'الأحشاء والبطن',
-                                          discipline: ClinicalSpecialtyDiscipline.veterinary,
-                                          activeStatuses: activeStatuses,
-                                        ),
-                                        _buildHotspot(
-                                          context,
-                                          partKey: 'vet_pelvic',
-                                          x: cx - 85,
-                                          y: cy - 15,
-                                          label: AppLanguage.tr('Pelvis & Hip Joint', 'الحوض ومفصل الورك'),
-                                          sublabel: 'Hip Dysplasia & Stifle',
-                                          partName: 'Pelvic Girdle & Femur',
-                                          partNameAr: 'عظام الحوض وعظم الفخذ',
-                                          discipline: ClinicalSpecialtyDiscipline.veterinary,
-                                          activeStatuses: activeStatuses,
-                                        ),
-                                        _buildHotspot(
-                                          context,
-                                          partKey: 'vet_forelimb_r',
-                                          x: cx + 30,
-                                          y: cy + 55,
-                                          label: AppLanguage.tr('Forelimb & Paw', 'الطرف الأمامي والمخلب'),
-                                          sublabel: 'Carpus, Radius & Claws',
-                                          partName: 'Right Forelimb',
-                                          partNameAr: 'الطرف الأمامي الأيمن والمخالب',
-                                          discipline: ClinicalSpecialtyDiscipline.veterinary,
-                                          activeStatuses: activeStatuses,
-                                        ),
-                                        _buildHotspot(
-                                          context,
-                                          partKey: 'vet_hindlimb_r',
-                                          x: cx - 70,
-                                          y: cy + 60,
-                                          label: AppLanguage.tr('Hindlimb & Hock', 'الطرف الخلفي والعرقوب'),
-                                          sublabel: 'Cranial Cruciate Ligament (CCL)',
-                                          partName: 'Right Hindlimb & Stifle',
-                                          partNameAr: 'الطرف الخلفي والرباط الصليبي',
-                                          discipline: ClinicalSpecialtyDiscipline.veterinary,
-                                          activeStatuses: activeStatuses,
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 12),
                         // Veterinary Vital Biometrics Panel
@@ -6798,6 +7334,364 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           _partStatusesNotifier.value = updated;
         },
       ),
+    );
+  }
+
+  void _openPartScanInspectionDialog(
+    BuildContext context, {
+    required String partKey,
+    required String partName,
+    required String partNameAr,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return ValueListenableBuilder<List<MedicalAttachment>>(
+          valueListenable: _attachmentsNotifier,
+          builder: (dialogCtx, attachments, _) {
+            final partScans = attachments
+                .where((a) => a.anatomicalPartKey == partKey)
+                .toList();
+
+            return Dialog(
+              backgroundColor: const Color(0xFF0F172A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFF38BDF8), width: 1.5),
+              ),
+              insetPadding: const EdgeInsets.all(24),
+              child: Container(
+                width: 680,
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0284C7).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(LucideIcons.scanLine, color: Color(0xFF38BDF8), size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '$partName ($partNameAr)',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '3D Anatomical Scan & Imaging Inspector • Part ID: $partKey',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white70),
+                          onPressed: () => Navigator.of(dialogCtx).pop(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(color: Color(0xFF334155), height: 1),
+                    const SizedBox(height: 14),
+
+                    // Explanatory badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E293B),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF475569)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(LucideIcons.info, color: Color(0xFF38BDF8), size: 16),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Viewing scans, X-rays, and radiology files specifically attached to this 3D anatomical structure. General lab results and blood work are displayed in the standard clinical attachments dock below.',
+                              style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 11),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Scans list or empty state
+                    if (partScans.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF090D16),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF1E293B)),
+                        ),
+                        child: Column(
+                          children: [
+                            const Icon(LucideIcons.scan, color: Color(0xFF64748B), size: 40),
+                            const SizedBox(height: 10),
+                            Text(
+                              'No imaging scans currently attached to $partName',
+                              style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Attach X-ray, CT/MRI DICOM series, or ultrasound scans directly to this organ part.',
+                              style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        height: 140,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: partScans.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 12),
+                          itemBuilder: (ctx, i) {
+                            final scan = partScans[i];
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () {
+                                DoctorAttachmentsLightbox.openLightbox(context, scan);
+                              },
+                              child: Container(
+                                width: 220,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1E293B),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFF0284C7)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(LucideIcons.fileText, color: Color(0xFF38BDF8), size: 16),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            scan.title,
+                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      scan.doctorNotes,
+                                      style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10.5),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const Spacer(),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(scan.fileSize, style: const TextStyle(color: Color(0xFF64748B), fontSize: 10)),
+                                        const Row(
+                                          children: [
+                                            Text('Open Lightbox', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 10.5, fontWeight: FontWeight.bold)),
+                                            SizedBox(width: 4),
+                                            Icon(LucideIcons.arrowUpRight, color: Color(0xFF38BDF8), size: 12),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 18),
+
+                    // Actions
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(dialogCtx).pop(),
+                          child: const Text('Close', style: TextStyle(color: Colors.white70)),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0284C7),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          icon: const Icon(LucideIcons.plus, size: 16),
+                          label: Text('Attach Scan to $partName'),
+                          onPressed: () {
+                            _showAddPartScanDialog(
+                              context,
+                              partKey: partKey,
+                              partName: partName,
+                              partNameAr: partNameAr,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAddPartScanDialog(
+    BuildContext context, {
+    required String partKey,
+    required String partName,
+    required String partNameAr,
+  }) {
+    final titleCtrl = TextEditingController(text: '$partName X-Ray / Scan');
+    final notesCtrl = TextEditingController(text: 'Attached to $partName ($partNameAr) via 3D Inspector');
+    MedicalAttachmentType selectedType = MedicalAttachmentType.xrayRadiograph;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF0F172A),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFF0284C7))),
+              title: Row(
+                children: [
+                  const Icon(LucideIcons.upload, color: Color(0xFF38BDF8), size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Attach Scan to $partName',
+                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 440,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleCtrl,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: const InputDecoration(
+                        labelText: 'Scan Title',
+                        labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF334155))),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<MedicalAttachmentType>(
+                      initialValue: selectedType,
+                      dropdownColor: const Color(0xFF1E293B),
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: const InputDecoration(
+                        labelText: 'Imaging Modality',
+                        labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: MedicalAttachmentType.xrayRadiograph,
+                          child: Text('Digital X-Ray Radiograph'),
+                        ),
+                        DropdownMenuItem(
+                          value: MedicalAttachmentType.dicomScan,
+                          child: Text('CT / MRI DICOM Scan'),
+                        ),
+                        DropdownMenuItem(
+                          value: MedicalAttachmentType.ultrasound,
+                          child: Text('High-Res Ultrasound (US)'),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => selectedType = val);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: notesCtrl,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: const InputDecoration(
+                        labelText: 'Clinical Notes / Radiologist Finding',
+                        labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF334155))),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0284C7)),
+                  onPressed: () {
+                    final newAttachment = MedicalAttachment(
+                      id: 'scan_${DateTime.now().millisecondsSinceEpoch}',
+                      title: titleCtrl.text.trim().isEmpty ? '$partName Scan' : titleCtrl.text.trim(),
+                      type: selectedType,
+                      uploadDate: DateTime.now(),
+                      fileSize: '5.8 MB',
+                      doctorNotes: notesCtrl.text.trim(),
+                      anatomicalPartKey: partKey,
+                      anatomicalPartNameEn: partName,
+                      anatomicalPartNameAr: partNameAr,
+                      disciplineKey: _activeDisciplineNotifier.value.name,
+                    );
+                    _attachmentsNotifier.value = [
+                      ..._attachmentsNotifier.value,
+                      newAttachment,
+                    ];
+                    Navigator.of(ctx).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Attached scan to $partName.'),
+                        backgroundColor: const Color(0xFF0284C7),
+                      ),
+                    );
+                  },
+                  child: const Text('Save Attachment', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

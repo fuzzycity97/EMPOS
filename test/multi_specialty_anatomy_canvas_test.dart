@@ -14,6 +14,7 @@ import 'package:empos/features/clinic/presentation/widgets/clinical_3d_engine_co
 import 'package:empos/features/clinic/presentation/widgets/specialty_3d_anatomical_models.dart';
 import 'package:empos/features/clinic/presentation/widgets/dental_tooth_3d_canvas_widget.dart';
 import 'package:empos/features/clinic/domain/entities/specialty_instrument_registry.dart';
+import 'package:empos/features/clinic/presentation/widgets/doctor_attachments_lightbox.dart';
 import 'package:empos/core/localization/app_language.dart';
 
 void main() {
@@ -403,19 +404,19 @@ void main() {
       // Verify title, subtitle and layer switcher
       expect(find.textContaining('Neurology & Neurosurgery 3D Visualizer'), findsOneWidget);
       expect(find.textContaining('Neurological Layers'), findsOneWidget);
-      expect(find.textContaining('Cortical Lobes'), findsOneWidget);
+      expect(find.textContaining('Cortical Lobes'), findsWidgets);
       expect(find.textContaining('Ventricles & CSF'), findsOneWidget);
       expect(find.textContaining('Basal Ganglia'), findsWidgets);
       expect(find.textContaining('Cranial Nerves I–XII'), findsOneWidget);
       expect(find.textContaining('Circle of Willis'), findsWidgets);
 
       // Verify brain hotspots
-      expect(find.text('Cerebral Lobes (القشرة المخية)'), findsOneWidget);
-      expect(find.text('Circle of Willis (شرايين ويليس)'), findsOneWidget);
+      expect(find.text('Cerebral Cortical Lobes'), findsOneWidget);
+      expect(find.text('Circle of Willis'), findsWidgets);
 
       // Tap Cerebral Lobes to open inspector
-      await tester.ensureVisible(find.text('Cerebral Lobes (القشرة المخية)'));
-      await tester.tap(find.text('Cerebral Lobes (القشرة المخية)'));
+      await tester.ensureVisible(find.text('Cerebral Cortical Lobes'));
+      await tester.tap(find.text('Cerebral Cortical Lobes'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ClinicalStatusInspectorModal), findsOneWidget);
@@ -467,12 +468,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Neuro-Otology & Balance 3D Explorer'), findsOneWidget);
-      expect(find.text('Posterior Canal (القناة الهلالية الخلفية)'), findsOneWidget);
-      expect(find.text('Cochlea (القوقعة)'), findsOneWidget);
+      expect(find.text('Posterior Semicircular Canal'), findsOneWidget);
+      expect(find.text('Cochlea & Hearing Organ'), findsOneWidget);
 
       // Tap Posterior Canal
-      await tester.ensureVisible(find.text('Posterior Canal (القناة الهلالية الخلفية)'));
-      await tester.tap(find.text('Posterior Canal (القناة الهلالية الخلفية)'));
+      await tester.ensureVisible(find.text('Posterior Semicircular Canal'));
+      await tester.tap(find.text('Posterior Semicircular Canal'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ClinicalStatusInspectorModal), findsOneWidget);
@@ -517,11 +518,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Pulmonology & Respiratory 3D Visualizer'), findsOneWidget);
-      expect(find.text('Trachea & Carina (القصبة الهوائية)'), findsOneWidget);
+      expect(find.text('Trachea & Carina'), findsOneWidget);
 
       // Tap Trachea & Carina
-      await tester.ensureVisible(find.text('Trachea & Carina (القصبة الهوائية)'));
-      await tester.tap(find.text('Trachea & Carina (القصبة الهوائية)'));
+      await tester.ensureVisible(find.text('Trachea & Carina'));
+      await tester.tap(find.text('Trachea & Carina'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ClinicalStatusInspectorModal), findsOneWidget);
@@ -566,11 +567,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Urology & Men\'s Health 3D Visualizer'), findsOneWidget);
-      expect(find.text('Renal Pelvis (حوض الكلية)'), findsOneWidget);
+      expect(find.text('Bilateral Kidneys'), findsOneWidget);
 
       // Tap Renal Pelvis
-      await tester.ensureVisible(find.text('Renal Pelvis (حوض الكلية)'));
-      await tester.tap(find.text('Renal Pelvis (حوض الكلية)'));
+      await tester.ensureVisible(find.text('Bilateral Kidneys'));
+      await tester.tap(find.text('Bilateral Kidneys'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ClinicalStatusInspectorModal), findsOneWidget);
@@ -615,11 +616,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining('Medical Aesthetics 3D Visualizer'), findsOneWidget);
-      expect(find.text('Glabellar Lines (تجاعيد ما بين الحاجبين)'), findsOneWidget);
+      expect(find.text('Glabella / Supratrochlear'), findsOneWidget);
 
       // Tap Glabellar Complex
-      await tester.ensureVisible(find.text('Glabellar Lines (تجاعيد ما بين الحاجبين)'));
-      await tester.tap(find.text('Glabellar Lines (تجاعيد ما بين الحاجبين)'));
+      await tester.ensureVisible(find.text('Glabella / Supratrochlear'));
+      await tester.tap(find.text('Glabella / Supratrochlear'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ClinicalStatusInspectorModal), findsOneWidget);
@@ -1798,6 +1799,204 @@ void main() {
       await tester.ensureVisible(stethCard.first);
       await tester.tap(stethCard.first);
       await tester.pumpAndSettle();
+    });
+
+    test('40. SpecialtyInstrumentRegistry & ClinicalSpecialtyDiscipline renderMode config', () {
+      // 4 specialties MUST be 2D
+      final preserved2dSpecialties = [
+        ClinicalSpecialtyDiscipline.endocrinology,
+        ClinicalSpecialtyDiscipline.pediatrics,
+        ClinicalSpecialtyDiscipline.mentalHealth,
+        ClinicalSpecialtyDiscipline.diagnosticLab,
+      ];
+
+      for (final disc in preserved2dSpecialties) {
+        expect(disc.renderMode, equals('2D'));
+        expect(disc.is2D, isTrue);
+        expect(disc.is3D, isFalse);
+        expect(SpecialtyInstrumentRegistry.getRenderMode(disc), equals('2D'));
+      }
+
+      // Upgraded and existing 3D specialties MUST be 3D
+      final expected3dSpecialties = [
+        ClinicalSpecialtyDiscipline.ophthalmology,
+        ClinicalSpecialtyDiscipline.dental,
+        ClinicalSpecialtyDiscipline.cardiology,
+        ClinicalSpecialtyDiscipline.vascularVein,
+        ClinicalSpecialtyDiscipline.gastroenterology,
+        ClinicalSpecialtyDiscipline.orthopedics,
+        ClinicalSpecialtyDiscipline.dermatology,
+        ClinicalSpecialtyDiscipline.neurology,
+        ClinicalSpecialtyDiscipline.neuroOtology,
+        ClinicalSpecialtyDiscipline.neuroPsychiatry,
+        ClinicalSpecialtyDiscipline.rhinologyEnt,
+        ClinicalSpecialtyDiscipline.urology,
+        ClinicalSpecialtyDiscipline.obgyn,
+        ClinicalSpecialtyDiscipline.pulmonology,
+        ClinicalSpecialtyDiscipline.physiotherapy,
+        ClinicalSpecialtyDiscipline.podiatry,
+        ClinicalSpecialtyDiscipline.plasticSurgery,
+        ClinicalSpecialtyDiscipline.medicalAesthetics,
+        ClinicalSpecialtyDiscipline.painManagement,
+        ClinicalSpecialtyDiscipline.acupuncture,
+        ClinicalSpecialtyDiscipline.speechPathology,
+        ClinicalSpecialtyDiscipline.veterinary,
+      ];
+
+      for (final disc in expected3dSpecialties) {
+        expect(disc.renderMode, equals('3D'));
+        expect(disc.is3D, isTrue);
+        expect(disc.is2D, isFalse);
+        expect(SpecialtyInstrumentRegistry.getRenderMode(disc), equals('3D'));
+      }
+    });
+
+    test('41. Procedural 3D Mesh Generation builds valid geometry for all 15 upgraded specialties', () {
+      final neuroMesh = Specialty3dAnatomicalModels.buildNeurologyMesh(ClinicalAgeStage.adult);
+      expect(neuroMesh.isNotEmpty, isTrue);
+      expect(neuroMesh.any((f) => f.partKey == 'neuro_cortex'), isTrue);
+
+      final otolMesh = Specialty3dAnatomicalModels.buildNeuroOtologyMesh(ClinicalAgeStage.adult);
+      expect(otolMesh.isNotEmpty, isTrue);
+      expect(otolMesh.any((f) => f.partKey == 'otol_cochlea'), isTrue);
+
+      final psychMesh = Specialty3dAnatomicalModels.buildNeuroPsychiatryMesh(ClinicalAgeStage.adult);
+      expect(psychMesh.isNotEmpty, isTrue);
+      expect(psychMesh.any((f) => f.partKey == 'psych_dlpfc'), isTrue);
+
+      final rhinoMesh = Specialty3dAnatomicalModels.buildRhinologyMesh(ClinicalAgeStage.adult);
+      expect(rhinoMesh.isNotEmpty, isTrue);
+      expect(rhinoMesh.any((f) => f.partKey == 'rhino_septum'), isTrue);
+
+      final uroMesh = Specialty3dAnatomicalModels.buildUrologyMesh(ClinicalAgeStage.adult);
+      expect(uroMesh.isNotEmpty, isTrue);
+      expect(uroMesh.any((f) => f.partKey == 'uro_bladder'), isTrue);
+
+      final obgynMesh = Specialty3dAnatomicalModels.buildObGynMesh(ClinicalAgeStage.adult);
+      expect(obgynMesh.isNotEmpty, isTrue);
+      expect(obgynMesh.any((f) => f.partKey == 'obgyn_endometrium'), isTrue);
+
+      final pulmMesh = Specialty3dAnatomicalModels.buildPulmonologyMesh(ClinicalAgeStage.adult);
+      expect(pulmMesh.isNotEmpty, isTrue);
+      expect(pulmMesh.any((f) => f.partKey == 'pulm_trachea'), isTrue);
+
+      final podMesh = Specialty3dAnatomicalModels.buildPodiatryMesh(ClinicalAgeStage.adult);
+      expect(podMesh.isNotEmpty, isTrue);
+      expect(podMesh.any((f) => f.partKey == 'pod_calcaneus'), isTrue);
+
+      final plastMesh = Specialty3dAnatomicalModels.buildPlasticSurgeryMesh(ClinicalAgeStage.adult);
+      expect(plastMesh.isNotEmpty, isTrue);
+      expect(plastMesh.any((f) => f.partKey == 'plast_nasal_dorsum'), isTrue);
+
+      final aesthMesh = Specialty3dAnatomicalModels.buildMedicalAestheticsMesh(ClinicalAgeStage.adult);
+      expect(aesthMesh.isNotEmpty, isTrue);
+      expect(aesthMesh.any((f) => f.partKey == 'aes_glabella'), isTrue);
+
+      final painMesh = Specialty3dAnatomicalModels.buildPainManagementMesh(ClinicalAgeStage.adult);
+      expect(painMesh.isNotEmpty, isTrue);
+      expect(painMesh.any((f) => f.partKey == 'pain_l4_l5_epidural'), isTrue);
+
+      final acuMesh = Specialty3dAnatomicalModels.buildAcupunctureMesh(ClinicalAgeStage.adult);
+      expect(acuMesh.isNotEmpty, isTrue);
+      expect(acuMesh.any((f) => f.partKey == 'acu_hegu_li4'), isTrue);
+
+      final slpMesh = Specialty3dAnatomicalModels.buildSpeechPathologyMesh(ClinicalAgeStage.adult);
+      expect(slpMesh.isNotEmpty, isTrue);
+      expect(slpMesh.any((f) => f.partKey == 'slp_tongue'), isTrue);
+
+      final vetMesh = Specialty3dAnatomicalModels.buildVeterinaryMesh(ClinicalAgeStage.adult);
+      expect(vetMesh.isNotEmpty, isTrue);
+      expect(vetMesh.any((f) => f.partKey == 'vet_cranial'), isTrue);
+
+      final vascMesh = Specialty3dAnatomicalModels.buildVascularVeinMesh(ClinicalAgeStage.adult);
+      expect(vascMesh.isNotEmpty, isTrue);
+      expect(vascMesh.any((f) => f.partKey == 'vasc_gsv'), isTrue);
+    });
+
+    test('42. Dual file viewing architecture: MedicalAttachment classification', () {
+      final systemicLab = MedicalAttachment(
+        id: 'lab_1',
+        title: 'Complete Blood Count (CBC)',
+        type: MedicalAttachmentType.labReport,
+        uploadDate: DateTime.now(),
+        fileSize: '1.2 MB',
+        doctorNotes: 'Normal platelet count',
+      );
+      expect(systemicLab.isSystemicOrLab, isTrue);
+      expect(systemicLab.isAnatomicalScan, isFalse);
+
+      final organScan = MedicalAttachment(
+        id: 'scan_1',
+        title: 'Brain MRI T2 Axial',
+        type: MedicalAttachmentType.dicomScan,
+        uploadDate: DateTime.now(),
+        fileSize: '24.5 MB',
+        doctorNotes: 'Frontal lobe scan',
+        anatomicalPartKey: 'neuro_cortex',
+        anatomicalPartNameEn: 'Cerebral Cortical Lobes',
+        anatomicalPartNameAr: 'فصوص القشرة المخية',
+        disciplineKey: 'neurology',
+      );
+      expect(organScan.isAnatomicalScan, isTrue);
+      expect(organScan.isSystemicOrLab, isFalse);
+    });
+
+    testWidgets('43. DoctorAttachmentsLightbox displays filter tabs when 3D is active, and shows all files without tabs when 2D', (tester) async {
+      final attachmentsNotifier = ValueNotifier<List<MedicalAttachment>>([
+        MedicalAttachment(
+          id: '1',
+          title: 'Blood Chemistry Panel',
+          type: MedicalAttachmentType.labReport,
+          uploadDate: DateTime.now(),
+          fileSize: '0.8 MB',
+          doctorNotes: 'Fasting glucose 95',
+        ),
+        MedicalAttachment(
+          id: '2',
+          title: 'Lumbar Spine Lateral X-Ray',
+          type: MedicalAttachmentType.xrayRadiograph,
+          uploadDate: DateTime.now(),
+          fileSize: '4.2 MB',
+          doctorNotes: 'L4-L5 space',
+          anatomicalPartKey: 'pain_l4_l5_epidural',
+          anatomicalPartNameEn: 'L4-L5 Epidural Interspace',
+        ),
+      ]);
+
+      // 1. In 3D mode (is3dActive: true) -> filter tabs MUST appear
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DoctorAttachmentsLightbox(
+              attachmentsNotifier: attachmentsNotifier,
+              is3dActive: true,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('All Files'), findsOneWidget);
+      expect(find.textContaining('Systemic & Blood Work'), findsOneWidget);
+      expect(find.textContaining('3D Organ Scans'), findsOneWidget);
+
+      // 2. In 2D mode (is3dActive: false) -> filter tabs DO NOT appear, all files shown together
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DoctorAttachmentsLightbox(
+              attachmentsNotifier: attachmentsNotifier,
+              is3dActive: false,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('All Files'), findsNothing);
+      expect(find.textContaining('Systemic & Blood Work'), findsNothing);
+      expect(find.text('Blood Chemistry Panel'), findsOneWidget);
+      expect(find.text('Lumbar Spine Lateral X-Ray'), findsOneWidget);
     });
   });
 }

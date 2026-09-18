@@ -21,6 +21,10 @@ class MedicalAttachment {
   final String fileSize;
   final String doctorNotes;
   final String? filePath;
+  final String? anatomicalPartKey;
+  final String? anatomicalPartNameEn;
+  final String? anatomicalPartNameAr;
+  final String? disciplineKey;
 
   const MedicalAttachment({
     required this.id,
@@ -30,7 +34,42 @@ class MedicalAttachment {
     required this.fileSize,
     required this.doctorNotes,
     this.filePath,
+    this.anatomicalPartKey,
+    this.anatomicalPartNameEn,
+    this.anatomicalPartNameAr,
+    this.disciplineKey,
   });
+
+  bool get isAnatomicalScan => anatomicalPartKey != null && anatomicalPartKey!.isNotEmpty;
+  bool get isSystemicOrLab => !isAnatomicalScan;
+
+  MedicalAttachment copyWith({
+    String? id,
+    String? title,
+    MedicalAttachmentType? type,
+    DateTime? uploadDate,
+    String? fileSize,
+    String? doctorNotes,
+    String? filePath,
+    String? anatomicalPartKey,
+    String? anatomicalPartNameEn,
+    String? anatomicalPartNameAr,
+    String? disciplineKey,
+  }) {
+    return MedicalAttachment(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      type: type ?? this.type,
+      uploadDate: uploadDate ?? this.uploadDate,
+      fileSize: fileSize ?? this.fileSize,
+      doctorNotes: doctorNotes ?? this.doctorNotes,
+      filePath: filePath ?? this.filePath,
+      anatomicalPartKey: anatomicalPartKey ?? this.anatomicalPartKey,
+      anatomicalPartNameEn: anatomicalPartNameEn ?? this.anatomicalPartNameEn,
+      anatomicalPartNameAr: anatomicalPartNameAr ?? this.anatomicalPartNameAr,
+      disciplineKey: disciplineKey ?? this.disciplineKey,
+    );
+  }
 }
 
 /// Medical attachments dock and radiograph lightbox viewer for Doctor Station.
@@ -42,6 +81,9 @@ class DoctorAttachmentsLightbox extends StatelessWidget {
   final ValueNotifier<int> rotationNotifier;
   final ValueNotifier<bool> invertGrayscaleNotifier;
 
+  final bool is3dActive;
+  final ValueNotifier<int> _filterTabNotifier;
+
   DoctorAttachmentsLightbox({
     super.key,
     ValueNotifier<List<MedicalAttachment>>? attachmentsNotifier,
@@ -49,6 +91,7 @@ class DoctorAttachmentsLightbox extends StatelessWidget {
     ValueNotifier<double>? zoomNotifier,
     ValueNotifier<int>? rotationNotifier,
     ValueNotifier<bool>? invertGrayscaleNotifier,
+    this.is3dActive = true,
   })  : attachmentsNotifier = attachmentsNotifier ??
             ValueNotifier<List<MedicalAttachment>>(_defaultAttachments),
         activeViewingNotifier =
@@ -56,7 +99,20 @@ class DoctorAttachmentsLightbox extends StatelessWidget {
         zoomNotifier = zoomNotifier ?? ValueNotifier<double>(1.0),
         rotationNotifier = rotationNotifier ?? ValueNotifier<int>(0),
         invertGrayscaleNotifier =
-            invertGrayscaleNotifier ?? ValueNotifier<bool>(false);
+            invertGrayscaleNotifier ?? ValueNotifier<bool>(false),
+        _filterTabNotifier = ValueNotifier<int>(0);
+
+  static void openLightbox(BuildContext context, MedicalAttachment item) {
+    final zoomNotifier = ValueNotifier<double>(1.0);
+    final rotationNotifier = ValueNotifier<int>(0);
+    final invertGrayscaleNotifier = ValueNotifier<bool>(false);
+    final lightbox = DoctorAttachmentsLightbox(
+      zoomNotifier: zoomNotifier,
+      rotationNotifier: rotationNotifier,
+      invertGrayscaleNotifier: invertGrayscaleNotifier,
+    );
+    lightbox._openLightboxViewer(context, item);
+  }
 
   static final List<MedicalAttachment> _defaultAttachments = [
     MedicalAttachment(
@@ -126,39 +182,102 @@ class DoctorAttachmentsLightbox extends StatelessWidget {
           ),
           const Divider(height: 1, color: AppColors.borderDark),
 
+          if (is3dActive)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              color: const Color(0xFF0F172A),
+              child: ValueListenableBuilder<int>(
+                valueListenable: _filterTabNotifier,
+                builder: (context, activeTab, _) {
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildFilterChip('All Files (الكل)', 0, activeTab),
+                        const SizedBox(width: 8),
+                        _buildFilterChip('Systemic & Blood Work (المختبر والتحاليل)', 1, activeTab),
+                        const SizedBox(width: 8),
+                        _buildFilterChip('3D Organ Scans (أشعة الأعضاء)', 2, activeTab),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          const Divider(height: 1, color: AppColors.borderDark),
+
           // ── ATTACHMENTS LIST DOCK ──────────────────────────────────────────
           ValueListenableBuilder<List<MedicalAttachment>>(
             valueListenable: attachmentsNotifier,
             builder: (context, attachments, _) {
-              if (attachments.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(
-                    child: Text(
-                      'No attachments uploaded for active patient session.',
-                      style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 12),
-                    ),
-                  ),
-                );
-              }
+              return ValueListenableBuilder<int>(
+                valueListenable: _filterTabNotifier,
+                builder: (context, activeTab, _) {
+                  List<MedicalAttachment> displayedList = attachments;
+                  if (is3dActive) {
+                    if (activeTab == 1) {
+                      displayedList = attachments.where((a) => a.isSystemicOrLab).toList();
+                    } else if (activeTab == 2) {
+                      displayedList = attachments.where((a) => a.isAnatomicalScan).toList();
+                    }
+                  }
 
-              return SizedBox(
-                height: 110,
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(10),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: attachments.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 10),
-                  itemBuilder: (context, idx) {
-                    final item = attachments[idx];
-                    return _buildAttachmentThumbnail(context, item);
-                  },
-                ),
+                  if (displayedList.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Center(
+                        child: Text(
+                          is3dActive && activeTab == 1
+                              ? 'No systemic lab reports or blood work uploaded for this session.'
+                              : (is3dActive && activeTab == 2
+                                  ? 'No 3D anatomical scans attached yet. Right-click any 3D organ to attach scans.'
+                                  : 'No attachments uploaded for active patient session.'),
+                          style: const TextStyle(color: AppColors.textSecondaryDark, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
+                  }
+
+                  return SizedBox(
+                    height: 115,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.all(10),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: displayedList.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 10),
+                      itemBuilder: (context, idx) {
+                        final item = displayedList[idx];
+                        return _buildAttachmentThumbnail(context, item);
+                      },
+                    ),
+                  );
+                },
               );
             },
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, int index, int currentTab) {
+    final isSelected = index == currentTab;
+    return ChoiceChip(
+      selected: isSelected,
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          color: isSelected ? Colors.white : Colors.white70,
+        ),
+      ),
+      selectedColor: AppColors.primary,
+      backgroundColor: const Color(0xFF1E293B),
+      onSelected: (val) {
+        if (val) _filterTabNotifier.value = index;
+      },
     );
   }
 
@@ -228,10 +347,26 @@ class DoctorAttachmentsLightbox extends StatelessWidget {
                 children: [
                   Text(
                     item.title,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white),
                   ),
+                  if (item.isAnatomicalScan)
+                    Container(
+                      margin: const EdgeInsets.only(top: 2, bottom: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: const Color(0xFF38BDF8), width: 0.5),
+                      ),
+                      child: Text(
+                        'â—  ${item.anatomicalPartNameEn ?? item.anatomicalPartKey!}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 8.5, color: Color(0xFF38BDF8), fontWeight: FontWeight.bold),
+                      ),
+                    ),
                   const SizedBox(height: 4),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,

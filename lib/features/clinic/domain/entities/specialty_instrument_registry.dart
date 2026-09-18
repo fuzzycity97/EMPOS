@@ -54,6 +54,7 @@ class SpecialtyRegistryEntry {
   final String specialtyNameAr;
   final List<ClinicalInstrumentItem> tools;
   final bool isAssessmentDriven;
+  final String renderMode; // '2D' or '3D'
   final String? clinicalNotesEn;
   final String? clinicalNotesAr;
 
@@ -66,9 +67,13 @@ class SpecialtyRegistryEntry {
     required this.specialtyNameAr,
     required this.tools,
     this.isAssessmentDriven = false,
+    this.renderMode = '3D',
     this.clinicalNotesEn,
     this.clinicalNotesAr,
   });
+
+  bool get is3D => renderMode == '3D';
+  bool get is2D => renderMode == '2D';
 
   String get localizedGroupName => AppLanguage.isArabic ? groupNameAr : groupNameEn;
   String get localizedSpecialtyName => AppLanguage.isArabic ? specialtyNameAr : specialtyNameEn;
@@ -3268,6 +3273,7 @@ class SpecialtyInstrumentRegistry {
       specialtyNameEn: 'Endocrinology & Glands',
       specialtyNameAr: 'الغدد الصماء والسكري والتمثيل الغذائي',
       tools: _endocrinologyTools,
+      renderMode: '2D',
     ),
 
     // 4. Abdominal, Pelvic & Reproductive
@@ -3395,6 +3401,7 @@ class SpecialtyInstrumentRegistry {
       specialtyNameEn: 'Pediatrics & Child Health',
       specialtyNameAr: 'طب الأطفال وحديثي الولادة وصحة الطفل',
       tools: _pediatricsTools,
+      renderMode: '2D',
     ),
     ClinicalSpecialtyDiscipline.mentalHealth: const SpecialtyRegistryEntry(
       discipline: ClinicalSpecialtyDiscipline.mentalHealth,
@@ -3405,6 +3412,7 @@ class SpecialtyInstrumentRegistry {
       specialtyNameAr: 'الصحة النفسية والعلاج السلوكي المعرفي',
       tools: _mentalHealthTools,
       isAssessmentDriven: true,
+      renderMode: '2D',
       clinicalNotesEn: 'Diagnostic and assessment-driven specialty: practice utilizes interactive psychometric rating forms and biofeedback sensors rather than invasive physical tool trays.',
       clinicalNotesAr: 'تخصص تشخيصي تقييمي قائم على الاستمارات النفسية المقننة ومستشعرات الارتجاع العصبي بدلاً من الأدوات الجراحية.',
     ),
@@ -3417,6 +3425,7 @@ class SpecialtyInstrumentRegistry {
       specialtyNameAr: 'التحاليل الطبية والباثولوجيا الإكلينيكية والمجهرية',
       tools: _diagnosticLabTools,
       isAssessmentDriven: true,
+      renderMode: '2D',
       clinicalNotesEn: 'Analytical specimen-driven discipline: utilizes automated biochemistry, hematology analyzers, and histological microtomes.',
       clinicalNotesAr: 'تخصص مخبري تحليلي يعتمد على المجاهر وأجهزة التدفق الخلوي والتحليل الآلي للعينات.',
     ),
@@ -3462,4 +3471,9 @@ class SpecialtyInstrumentRegistry {
 
   /// Returns all registered specialty entries across all disciplines.
   static List<SpecialtyRegistryEntry> get allEntries => _registry.values.toList();
+
+  /// Returns the rendering mode ('2D' or '3D') for the given specialty discipline.
+  static String getRenderMode(ClinicalSpecialtyDiscipline discipline) {
+    return getEntry(discipline).renderMode;
+  }
 }

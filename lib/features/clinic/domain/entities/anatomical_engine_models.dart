@@ -55,6 +55,7 @@ class Specialty3DProfile {
   final Map<String, Anatomical3dVector> cameraPresets;
   final double defaultFov;
   final List<ClinicalInstrumentItem> tools;
+  final String renderMode;
 
   const Specialty3DProfile({
     required this.verticalId,
@@ -64,6 +65,7 @@ class Specialty3DProfile {
     required this.cameraPresets,
     this.defaultFov = 45.0,
     this.tools = const [],
+    this.renderMode = '3D',
   });
 
   Specialty3DProfile copyWith({
@@ -74,6 +76,7 @@ class Specialty3DProfile {
     Map<String, Anatomical3dVector>? cameraPresets,
     double? defaultFov,
     List<ClinicalInstrumentItem>? tools,
+    String? renderMode,
   }) {
     return Specialty3DProfile(
       verticalId: verticalId ?? this.verticalId,
@@ -83,6 +86,7 @@ class Specialty3DProfile {
       cameraPresets: cameraPresets ?? this.cameraPresets,
       defaultFov: defaultFov ?? this.defaultFov,
       tools: tools ?? this.tools,
+      renderMode: renderMode ?? this.renderMode,
     );
   }
 }

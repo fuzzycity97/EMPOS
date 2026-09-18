@@ -129,6 +129,7 @@ class Clinical3dSceneViewer extends StatefulWidget {
     String? soloPartKey,
   }) sceneMeshBuilder;
   final void Function(String partKey, String nameEn, String nameAr)? onPartSelected;
+  final void Function(String partKey, String nameEn, String nameAr, Offset globalPos)? onPartSecondaryTap;
   final Map<String, ClinicalAnatomyStatusEntry>? activeStatuses;
   final ClinicalAgeStage initialAgeStage;
   final void Function(ClinicalAgeStage stage)? onAgeStageChanged;
@@ -147,6 +148,7 @@ class Clinical3dSceneViewer extends StatefulWidget {
     super.key,
     required this.sceneMeshBuilder,
     this.onPartSelected,
+    this.onPartSecondaryTap,
     this.activeStatuses,
     this.initialAgeStage = ClinicalAgeStage.adult,
     this.onAgeStageChanged,
@@ -542,6 +544,12 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                     onTapUp: (details) {
                       _handleCanvasTap(details.localPosition, faces);
                     },
+                    onSecondaryTapUp: (details) {
+                      _handleCanvasSecondaryTap(details.localPosition, details.globalPosition, faces);
+                    },
+                    onLongPressStart: (details) {
+                      _handleCanvasSecondaryTap(details.localPosition, details.globalPosition, faces);
+                    },
                     child: CustomPaint(
                       painter: _Generic3DScenePainter(
                         faces: faces,
@@ -603,7 +611,7 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                         Text(
                           _isSoloMode
                               ? AppLanguage.tr('Solo Mode active • Drag to rotate 3D', 'الوضع المنفرد نشط • اسحب للتدوير 3D')
-                              : AppLanguage.tr('Drag to rotate 3D • Tap to select & view Solo', 'اسحب للتدوير 3D • انقر للتحديد والعرض المنفرد'),
+                              : AppLanguage.tr('Drag to rotate 3D • Tap to select • Right-click / hold to view scans & X-rays', 'اسحب للتدوير 3D • انقر للتحديد • انقر بالزر الأيمن أو علق لعرض الأشعة والفحوصات'),
                           style: TextStyle(
                             fontSize: 9.5,
                             fontWeight: FontWeight.w600,
@@ -698,6 +706,39 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
         closestFace.partNameEn ?? closestFace.partKey!,
         closestFace.partNameAr ?? closestFace.partNameEn ?? closestFace.partKey!,
       );
+    }
+  }
+
+  void _handleCanvasSecondaryTap(Offset tapPos, Offset globalPos, List<MeshFace3D> faces) {
+    final size = Size(double.infinity, widget.height);
+    final scale = 1.0 * _zoom;
+
+    MeshFace3D? closestFace;
+    double minSqDist = 65.0 * 65.0;
+
+    for (final face in faces) {
+      if (face.partKey == null) continue;
+      final rotC = face.centroid.rotateEuler(_yaw, _pitch);
+      final screenPos = rotC.toScreen(size, scale);
+      final distSq = (screenPos.dx - tapPos.dx) * (screenPos.dx - tapPos.dx) +
+          (screenPos.dy - tapPos.dy) * (screenPos.dy - tapPos.dy);
+      if (distSq < minSqDist) {
+        minSqDist = distSq;
+        closestFace = face;
+      }
+    }
+
+    if (closestFace != null) {
+      final key = closestFace.partKey!;
+      final en = closestFace.partNameEn ?? key;
+      final ar = closestFace.partNameAr ?? en;
+      setState(() {
+        _hoveredPartKey = key;
+        _selectedPartKey = key;
+        _selectedPartNameEn = en;
+        _selectedPartNameAr = ar;
+      });
+      widget.onPartSecondaryTap?.call(key, en, ar, globalPos);
     }
   }
 

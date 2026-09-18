@@ -858,6 +858,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                           partStatusesNotifier: _partStatusesNotifier,
                                           eyeCdRatioOdNotifier: _eyeCdRatioOdNotifier,
                                           eyeCdRatioOsNotifier: _eyeCdRatioOsNotifier,
+                                          attachmentsNotifier: doctorAttachmentsNotifier,
                                           doctorName: activeVisit.doctorName,
                                           toothChart: _getEffectiveToothChart(loadedState.activeToothChart, isPediatric),
                                           isPediatric: isPediatric,
@@ -904,8 +905,14 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                       ),
                                       const SizedBox(height: 20),
                                       RepaintBoundary(
-                                        child: DoctorAttachmentsLightbox(
-                                          attachmentsNotifier: doctorAttachmentsNotifier,
+                                        child: ValueListenableBuilder<ClinicalSpecialtyDiscipline>(
+                                          valueListenable: _activeDisciplineNotifier,
+                                          builder: (context, activeDiscipline, _) {
+                                            return DoctorAttachmentsLightbox(
+                                              attachmentsNotifier: doctorAttachmentsNotifier,
+                                              is3dActive: activeDiscipline.is3D,
+                                            );
+                                          },
                                         ),
                                       ),
                                       const SizedBox(height: 24),
