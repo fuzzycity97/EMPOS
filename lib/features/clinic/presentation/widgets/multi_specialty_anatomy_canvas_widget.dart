@@ -15,6 +15,7 @@ import 'skeletal_bone_3d_canvas_widget.dart';
 import 'clinical_3d_engine_core.dart';
 import 'specialty_3d_anatomical_models.dart';
 import '../../domain/entities/clinical_anatomy_status_entry.dart';
+import '../../domain/entities/specialty_instrument_registry.dart';
 import '../../../../core/localization/app_language.dart';
 
 /// Supported Clinical Anatomical Disciplines across 7 Major Medical Groups
@@ -592,6 +593,9 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
   late final ValueNotifier<String?> _selectedPartNotifier;
   late ValueNotifier<Map<String, ClinicalAnatomyStatusEntry>> _partStatusesNotifier;
   bool _ownsPartStatusesNotifier = false;
+  late final ValueNotifier<bool> _showInstrumentTrayNotifier;
+  late final ValueNotifier<ClinicalInstrumentCategory?> _selectedInstrumentCategoryNotifier;
+  late final ValueNotifier<String?> _selectedInstrumentIdNotifier;
 
   @override
   void initState() {
@@ -668,6 +672,9 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
     _activeAgeStageNotifier = ValueNotifier<ClinicalAgeStage>(
       widget.isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
     );
+    _showInstrumentTrayNotifier = ValueNotifier<bool>(false);
+    _selectedInstrumentCategoryNotifier = ValueNotifier<ClinicalInstrumentCategory?>(null);
+    _selectedInstrumentIdNotifier = ValueNotifier<String?>(null);
   }
 
   @override
@@ -781,6 +788,9 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
     _pediatricPitchNotifier.dispose();
     _selectedPartNotifier.dispose();
     _activeAgeStageNotifier.dispose();
+    _showInstrumentTrayNotifier.dispose();
+    _selectedInstrumentCategoryNotifier.dispose();
+    _selectedInstrumentIdNotifier.dispose();
     super.dispose();
   }
 
@@ -903,6 +913,13 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                           },
                         ),
                         _buildActiveStatusesTray(context, activeStatuses, isDark),
+                        ValueListenableBuilder<bool>(
+                          valueListenable: _showInstrumentTrayNotifier,
+                          builder: (context, showTools, _) {
+                            if (!showTools) return const SizedBox.shrink();
+                            return _buildSpecialtyInstrumentTray(context, discipline, isDark);
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -1018,6 +1035,51 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                             color: pinActive ? accentColor : (isDark ? Colors.white70 : Colors.black87),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          // Specialty Tools & Kits Toggle Button
+          ValueListenableBuilder<bool>(
+            valueListenable: _showInstrumentTrayNotifier,
+            builder: (context, toolsActive, _) {
+              return Material(
+                key: const ValueKey('btn_toggle_specialty_instrument_tray'),
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(6),
+                  onTap: () => _showInstrumentTrayNotifier.value = !_showInstrumentTrayNotifier.value,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: toolsActive
+                          ? const Color(0xFF0284C7).withValues(alpha: 0.22)
+                          : (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: toolsActive ? const Color(0xFF0284C7) : (isDark ? Colors.white12 : Colors.black12),
+                        width: toolsActive ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.wrench, size: 13, color: toolsActive ? const Color(0xFF38BDF8) : (isDark ? Colors.white70 : Colors.black87)),
+                        const SizedBox(width: 6),
+                        Text(
+                          toolsActive
+                              ? AppLanguage.tr('Tools & Kits (Active)', 'حقيبة الأدوات (نشط)')
+                              : AppLanguage.tr('Specialty Tools', 'حقيبة الأدوات'),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: toolsActive ? const Color(0xFF38BDF8) : (isDark ? Colors.white70 : Colors.black87),
                           ),
                         ),
                       ],
@@ -6315,6 +6377,380 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
             }).toList(),
           ),
         ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SPECIALTY INSTRUMENTS & CLINICAL HARDWARE TRAY
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildSpecialtyInstrumentTray(
+    BuildContext context,
+    ClinicalSpecialtyDiscipline discipline,
+    bool isDark,
+  ) {
+    final entry = SpecialtyInstrumentRegistry.getEntry(discipline);
+    final accentColor = _getDisciplineColor(discipline);
+
+    return ValueListenableBuilder<ClinicalInstrumentCategory?>(
+      valueListenable: _selectedInstrumentCategoryNotifier,
+      builder: (context, selectedCategory, _) {
+        final filteredTools = selectedCategory == null
+            ? entry.tools
+            : entry.tools.where((t) => t.category == selectedCategory).toList();
+
+        final diagnosticCount = entry.tools.where((t) => t.category == ClinicalInstrumentCategory.diagnostic).length;
+        final proceduralCount = entry.tools.where((t) => t.category == ClinicalInstrumentCategory.procedural).length;
+        final surgicalCount = entry.tools.where((t) => t.category == ClinicalInstrumentCategory.surgical).length;
+        final assessmentCount = entry.tools.where((t) => t.category == ClinicalInstrumentCategory.assessment).length;
+
+        return Container(
+          margin: const EdgeInsets.only(top: 14),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: accentColor.withValues(alpha: 0.35),
+              width: 1.2,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header Row with Title, Tool Count, and Collapse Toggle
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(LucideIcons.wrench, color: accentColor, size: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                AppLanguage.isArabic
+                                    ? 'مجموعة أدوات التخصص: ${entry.specialtyNameAr}'
+                                    : 'Specialty Instrument Set: ${entry.specialtyNameEn}',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: accentColor.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${entry.tools.length} ${AppLanguage.tr("Tools", "أداة")}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: accentColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          AppLanguage.isArabic
+                              ? 'أدوات تشخيصية وإجرائية وجراحية معتمدة للتخصص السريري'
+                              : 'Exhaustive diagnostic, procedural & surgical clinical hardware kit',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isDark ? Colors.white54 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(LucideIcons.chevronUp, size: 16),
+                    tooltip: AppLanguage.tr('Collapse Tool Tray', 'إخفاء حقيبة الأدوات'),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                    onPressed: () => _showInstrumentTrayNotifier.value = false,
+                  ),
+                ],
+              ),
+
+              // Assessment-driven Callout Banner (if applicable e.g. Mental Health or Lab)
+              if (entry.isAssessmentDriven && entry.localizedClinicalNotes != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF8B5CF6).withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(LucideIcons.info, color: Color(0xFF8B5CF6), size: 14),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          entry.localizedClinicalNotes!,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: isDark ? const Color(0xFFDDD6FE) : const Color(0xFF5B21B6),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 10),
+
+              // Category Filter Pills
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildCategoryPill(
+                      label: AppLanguage.tr('All Tools (${entry.tools.length})', 'الكل (${entry.tools.length})'),
+                      isSelected: selectedCategory == null,
+                      color: accentColor,
+                      onTap: () => _selectedInstrumentCategoryNotifier.value = null,
+                      isDark: isDark,
+                    ),
+                    if (diagnosticCount > 0)
+                      _buildCategoryPill(
+                        label: AppLanguage.tr('Diagnostic ($diagnosticCount)', 'تشخيصي ($diagnosticCount)'),
+                        isSelected: selectedCategory == ClinicalInstrumentCategory.diagnostic,
+                        color: ClinicalInstrumentCategory.diagnostic.color,
+                        onTap: () => _selectedInstrumentCategoryNotifier.value = ClinicalInstrumentCategory.diagnostic,
+                        isDark: isDark,
+                      ),
+                    if (proceduralCount > 0)
+                      _buildCategoryPill(
+                        label: AppLanguage.tr('Procedural ($proceduralCount)', 'إجرائي ($proceduralCount)'),
+                        isSelected: selectedCategory == ClinicalInstrumentCategory.procedural,
+                        color: ClinicalInstrumentCategory.procedural.color,
+                        onTap: () => _selectedInstrumentCategoryNotifier.value = ClinicalInstrumentCategory.procedural,
+                        isDark: isDark,
+                      ),
+                    if (surgicalCount > 0)
+                      _buildCategoryPill(
+                        label: AppLanguage.tr('Surgical ($surgicalCount)', 'جراحي ($surgicalCount)'),
+                        isSelected: selectedCategory == ClinicalInstrumentCategory.surgical,
+                        color: ClinicalInstrumentCategory.surgical.color,
+                        onTap: () => _selectedInstrumentCategoryNotifier.value = ClinicalInstrumentCategory.surgical,
+                        isDark: isDark,
+                      ),
+                    if (assessmentCount > 0)
+                      _buildCategoryPill(
+                        label: AppLanguage.tr('Assessment ($assessmentCount)', 'تقييم ($assessmentCount)'),
+                        isSelected: selectedCategory == ClinicalInstrumentCategory.assessment,
+                        color: ClinicalInstrumentCategory.assessment.color,
+                        onTap: () => _selectedInstrumentCategoryNotifier.value = ClinicalInstrumentCategory.assessment,
+                        isDark: isDark,
+                      ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // List of Instruments
+              ValueListenableBuilder<String?>(
+                valueListenable: _selectedInstrumentIdNotifier,
+                builder: (context, selectedId, _) {
+                  return ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 280),
+                    child: SingleChildScrollView(
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: filteredTools.map((tool) {
+                          final isSelected = tool.id == selectedId;
+                          return _buildInstrumentCard(context, tool, isSelected, isDark);
+                        }).toList(),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCategoryPill({
+    required String label,
+    required bool isSelected,
+    required Color color,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? color
+                : (isDark ? const Color(0xFF1E293B) : Colors.white),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected
+                  ? color
+                  : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: isSelected
+                  ? Colors.white
+                  : (isDark ? Colors.white70 : Colors.black87),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInstrumentCard(
+    BuildContext context,
+    ClinicalInstrumentItem tool,
+    bool isSelected,
+    bool isDark,
+  ) {
+    final catColor = tool.category.color;
+
+    return InkWell(
+      onTap: () {
+        _selectedInstrumentIdNotifier.value =
+            _selectedInstrumentIdNotifier.value == tool.id ? null : tool.id;
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        constraints: const BoxConstraints(maxWidth: 340),
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? catColor.withValues(alpha: isDark ? 0.22 : 0.12)
+              : (isDark ? const Color(0xFF131D38) : Colors.white),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? catColor : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+            width: isSelected ? 1.6 : 1.0,
+          ),
+          boxShadow: [
+            if (isSelected)
+              BoxShadow(
+                color: catColor.withValues(alpha: 0.2),
+                blurRadius: 6,
+              ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    color: catColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(tool.icon, size: 13, color: catColor),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AppLanguage.isArabic ? tool.nameAr : tool.nameEn,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (AppLanguage.isArabic)
+                        Text(
+                          tool.nameEn,
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            color: isDark ? Colors.white54 : Colors.black45,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: catColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    tool.category.localizedTitle.split(' ')[0],
+                    style: TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.bold,
+                      color: catColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              tool.localizedDescription,
+              style: TextStyle(
+                fontSize: 9.5,
+                color: isDark ? Colors.white70 : Colors.black87,
+                height: 1.25,
+              ),
+              maxLines: isSelected ? 6 : 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (tool.isNonInvasive) ...[
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(LucideIcons.circleCheck, size: 10, color: Color(0xFF10B981)),
+                  const SizedBox(width: 4),
+                  Text(
+                    AppLanguage.tr('Non-Invasive Diagnostic Tool', 'أداة تشخيصية غير تداخلية'),
+                    style: const TextStyle(
+                      fontSize: 8.5,
+                      color: Color(0xFF10B981),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

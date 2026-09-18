@@ -1,4 +1,7 @@
 
+import 'specialty_instrument_registry.dart';
+import '../../presentation/widgets/multi_specialty_anatomy_canvas_widget.dart' show ClinicalSpecialtyDiscipline;
+
 enum AnatomicalSeverity { normal, mild, moderate, severe, critical, treated }
 
 class Anatomical3dVector {
@@ -51,6 +54,7 @@ class Specialty3DProfile {
   final List<AnatomicalRegionData> regions;
   final Map<String, Anatomical3dVector> cameraPresets;
   final double defaultFov;
+  final List<ClinicalInstrumentItem> tools;
 
   const Specialty3DProfile({
     required this.verticalId,
@@ -59,7 +63,28 @@ class Specialty3DProfile {
     required this.regions,
     required this.cameraPresets,
     this.defaultFov = 45.0,
+    this.tools = const [],
   });
+
+  Specialty3DProfile copyWith({
+    String? verticalId,
+    String? titleEn,
+    String? titleAr,
+    List<AnatomicalRegionData>? regions,
+    Map<String, Anatomical3dVector>? cameraPresets,
+    double? defaultFov,
+    List<ClinicalInstrumentItem>? tools,
+  }) {
+    return Specialty3DProfile(
+      verticalId: verticalId ?? this.verticalId,
+      titleEn: titleEn ?? this.titleEn,
+      titleAr: titleAr ?? this.titleAr,
+      regions: regions ?? this.regions,
+      cameraPresets: cameraPresets ?? this.cameraPresets,
+      defaultFov: defaultFov ?? this.defaultFov,
+      tools: tools ?? this.tools,
+    );
+  }
 }
 
 class SpecialtyAnatomicalRegistry {
@@ -68,19 +93,52 @@ class SpecialtyAnatomicalRegistry {
   static Specialty3DProfile getProfile(String verticalOrSpecialty) {
     final lower = verticalOrSpecialty.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_');
 
-    if (lower.contains('physio') || lower.contains('rehab') || lower.contains('ortho')) {
-      return _physiotherapyProfile;
+    if (lower.contains('physio') || lower.contains('rehab')) {
+      return _physiotherapyProfile.copyWith(
+        tools: SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.physiotherapy),
+      );
+    }
+    if (lower.contains('ortho')) {
+      return _physiotherapyProfile.copyWith(
+        tools: SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.orthopedics),
+      );
     }
     if (lower.contains('eye') || lower.contains('optom') || lower.contains('ophthal')) {
-      return _optometryProfile;
+      return _optometryProfile.copyWith(
+        tools: SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.ophthalmology),
+      );
     }
     if (lower.contains('vet') || lower.contains('animal')) {
-      return _veterinaryProfile;
+      return _veterinaryProfile.copyWith(
+        tools: SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.veterinary),
+      );
     }
     if (lower.contains('clinic') && !lower.contains('dental')) {
-      return _generalClinicProfile;
+      return _generalClinicProfile.copyWith(
+        tools: SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.general),
+      );
     }
-    return _dentalProfile;
+    return _dentalProfile.copyWith(
+      tools: SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.dental),
+    );
+  }
+
+  static Specialty3DProfile getProfileForDiscipline(ClinicalSpecialtyDiscipline discipline) {
+    final tools = SpecialtyInstrumentRegistry.getToolsForDiscipline(discipline);
+    switch (discipline) {
+      case ClinicalSpecialtyDiscipline.physiotherapy:
+      case ClinicalSpecialtyDiscipline.orthopedics:
+      case ClinicalSpecialtyDiscipline.podiatry:
+        return _physiotherapyProfile.copyWith(tools: tools);
+      case ClinicalSpecialtyDiscipline.ophthalmology:
+        return _optometryProfile.copyWith(tools: tools);
+      case ClinicalSpecialtyDiscipline.veterinary:
+        return _veterinaryProfile.copyWith(tools: tools);
+      case ClinicalSpecialtyDiscipline.dental:
+        return _dentalProfile.copyWith(tools: tools);
+      default:
+        return _generalClinicProfile.copyWith(tools: tools);
+    }
   }
 
   // 1. General Clinic / Triage Mannequin Profile

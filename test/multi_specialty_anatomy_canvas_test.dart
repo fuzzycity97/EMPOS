@@ -13,6 +13,7 @@ import 'package:empos/features/clinic/presentation/widgets/skeletal_bone_3d_canv
 import 'package:empos/features/clinic/presentation/widgets/clinical_3d_engine_core.dart';
 import 'package:empos/features/clinic/presentation/widgets/specialty_3d_anatomical_models.dart';
 import 'package:empos/features/clinic/presentation/widgets/dental_tooth_3d_canvas_widget.dart';
+import 'package:empos/features/clinic/domain/entities/specialty_instrument_registry.dart';
 import 'package:empos/core/localization/app_language.dart';
 
 void main() {
@@ -1098,6 +1099,7 @@ void main() {
       expect(layerModeBtn, findsWidgets);
 
       // Tap 3D Sliced Layers mode
+      await tester.ensureVisible(layerModeBtn.first);
       await tester.tap(layerModeBtn.first);
       await tester.pumpAndSettle();
 
@@ -1658,6 +1660,143 @@ void main() {
 
       // Tap again to toggle back on
       await tester.tap(cartilageBtn);
+      await tester.pumpAndSettle();
+    });
+
+    test('37. SpecialtyInstrumentRegistry provides exhaustive instrument sets for all 26 disciplines across 8 clinical groups', () {
+      final entries = SpecialtyInstrumentRegistry.allEntries;
+      expect(entries.length, greaterThanOrEqualTo(27)); // 26 specialties + general fallback
+
+      for (final disc in ClinicalSpecialtyDiscipline.values) {
+        final entry = SpecialtyInstrumentRegistry.getEntry(disc);
+        expect(entry.discipline, equals(disc));
+        expect(entry.specialtyNameEn.isNotEmpty, isTrue);
+        expect(entry.specialtyNameAr.isNotEmpty, isTrue);
+        expect(entry.groupNameEn.isNotEmpty, isTrue);
+        expect(entry.groupNameAr.isNotEmpty, isTrue);
+        expect(entry.tools.isNotEmpty, isTrue, reason: 'Discipline $disc must have tools');
+
+        // Verify each tool has valid fields
+        for (final tool in entry.tools) {
+          expect(tool.id.isNotEmpty, isTrue);
+          expect(tool.nameEn.isNotEmpty, isTrue);
+          expect(tool.nameAr.isNotEmpty, isTrue);
+          expect(tool.descriptionEn.isNotEmpty, isTrue);
+          expect(tool.descriptionAr.isNotEmpty, isTrue);
+        }
+      }
+
+      // Group 1: Head, Brain & Neurological
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.neurology).length, equals(21));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.neuroOtology).length, equals(14));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.neuroPsychiatry).length, equals(7));
+
+      // Group 2: Eye, ENT, Dental & Oral
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.ophthalmology).length, equals(17));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.rhinologyEnt).length, equals(16));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.dental).length, equals(21));
+
+      // Group 3: Cardiovascular, Thoracic & Vascular
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.cardiology).length, equals(15));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.vascularVein).length, equals(9));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.pulmonology).length, equals(11));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.endocrinology).length, equals(8));
+
+      // Group 4: Abdominal, Pelvic & Reproductive
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.gastroenterology).length, equals(13));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.urology).length, equals(11));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.obgyn).length, equals(14));
+
+      // Group 5: Musculoskeletal, Sports & Rehab
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.orthopedics).length, equals(16));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.physiotherapy).length, equals(13));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.podiatry).length, equals(8));
+
+      // Group 6: Plastic Surgery, Aesthetics & Dermatology
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.plasticSurgery).length, equals(11));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.medicalAesthetics).length, equals(8));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.dermatology).length, equals(11));
+
+      // Group 7: Interventional Pain, Anesthesia & Allied
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.painManagement).length, equals(10));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.acupuncture).length, equals(7));
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.speechPathology).length, equals(9));
+
+      // Group 8: Specialized, Pediatric, Laboratory & Veterinary
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.pediatrics).length, equals(10));
+      final mentalEntry = SpecialtyInstrumentRegistry.getEntry(ClinicalSpecialtyDiscipline.mentalHealth);
+      expect(mentalEntry.tools.length, equals(4));
+      expect(mentalEntry.isAssessmentDriven, isTrue);
+      expect(mentalEntry.clinicalNotesEn, isNotNull);
+
+      final labEntry = SpecialtyInstrumentRegistry.getEntry(ClinicalSpecialtyDiscipline.diagnosticLab);
+      expect(labEntry.tools.length, equals(12));
+      expect(labEntry.isAssessmentDriven, isTrue);
+
+      expect(SpecialtyInstrumentRegistry.getToolsForDiscipline(ClinicalSpecialtyDiscipline.veterinary).length, equals(11));
+    });
+
+    test('38. Specialty3DProfile binds exhaustive specialty tools and allows category filtering', () {
+      final physioProfile = SpecialtyAnatomicalRegistry.getProfile('physiotherapy');
+      expect(physioProfile.tools.isNotEmpty, isTrue);
+      expect(physioProfile.tools.any((t) => t.id == 'pt_goniometer'), isTrue);
+
+      final eyeProfile = SpecialtyAnatomicalRegistry.getProfile('ophthalmology');
+      expect(eyeProfile.tools.any((t) => t.id == 'oph_slit_lamp'), isTrue);
+
+      // Verify category filtering helper
+      final surgicalNeuroTools = SpecialtyInstrumentRegistry.getToolsByCategory(
+        ClinicalSpecialtyDiscipline.neurology,
+        ClinicalInstrumentCategory.surgical,
+      );
+      expect(surgicalNeuroTools.isNotEmpty, isTrue);
+      expect(surgicalNeuroTools.any((t) => t.id == 'neuro_craniotome'), isTrue);
+      expect(surgicalNeuroTools.every((t) => t.category == ClinicalInstrumentCategory.surgical), isTrue);
+    });
+
+    testWidgets('39. MultiSpecialtyAnatomyCanvasWidget renders Specialty Instrument Tray and responds to category filtering', (tester) async {
+      tester.view.physicalSize = const Size(1400, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final bp = StoreBlueprintModel.defaultCardiologyBlueprint();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: MultiSpecialtyAnatomyCanvasWidget(
+                blueprint: bp,
+                initialDiscipline: ClinicalSpecialtyDiscipline.cardiology,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Find Specialty Tools toggle button in header and tap to open
+      final toolsBtn = find.byKey(const ValueKey('btn_toggle_specialty_instrument_tray'));
+      expect(toolsBtn, findsOneWidget);
+      await tester.tap(toolsBtn);
+      await tester.pumpAndSettle();
+
+      // Verify Cardiology tools are displayed in the tray
+      expect(find.textContaining('Cardiology Stethoscope'), findsOneWidget);
+      expect(find.textContaining('12-Lead ECG Machine'), findsOneWidget);
+
+      // Tap "Diagnostic" category filter pill
+      final diagFilter = find.text(AppLanguage.tr('Diagnostic (7)', 'تشخيصي (7)'));
+      expect(diagFilter, findsOneWidget);
+      await tester.ensureVisible(diagFilter);
+      await tester.tap(diagFilter);
+      await tester.pumpAndSettle();
+
+      // Tap on the Stethoscope card to expand/inspect
+      final stethCard = find.textContaining('Cardiology Stethoscope');
+      await tester.ensureVisible(stethCard.first);
+      await tester.tap(stethCard.first);
       await tester.pumpAndSettle();
     });
   });
