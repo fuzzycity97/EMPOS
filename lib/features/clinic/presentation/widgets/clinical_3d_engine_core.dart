@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/localization/app_language.dart';
 import '../../domain/entities/clinical_anatomy_status_entry.dart';
+import 'specialty_3d_anatomical_models.dart';
 
 /// Universal Clinical Age Progression Stages for all medical disciplines
 enum ClinicalAgeStage {
@@ -69,7 +70,6 @@ class Point3D {
   }
 
   Point3D rotateEuler(double yaw, double pitch) {
-    // Rotate pitch around X, then yaw around Y
     final p = rotateX(pitch);
     return p.rotateY(yaw);
   }
@@ -120,9 +120,14 @@ class MeshFace3D {
   }
 }
 
-/// Interactive 3D Anatomical Scene Viewer Widget
+/// Interactive 3D Anatomical Scene Viewer Widget with Solo Part Inspection & 3D Medical Instruments
 class Clinical3dSceneViewer extends StatefulWidget {
-  final List<MeshFace3D> Function(ClinicalAgeStage ageStage) sceneMeshBuilder;
+  final List<MeshFace3D> Function(
+    ClinicalAgeStage ageStage, {
+    SpecialtyInstrument? instrument,
+    bool isSoloMode,
+    String? soloPartKey,
+  }) sceneMeshBuilder;
   final void Function(String partKey, String nameEn, String nameAr)? onPartSelected;
   final Map<String, ClinicalAnatomyStatusEntry>? activeStatuses;
   final ClinicalAgeStage initialAgeStage;
@@ -135,6 +140,7 @@ class Clinical3dSceneViewer extends StatefulWidget {
   final double initialPitch;
   final double initialYaw;
   final double height;
+  final List<SpecialtyInstrument> availableInstruments;
   final Widget? overlayBottomWidget;
 
   const Clinical3dSceneViewer({
@@ -151,7 +157,8 @@ class Clinical3dSceneViewer extends StatefulWidget {
     this.initialZoom = 1.0,
     this.initialPitch = 0.2,
     this.initialYaw = 0.3,
-    this.height = 360,
+    this.height = 370,
+    this.availableInstruments = const [],
     this.overlayBottomWidget,
   });
 
@@ -166,6 +173,11 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
   late double _zoom;
   Offset? _lastPanPos;
   String? _hoveredPartKey;
+  String? _selectedPartKey;
+  String? _selectedPartNameEn;
+  String? _selectedPartNameAr;
+  bool _isSoloMode = false;
+  SpecialtyInstrument _selectedInstrument = SpecialtyInstrument.none;
   bool _autoRotate = false;
   late final AnimationController _autoRotController;
 
@@ -215,18 +227,41 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     });
   }
 
+  void _enterSoloMode() {
+    if (_selectedPartKey != null) {
+      setState(() {
+        _isSoloMode = true;
+        _zoom = 1.6; // zoom into the solo part
+      });
+    }
+  }
+
+  void _exitSoloMode() {
+    setState(() {
+      _isSoloMode = false;
+      _zoom = widget.initialZoom;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final faces = widget.sceneMeshBuilder(_currentAgeStage);
+    final faces = widget.sceneMeshBuilder(
+      _currentAgeStage,
+      instrument: _selectedInstrument,
+      isSoloMode: _isSoloMode,
+      soloPartKey: _selectedPartKey,
+    );
 
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-          width: 1.5,
+          color: _isSoloMode
+              ? Colors.amberAccent
+              : (isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0)),
+          width: _isSoloMode ? 2.0 : 1.5,
         ),
         boxShadow: [
           BoxShadow(
@@ -266,16 +301,41 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        AppLanguage.isArabic ? widget.specialtyTitleAr : widget.specialtyTitle,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _isSoloMode
+                                  ? '${AppLanguage.tr('SOLO 3D VIEW: ', 'عرض ثلاثي الأبعاد منفرد: ')}${AppLanguage.isArabic ? (_selectedPartNameAr ?? '') : (_selectedPartNameEn ?? '')}'
+                                  : (AppLanguage.isArabic ? widget.specialtyTitleAr : widget.specialtyTitle),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: _isSoloMode ? Colors.amberAccent : (isDark ? Colors.white : const Color(0xFF0F172A)),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (_isSoloMode) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: Colors.amberAccent.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'SOLO',
+                                style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       Text(
-                        'Interactive 3D Anatomical Projection (3D مجسم تفاعلي)',
+                        _isSoloMode
+                            ? AppLanguage.tr('Isolated realistic 3D organ view with instruments', 'معاينة العضو منفرداً بدقة عالية مع الأدوات الطبية')
+                            : 'Interactive 3D Anatomical Projection (3D مجسم تفاعلي)',
                         style: TextStyle(
                           fontSize: 10.5,
                           color: isDark ? Colors.white54 : Colors.black54,
@@ -284,7 +344,34 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                     ],
                   ),
                 ),
-                // Auto rotate button
+
+                // Solo Mode Toggle button
+                if (_isSoloMode)
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0284C7),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      textStyle: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold),
+                    ),
+                    icon: const Icon(Icons.arrow_back, size: 14),
+                    label: Text(AppLanguage.tr('Full View', 'العرض الكامل')),
+                    onPressed: _exitSoloMode,
+                  )
+                else if (_selectedPartKey != null)
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amber.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      textStyle: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold),
+                    ),
+                    icon: const Icon(LucideIcons.maximize2, size: 13),
+                    label: Text(AppLanguage.tr('Solo 3D', 'عرض منفرد 3D')),
+                    onPressed: _enterSoloMode,
+                  ),
+
+                const SizedBox(width: 4),
                 IconButton(
                   icon: Icon(
                     _autoRotate ? Icons.pause_circle_filled : Icons.play_circle_outline,
@@ -294,7 +381,6 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                   tooltip: 'Auto Rotate (دوران تلقائي)',
                   onPressed: _toggleAutoRotate,
                 ),
-                // Reset camera button
                 IconButton(
                   icon: Icon(Icons.refresh, size: 20, color: isDark ? Colors.white70 : Colors.black54),
                   tooltip: 'Reset View (إعادة ضبط)',
@@ -393,12 +479,51 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
             ),
           ),
 
-          // 3. MAIN 3D INTERACTIVE CANVAS VIEWPORT
+          // 3. SPECIALIZED 3D MEDICAL INSTRUMENTS TOOLBAR
+          if (widget.availableInstruments.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF090D18) : const Color(0xFFE2E8F0),
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFCBD5E1),
+                  ),
+                ),
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(LucideIcons.wrench, size: 13, color: Color(0xFF38BDF8)),
+                        const SizedBox(width: 5),
+                        Text(
+                          AppLanguage.tr('3D Instruments & Hardware:', 'الأدوات والأجهزة الطبية 3D:'),
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
+                    // None (normal anatomy)
+                    _buildInstrumentPill(SpecialtyInstrument.none, isDark),
+                    ...widget.availableInstruments.map((inst) => _buildInstrumentPill(inst, isDark)),
+                  ],
+                ),
+              ),
+            ),
+
+          // 4. MAIN 3D INTERACTIVE CANVAS VIEWPORT
           SizedBox(
             height: widget.height,
             child: Stack(
               children: [
-                // Interactive Gesture area
                 Positioned.fill(
                   child: GestureDetector(
                     onPanStart: (details) => _lastPanPos = details.localPosition,
@@ -433,7 +558,7 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                   ),
                 ),
 
-                // Zoom in / Zoom out floating controls
+                // Floating zoom buttons
                 Positioned(
                   right: 12,
                   bottom: 12,
@@ -443,14 +568,14 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                       _buildFloatingCircleBtn(
                         icon: Icons.add,
                         tooltip: 'Zoom In',
-                        onTap: () => setState(() => _zoom = (_zoom * 1.15).clamp(0.4, 3.5)),
+                        onTap: () => setState(() => _zoom = (_zoom * 1.15).clamp(0.4, 4.0)),
                         isDark: isDark,
                       ),
                       const SizedBox(height: 6),
                       _buildFloatingCircleBtn(
                         icon: Icons.remove,
                         tooltip: 'Zoom Out',
-                        onTap: () => setState(() => _zoom = (_zoom / 1.15).clamp(0.4, 3.5)),
+                        onTap: () => setState(() => _zoom = (_zoom / 1.15).clamp(0.4, 4.0)),
                         isDark: isDark,
                       ),
                     ],
@@ -476,7 +601,9 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                         Icon(LucideIcons.hand, size: 12, color: widget.primaryColor),
                         const SizedBox(width: 5),
                         Text(
-                          AppLanguage.tr('Drag to rotate 3D • Tap to select part', 'اسحب للتدوير 3D • انقر للتحديد'),
+                          _isSoloMode
+                              ? AppLanguage.tr('Solo Mode active • Drag to rotate 3D', 'الوضع المنفرد نشط • اسحب للتدوير 3D')
+                              : AppLanguage.tr('Drag to rotate 3D • Tap to select & view Solo', 'اسحب للتدوير 3D • انقر للتحديد والعرض المنفرد'),
                           style: TextStyle(
                             fontSize: 9.5,
                             fontWeight: FontWeight.w600,
@@ -497,13 +624,55 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     );
   }
 
+  Widget _buildInstrumentPill(SpecialtyInstrument inst, bool isDark) {
+    final isSel = inst == _selectedInstrument;
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: InkWell(
+        onTap: () => setState(() => _selectedInstrument = inst),
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: isSel
+                ? const Color(0xFF0284C7)
+                : (isDark ? const Color(0xFF1E293B) : Colors.white),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSel
+                  ? const Color(0xFF38BDF8)
+                  : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isSel) const Icon(Icons.check, size: 11, color: Colors.white),
+              if (isSel) const SizedBox(width: 3),
+              Text(
+                inst.localizedTitle,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                  color: isSel
+                      ? Colors.white
+                      : (isDark ? Colors.white70 : const Color(0xFF334155)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _handleCanvasTap(Offset tapPos, List<MeshFace3D> faces) {
-    // Find closest projected face centroid
     final size = Size(double.infinity, widget.height);
     final scale = 1.0 * _zoom;
 
     MeshFace3D? closestFace;
-    double minSqDist = 55.0 * 55.0; // hit threshold
+    double minSqDist = 55.0 * 55.0;
 
     for (final face in faces) {
       if (face.partKey == null) continue;
@@ -518,7 +687,12 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     }
 
     if (closestFace != null) {
-      setState(() => _hoveredPartKey = closestFace!.partKey);
+      setState(() {
+        _hoveredPartKey = closestFace!.partKey;
+        _selectedPartKey = closestFace.partKey;
+        _selectedPartNameEn = closestFace.partNameEn ?? closestFace.partKey!;
+        _selectedPartNameAr = closestFace.partNameAr ?? closestFace.partNameEn ?? closestFace.partKey!;
+      });
       widget.onPartSelected?.call(
         closestFace.partKey!,
         closestFace.partNameEn ?? closestFace.partKey!,
@@ -589,8 +763,6 @@ class _Generic3DScenePainter extends CustomPainter {
     if (faces.isEmpty) return;
 
     final lightDir = const Point3D(-0.577, -0.577, 0.577).normalized();
-
-    // Transform and compute transformed depth for each face
     final transformedFaces = <_RenderFace>[];
 
     for (final face in faces) {
@@ -601,7 +773,6 @@ class _Generic3DScenePainter extends CustomPainter {
       }
       final avgZ = sumZ / rotVertices.length;
 
-      // Compute transformed normal
       Point3D norm = const Point3D(0, 0, 1);
       if (rotVertices.length >= 3) {
         norm = (rotVertices[1] - rotVertices[0]).cross(rotVertices[2] - rotVertices[0]).normalized();
@@ -615,9 +786,7 @@ class _Generic3DScenePainter extends CustomPainter {
       ));
     }
 
-    // Depth sort: painter's algorithm (far to near)
     transformedFaces.sort((a, b) => a.avgZ.compareTo(b.avgZ));
-
     final scale = 1.0 * zoom;
 
     for (final rf in transformedFaces) {
@@ -625,7 +794,6 @@ class _Generic3DScenePainter extends CustomPainter {
       final rotVerts = rf.rotatedVertices;
       if (rotVerts.isEmpty) continue;
 
-      // Project vertices to screen
       final screenPts = rotVerts.map((v) => v.toScreen(size, scale)).toList();
 
       final path = Path()..moveTo(screenPts[0].dx, screenPts[0].dy);
@@ -634,7 +802,6 @@ class _Generic3DScenePainter extends CustomPainter {
       }
       path.close();
 
-      // Check if this part has active status
       Color faceColor = face.baseColor;
       if (face.partKey != null && activeStatuses != null) {
         final status = activeStatuses![face.partKey];
@@ -643,7 +810,6 @@ class _Generic3DScenePainter extends CustomPainter {
         }
       }
 
-      // Compute directional shading
       final dot = (rf.normal.dot(lightDir) * -1.0).clamp(0.0, 1.0);
       final ambient = 0.42;
       final lightIntensity = (ambient + (1.0 - ambient) * dot).clamp(0.0, 1.0);
@@ -660,7 +826,6 @@ class _Generic3DScenePainter extends CustomPainter {
         canvas.drawPath(path, fillPaint);
       }
 
-      // Edge outline
       final borderPaint = Paint()
         ..color = face.partKey == hoveredPartKey
             ? Colors.amberAccent

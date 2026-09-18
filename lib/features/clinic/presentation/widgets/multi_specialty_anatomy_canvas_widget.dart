@@ -2246,7 +2246,19 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           primaryColor: const Color(0xFF10B981),
           initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
           activeStatuses: activeStatuses,
-          sceneMeshBuilder: (stage) => Specialty3dAnatomicalModels.buildPhysiotherapyMesh(stage),
+          availableInstruments: const [
+            SpecialtyInstrument.kinesioTape,
+            SpecialtyInstrument.dryNeedle,
+            SpecialtyInstrument.cuppingDome,
+            SpecialtyInstrument.tensPad,
+          ],
+          sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+              Specialty3dAnatomicalModels.buildPhysiotherapyMesh(
+                stage,
+                instrument: instrument,
+                isSoloMode: isSoloMode,
+                soloPartKey: soloPartKey,
+              ),
           onPartSelected: (partKey, nameEn, nameAr) {
             _openStatusInspector(
               context,
@@ -2397,7 +2409,19 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           primaryColor: const Color(0xFFF59E0B),
           initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
           activeStatuses: activeStatuses,
-          sceneMeshBuilder: (stage) => Specialty3dAnatomicalModels.buildGastroenterologyMesh(stage),
+          availableInstruments: const [
+            SpecialtyInstrument.biopsyForceps,
+            SpecialtyInstrument.hemoclip,
+            SpecialtyInstrument.biliaryStent,
+            SpecialtyInstrument.laparoscopicTrocar,
+          ],
+          sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+              Specialty3dAnatomicalModels.buildGastroenterologyMesh(
+                stage,
+                instrument: instrument,
+                isSoloMode: isSoloMode,
+                soloPartKey: soloPartKey,
+              ),
           onPartSelected: (partKey, nameEn, nameAr) {
             _openStatusInspector(
               context,
@@ -2546,7 +2570,19 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           primaryColor: const Color(0xFFEF4444),
           initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
           activeStatuses: activeStatuses,
-          sceneMeshBuilder: (stage) => Specialty3dAnatomicalModels.buildCardiologyMesh(stage),
+          availableInstruments: const [
+            SpecialtyInstrument.coronaryStent,
+            SpecialtyInstrument.angioplastyBalloon,
+            SpecialtyInstrument.tavrValve,
+            SpecialtyInstrument.pacemakerLead,
+          ],
+          sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+              Specialty3dAnatomicalModels.buildCardiologyMesh(
+                stage,
+                instrument: instrument,
+                isSoloMode: isSoloMode,
+                soloPartKey: soloPartKey,
+              ),
           onPartSelected: (partKey, nameEn, nameAr) {
             _openStatusInspector(
               context,
@@ -2706,7 +2742,19 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           primaryColor: const Color(0xFFEC4899),
           initialAgeStage: isPediatric ? ClinicalAgeStage.child : ClinicalAgeStage.adult,
           activeStatuses: activeStatuses,
-          sceneMeshBuilder: (stage) => Specialty3dAnatomicalModels.buildDermatologyMesh(stage),
+          availableInstruments: const [
+            SpecialtyInstrument.punchBiopsy,
+            SpecialtyInstrument.intradermalSuture,
+            SpecialtyInstrument.cryoSpray,
+            SpecialtyInstrument.microneedle,
+          ],
+          sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+              Specialty3dAnatomicalModels.buildDermatologyMesh(
+                stage,
+                instrument: instrument,
+                isSoloMode: isSoloMode,
+                soloPartKey: soloPartKey,
+              ),
           onPartSelected: (partKey, nameEn, nameAr) {
             _openStatusInspector(
               context,

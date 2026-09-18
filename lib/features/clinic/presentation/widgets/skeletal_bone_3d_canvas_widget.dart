@@ -244,6 +244,7 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
   late final ValueNotifier<SkeletalRegionFocus> _focusNotifier;
   late final ValueNotifier<String?> _selectedBoneNotifier;
   late final ValueNotifier<bool> _isSoloModeNotifier;
+  late final ValueNotifier<bool> _showCartilageNotifier;
   late final ValueNotifier<SurgicalHardwareType?> _activeToolNotifier;
   late final ValueNotifier<List<BoneInterventionPoint>> _interventionsNotifier;
 
@@ -261,6 +262,7 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
     _focusNotifier = ValueNotifier<SkeletalRegionFocus>(SkeletalRegionFocus.full);
     _selectedBoneNotifier = ValueNotifier<String?>(widget.selectedBoneId);
     _isSoloModeNotifier = ValueNotifier<bool>(widget.initialSoloMode);
+    _showCartilageNotifier = ValueNotifier<bool>(true);
     _activeToolNotifier = ValueNotifier<SurgicalHardwareType?>(null);
     _interventionsNotifier = ValueNotifier<List<BoneInterventionPoint>>(widget.initialInterventions ?? []);
   }
@@ -284,6 +286,7 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
     _focusNotifier.dispose();
     _selectedBoneNotifier.dispose();
     _isSoloModeNotifier.dispose();
+    _showCartilageNotifier.dispose();
     _activeToolNotifier.dispose();
     _interventionsNotifier.dispose();
     super.dispose();
@@ -366,6 +369,7 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
                             _focusNotifier,
                             _selectedBoneNotifier,
                             _isSoloModeNotifier,
+                            _showCartilageNotifier,
                             _activeToolNotifier,
                             _interventionsNotifier,
                           ]),
@@ -382,6 +386,7 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
                                 selectedBoneId: _selectedBoneNotifier.value,
                                 activeStatuses: widget.activeStatuses ?? {},
                                 isSoloMode: _isSoloModeNotifier.value,
+                                showCartilage: _showCartilageNotifier.value,
                                 interventions: _interventionsNotifier.value,
                                 isDark: isDark,
                               ),
@@ -862,6 +867,46 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
                     _adjustCameraForFocus(val);
                   }
                 },
+              ),
+            );
+          },
+        ),
+        const SizedBox(width: 8),
+
+        // Cartilages & Joint Structures Toggle Button
+        ValueListenableBuilder<bool>(
+          valueListenable: _showCartilageNotifier,
+          builder: (context, showCartilage, _) {
+            return InkWell(
+              key: const ValueKey('btn_toggle_cartilage'),
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => _showCartilageNotifier.value = !_showCartilageNotifier.value,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: showCartilage ? const Color(0xFF0284C7) : (isDark ? const Color(0xFF0F172A) : Colors.white),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: showCartilage ? Colors.transparent : Colors.white24),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      LucideIcons.sparkles,
+                      size: 13,
+                      color: showCartilage ? Colors.white : const Color(0xFF0284C7),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      AppLanguage.isArabic ? 'الغضاريف والمفاصل' : 'Cartilage & Discs',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: showCartilage ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -1363,6 +1408,7 @@ class _Skeletal3DPainter extends CustomPainter {
   final String? selectedBoneId;
   final Map<String, ClinicalAnatomyStatusEntry> activeStatuses;
   final bool isSoloMode;
+  final bool showCartilage;
   final List<BoneInterventionPoint> interventions;
   final bool isDark;
 
@@ -1377,6 +1423,7 @@ class _Skeletal3DPainter extends CustomPainter {
     required this.selectedBoneId,
     required this.activeStatuses,
     required this.isSoloMode,
+    this.showCartilage = true,
     required this.interventions,
     required this.isDark,
   });
@@ -1415,6 +1462,11 @@ class _Skeletal3DPainter extends CustomPainter {
 
     for (final bone in bones) {
       _paintBone(canvas, cx, cy, bone);
+    }
+
+    // Paint Articular Joint Cartilages, Intervertebral Discs & Menisci in TRUE 3D
+    if (showCartilage) {
+      _paintArticularCartilageAndJoints(canvas, cx, cy);
     }
 
     // Paint Pediatric Growth Plates or Geriatric Osteophytes Overlay
@@ -1541,6 +1593,11 @@ class _Skeletal3DPainter extends CustomPainter {
           ..style = PaintingStyle.stroke;
         canvas.drawPath(path, strokePaint);
       }
+    }
+
+    // Paint High-Magnification Articular Cartilage & Fibrocartilage in Solo Bone Mode
+    if (showCartilage) {
+      _paintSoloBoneCartilages(canvas, cx, cy, soloBone, soloScale);
     }
 
     // Paint Surgical Interventions for this Solo Bone in TRUE 3D
@@ -2152,6 +2209,223 @@ class _Skeletal3DPainter extends CustomPainter {
     }
   }
 
+  void _paintArticularCartilageAndJoints(Canvas canvas, double cx, double cy) {
+    if (!showCartilage) return;
+
+    final cartilagePaint = Paint()
+      ..color = const Color(0xFF38BDF8).withValues(alpha: renderMode == SkeletalRenderMode.xray ? 0.35 : 0.85)
+      ..style = PaintingStyle.fill;
+    final cartilageBorder = Paint()
+      ..color = const Color(0xFF0284C7).withValues(alpha: 0.9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    final costalPaint = Paint()
+      ..color = const Color(0xFF7DD3FC).withValues(alpha: 0.85)
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 3.2 * zoom;
+
+    // 1. Intervertebral Discs (Cervical, Thoracic, Lumbar, Lumbosacral)
+    if (regionFocus == SkeletalRegionFocus.full || regionFocus == SkeletalRegionFocus.spine || regionFocus == SkeletalRegionFocus.cranial) {
+      final cervicalDiscYs = [92.0, 95.0, 98.0, 101.0, 104.0];
+      for (final dy in cervicalDiscYs) {
+        _draw3DDisc(canvas, cx, cy, center: BonePoint3D(0, dy, 2), radius: 6.5, height: 1.6, fill: cartilagePaint, stroke: cartilageBorder);
+      }
+    }
+
+    if (regionFocus == SkeletalRegionFocus.full || regionFocus == SkeletalRegionFocus.spine || regionFocus == SkeletalRegionFocus.thoracic) {
+      final thoracicDiscYs = [75.0, 68.0, 61.0, 54.0, 47.0, 40.0, 33.0];
+      for (final dy in thoracicDiscYs) {
+        _draw3DDisc(canvas, cx, cy, center: BonePoint3D(0, dy, 0), radius: 8.5, height: 2.2, fill: cartilagePaint, stroke: cartilageBorder);
+      }
+    }
+
+    if (regionFocus == SkeletalRegionFocus.full || regionFocus == SkeletalRegionFocus.spine || regionFocus == SkeletalRegionFocus.pelvis) {
+      final lumbarDiscYs = [24.0, 18.0, 12.0, 6.0, 0.0, -6.0];
+      final discH = ageStage == SkeletalAgeStage.geriatric ? 1.4 : 3.0; // Narrowed disc space in geriatric
+      for (final dy in lumbarDiscYs) {
+        _draw3DDisc(canvas, cx, cy, center: BonePoint3D(0, dy, 6), radius: 11.5, height: discH, fill: cartilagePaint, stroke: cartilageBorder);
+      }
+    }
+
+    // 2. Costal Cartilages (7 bilateral chondral rib arches bridging to sternum)
+    if (regionFocus == SkeletalRegionFocus.full || regionFocus == SkeletalRegionFocus.thoracic) {
+      final ribArches = [
+        [-14.0, 75.0, -8.0, 14.0, 75.0, -8.0, 75.0],
+        [-20.0, 68.0, -9.0, 20.0, 68.0, -9.0, 68.0],
+        [-24.0, 60.0, -10.0, 24.0, 60.0, -10.0, 60.0],
+        [-28.0, 52.0, -10.0, 28.0, 52.0, -10.0, 52.0],
+        [-30.0, 44.0, -10.0, 30.0, 44.0, -10.0, 44.0],
+        [-30.0, 36.0, -9.0, 30.0, 36.0, -9.0, 36.0],
+        [-26.0, 28.0, -7.0, 26.0, 28.0, -7.0, 30.0],
+      ];
+      for (final r in ribArches) {
+        final pL = _project(BonePoint3D(r[0], r[1], r[2]).transform(yaw, pitch), cx, cy);
+        final pSternum = _project(BonePoint3D(0, r[6], -13).transform(yaw, pitch), cx, cy);
+        final pR = _project(BonePoint3D(r[3], r[4], r[5]).transform(yaw, pitch), cx, cy);
+        canvas.drawLine(pL, pSternum, costalPaint);
+        canvas.drawLine(pR, pSternum, costalPaint);
+      }
+    }
+
+    // 3. Knee Joint Articular Cartilage & Menisci (Medial & Lateral C-shaped pads)
+    if (regionFocus == SkeletalRegionFocus.full || regionFocus == SkeletalRegionFocus.lowerLimbs) {
+      for (final side in [-1.0, 1.0]) {
+        final kx = 21.0 * side;
+        // Femoral Condylar Cartilage Caps
+        _draw3DCartilageCap(canvas, cx, cy, center: BonePoint3D(kx, -78, 0), radius: 6.5, fill: cartilagePaint, stroke: cartilageBorder);
+        // Tibial Plateau Cartilage
+        _draw3DCartilageCap(canvas, cx, cy, center: BonePoint3D(kx, -88, 0), radius: 7.0, fill: cartilagePaint, stroke: cartilageBorder);
+        // Medial & Lateral Meniscus Fibrocartilage Rings
+        final menP1 = _project(BonePoint3D(kx - 5, -83, 0).transform(yaw, pitch), cx, cy);
+        final menP2 = _project(BonePoint3D(kx + 5, -83, 0).transform(yaw, pitch), cx, cy);
+        canvas.drawCircle(menP1, 3.8 * zoom, cartilagePaint);
+        canvas.drawCircle(menP2, 3.8 * zoom, cartilagePaint);
+        canvas.drawCircle(menP1, 3.8 * zoom, cartilageBorder);
+        canvas.drawCircle(menP2, 3.8 * zoom, cartilageBorder);
+      }
+    }
+
+    // 4. Hip Joint Acetabular Labrum & Femoral Head Cartilage
+    if (regionFocus == SkeletalRegionFocus.full || regionFocus == SkeletalRegionFocus.pelvis || regionFocus == SkeletalRegionFocus.lowerLimbs) {
+      for (final side in [-1.0, 1.0]) {
+        final hx = 24.0 * side;
+        _draw3DCartilageCap(canvas, cx, cy, center: BonePoint3D(hx, -24, -3), radius: 8.0, fill: cartilagePaint, stroke: cartilageBorder);
+        final labrumPt = _project(BonePoint3D(hx, -24, -3).transform(yaw, pitch), cx, cy);
+        canvas.drawCircle(labrumPt, 9.5 * zoom, cartilageBorder..strokeWidth = 2.0);
+      }
+    }
+
+    // 5. Shoulder Glenoid Labrum & Humeral Head Cartilage
+    if (regionFocus == SkeletalRegionFocus.full || regionFocus == SkeletalRegionFocus.upperLimbs) {
+      for (final side in [-1.0, 1.0]) {
+        final sx = 48.0 * side;
+        _draw3DCartilageCap(canvas, cx, cy, center: BonePoint3D(sx, 74, -3), radius: 7.5, fill: cartilagePaint, stroke: cartilageBorder);
+      }
+    }
+
+    // 6. Elbow Articular Cartilage
+    if (regionFocus == SkeletalRegionFocus.full || regionFocus == SkeletalRegionFocus.upperLimbs) {
+      for (final side in [-1.0, 1.0]) {
+        final ex = 56.0 * side;
+        _draw3DCartilageCap(canvas, cx, cy, center: BonePoint3D(ex, 19, -1), radius: 5.5, fill: cartilagePaint, stroke: cartilageBorder);
+      }
+    }
+
+    // 7. Ankle Mortise & Talotibial Articular Cartilage
+    if (regionFocus == SkeletalRegionFocus.full || regionFocus == SkeletalRegionFocus.lowerLimbs) {
+      for (final side in [-1.0, 1.0]) {
+        final ax = 18.0 * side;
+        _draw3DCartilageCap(canvas, cx, cy, center: BonePoint3D(ax, -146, -2), radius: 6.0, fill: cartilagePaint, stroke: cartilageBorder);
+      }
+    }
+  }
+
+  void _paintSoloBoneCartilages(Canvas canvas, double cx, double cy, _BoneSegment3D soloBone, double soloScale) {
+    final soloCartilageFill = Paint()
+      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.88)
+      ..style = PaintingStyle.fill;
+    final soloCartilageStroke = Paint()
+      ..color = const Color(0xFF0284C7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4;
+
+    if (soloBone.region == SkeletalRegionFocus.spine) {
+      // High-res Intervertebral Disc with nucleus pulposus & annulus fibrosus
+      final discPos = _project(const BonePoint3D(0, 0, 0).transform(yaw, pitch), cx, cy);
+      canvas.drawCircle(discPos, 28.0 * zoom, soloCartilageFill);
+      canvas.drawCircle(discPos, 28.0 * zoom, soloCartilageStroke);
+      canvas.drawCircle(discPos, 12.0 * zoom, Paint()..color = const Color(0xFFBAE6FD)..style = PaintingStyle.fill);
+    } else if (soloBone.id == 'bone_femur') {
+      // Femoral Head Cartilage Cap & Distal Condylar Gliding Cartilage
+      final headPos = _project((const BonePoint3D(-2, 28, 0)).transform(yaw, pitch), cx, cy);
+      canvas.drawCircle(headPos, 22.0 * zoom, soloCartilageFill);
+      canvas.drawCircle(headPos, 22.0 * zoom, soloCartilageStroke);
+      final condylePos = _project((const BonePoint3D(0, -32, 0)).transform(yaw, pitch), cx, cy);
+      canvas.drawOval(Rect.fromCenter(center: condylePos, width: 44 * zoom, height: 20 * zoom), soloCartilageFill);
+      canvas.drawOval(Rect.fromCenter(center: condylePos, width: 44 * zoom, height: 20 * zoom), soloCartilageStroke);
+    } else if (soloBone.id == 'bone_patella_knee') {
+      // Patellar posterior cartilage facet & Meniscal Horns
+      final patPos = _project(const BonePoint3D(0, 0, 0).transform(yaw, pitch), cx, cy);
+      canvas.drawCircle(patPos, 26.0 * zoom, soloCartilageFill);
+      canvas.drawCircle(patPos, 26.0 * zoom, soloCartilageStroke);
+      final m1 = _project((const BonePoint3D(-24, -10, 0)).transform(yaw, pitch), cx, cy);
+      final m2 = _project((const BonePoint3D(24, -10, 0)).transform(yaw, pitch), cx, cy);
+      canvas.drawOval(Rect.fromCenter(center: m1, width: 22 * zoom, height: 14 * zoom), soloCartilageFill);
+      canvas.drawOval(Rect.fromCenter(center: m2, width: 22 * zoom, height: 14 * zoom), soloCartilageFill);
+      canvas.drawOval(Rect.fromCenter(center: m1, width: 22 * zoom, height: 14 * zoom), soloCartilageStroke);
+      canvas.drawOval(Rect.fromCenter(center: m2, width: 22 * zoom, height: 14 * zoom), soloCartilageStroke);
+    } else if (soloBone.id == 'bone_humerus') {
+      // Humeral Head Articular Cartilage
+      final headPos = _project((const BonePoint3D(0, 32, 0)).transform(yaw, pitch), cx, cy);
+      canvas.drawCircle(headPos, 24.0 * zoom, soloCartilageFill);
+      canvas.drawCircle(headPos, 24.0 * zoom, soloCartilageStroke);
+    } else if (soloBone.id == 'bone_tibia_fibula') {
+      // Tibial Plateau Articular Cartilage & Meniscal Footprints
+      final platPos = _project((const BonePoint3D(0, 32, 0)).transform(yaw, pitch), cx, cy);
+      canvas.drawOval(Rect.fromCenter(center: platPos, width: 48 * zoom, height: 22 * zoom), soloCartilageFill);
+      canvas.drawOval(Rect.fromCenter(center: platPos, width: 48 * zoom, height: 22 * zoom), soloCartilageStroke);
+    }
+  }
+
+  void _draw3DDisc(
+    Canvas canvas,
+    double cx,
+    double cy, {
+    required BonePoint3D center,
+    required double radius,
+    required double height,
+    required Paint fill,
+    required Paint stroke,
+    int segments = 8,
+  }) {
+    final topCenter = center + BonePoint3D(0, height * 0.5, 0);
+    final botCenter = center - BonePoint3D(0, height * 0.5, 0);
+    final topPts = <Offset>[];
+    final botPts = <Offset>[];
+
+    for (int i = 0; i < segments; i++) {
+      final theta = (i / segments) * 2 * math.pi;
+      final rx = math.cos(theta) * radius;
+      final rz = math.sin(theta) * radius;
+      topPts.add(_project((topCenter + BonePoint3D(rx, 0, rz)).transform(yaw, pitch), cx, cy));
+      botPts.add(_project((botCenter + BonePoint3D(rx, 0, rz)).transform(yaw, pitch), cx, cy));
+    }
+
+    for (int i = 0; i < segments; i++) {
+      final next = (i + 1) % segments;
+      final path = Path()
+        ..moveTo(topPts[i].dx, topPts[i].dy)
+        ..lineTo(topPts[next].dx, topPts[next].dy)
+        ..lineTo(botPts[next].dx, botPts[next].dy)
+        ..lineTo(botPts[i].dx, botPts[i].dy)
+        ..close();
+      canvas.drawPath(path, fill);
+    }
+
+    final topPath = Path()..moveTo(topPts[0].dx, topPts[0].dy);
+    for (int i = 1; i < segments; i++) {
+      topPath.lineTo(topPts[i].dx, topPts[i].dy);
+    }
+    topPath.close();
+    canvas.drawPath(topPath, fill);
+    canvas.drawPath(topPath, stroke);
+  }
+
+  void _draw3DCartilageCap(
+    Canvas canvas,
+    double cx,
+    double cy, {
+    required BonePoint3D center,
+    required double radius,
+    required Paint fill,
+    required Paint stroke,
+  }) {
+    final proj = _project(center.transform(yaw, pitch), cx, cy);
+    canvas.drawCircle(proj, radius * zoom, fill);
+    canvas.drawCircle(proj, radius * zoom, stroke);
+  }
+
   @override
   bool shouldRepaint(covariant _Skeletal3DPainter oldDelegate) {
     return oldDelegate.yaw != yaw ||
@@ -2164,6 +2438,7 @@ class _Skeletal3DPainter extends CustomPainter {
         oldDelegate.selectedBoneId != selectedBoneId ||
         oldDelegate.activeStatuses != activeStatuses ||
         oldDelegate.isSoloMode != isSoloMode ||
+        oldDelegate.showCartilage != showCartilage ||
         oldDelegate.interventions != interventions ||
         oldDelegate.isDark != isDark;
   }

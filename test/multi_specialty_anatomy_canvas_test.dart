@@ -12,6 +12,7 @@ import 'package:empos/features/clinic/domain/entities/tooth_chart_entry.dart';
 import 'package:empos/features/clinic/presentation/widgets/skeletal_bone_3d_canvas_widget.dart';
 import 'package:empos/features/clinic/presentation/widgets/clinical_3d_engine_core.dart';
 import 'package:empos/features/clinic/presentation/widgets/specialty_3d_anatomical_models.dart';
+import 'package:empos/features/clinic/presentation/widgets/dental_tooth_3d_canvas_widget.dart';
 import 'package:empos/core/localization/app_language.dart';
 
 void main() {
@@ -1441,6 +1442,223 @@ void main() {
         expect(dermaFaces.isNotEmpty, isTrue);
         expect(dermaFaces.any((f) => f.partKey == 'derma_face'), isTrue);
       }
+    });
+
+    test('32. Specialty3dAnatomicalModels generates 3D volumetric instruments for all specialties', () {
+      // Cardiology instruments
+      for (final inst in [
+        SpecialtyInstrument.coronaryStent,
+        SpecialtyInstrument.angioplastyBalloon,
+        SpecialtyInstrument.tavrValve,
+        SpecialtyInstrument.pacemakerLead,
+      ]) {
+        final faces = Specialty3dAnatomicalModels.buildCardiologyMesh(ClinicalAgeStage.adult, instrument: inst);
+        expect(faces.any((f) => f.partKey?.startsWith('tool_') == true), isTrue);
+      }
+
+      // Physiotherapy instruments
+      for (final inst in [
+        SpecialtyInstrument.kinesioTape,
+        SpecialtyInstrument.dryNeedle,
+        SpecialtyInstrument.cuppingDome,
+        SpecialtyInstrument.tensPad,
+      ]) {
+        final faces = Specialty3dAnatomicalModels.buildPhysiotherapyMesh(ClinicalAgeStage.adult, instrument: inst);
+        expect(faces.any((f) => f.partKey?.startsWith('tool_') == true), isTrue);
+      }
+
+      // Gastroenterology instruments
+      for (final inst in [
+        SpecialtyInstrument.biopsyForceps,
+        SpecialtyInstrument.hemoclip,
+        SpecialtyInstrument.biliaryStent,
+        SpecialtyInstrument.laparoscopicTrocar,
+      ]) {
+        final faces = Specialty3dAnatomicalModels.buildGastroenterologyMesh(ClinicalAgeStage.adult, instrument: inst);
+        expect(faces.any((f) => f.partKey?.startsWith('tool_') == true), isTrue);
+      }
+
+      // Dermatology instruments
+      for (final inst in [
+        SpecialtyInstrument.punchBiopsy,
+        SpecialtyInstrument.intradermalSuture,
+        SpecialtyInstrument.cryoSpray,
+        SpecialtyInstrument.microneedle,
+      ]) {
+        final faces = Specialty3dAnatomicalModels.buildDermatologyMesh(ClinicalAgeStage.adult, instrument: inst);
+        expect(faces.any((f) => f.partKey?.startsWith('tool_') == true), isTrue);
+      }
+    });
+
+    testWidgets('33. Clinical3dSceneViewer renders medical instruments and toggles solo inspection mode', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Clinical3dSceneViewer(
+              specialtyTitle: '3D Muscular Anatomy',
+              specialtyTitleAr: 'المجسم العضلي ثلاثي الأبعاد',
+              specialtyIcon: Icons.fitness_center,
+              primaryColor: const Color(0xFF10B981),
+              availableInstruments: const [
+                SpecialtyInstrument.kinesioTape,
+                SpecialtyInstrument.dryNeedle,
+                SpecialtyInstrument.cuppingDome,
+                SpecialtyInstrument.tensPad,
+              ],
+              sceneMeshBuilder: (stage, {instrument, isSoloMode = false, soloPartKey}) =>
+                  Specialty3dAnatomicalModels.buildPhysiotherapyMesh(
+                    stage,
+                    instrument: instrument,
+                    isSoloMode: isSoloMode,
+                    soloPartKey: soloPartKey,
+                  ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify instruments selector bar is rendered
+      expect(find.text(SpecialtyInstrument.kinesioTape.localizedTitle), findsOneWidget);
+      expect(find.text(SpecialtyInstrument.dryNeedle.localizedTitle), findsOneWidget);
+
+      // Select an instrument
+      await tester.tap(find.text(SpecialtyInstrument.kinesioTape.localizedTitle));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('34. DentalTooth3dCanvasWidget toggles Solo Tooth 3D mode, displays 3D surgical hardware, and returns to full arch', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final toothChart = <ToothChartEntry>[
+        const ToothChartEntry(
+          toothNumber: 16,
+          toothCode: '16',
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DentalTooth3dCanvasWidget(
+              toothChart: toothChart,
+              selectedTooth: toothChart.first,
+              onToothSelected: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify Solo Tooth 3D button exists
+      final soloBtn = find.byKey(const Key('btn_solo_tooth_3d'));
+      expect(soloBtn, findsOneWidget);
+
+      // Tap to enter Solo Tooth 3D view
+      await tester.tap(soloBtn);
+      await tester.pumpAndSettle();
+
+      // Verify Solo mode UI elements: Return button, Pulp button, and Instrument selector bar
+      final returnBtn = find.byKey(const Key('btn_return_full_arch'));
+      expect(returnBtn, findsOneWidget);
+      final pulpBtn = find.byKey(const Key('btn_toggle_pulp'));
+      expect(pulpBtn, findsOneWidget);
+
+      // Verify all dental instruments are listed in the solo dock
+      expect(find.text(DentalSurgicalInstrument.implantFixture.localizedTitle), findsOneWidget);
+      expect(find.text(DentalSurgicalInstrument.endoRotaryFile.localizedTitle), findsOneWidget);
+      expect(find.text(DentalSurgicalInstrument.cavityPrep.localizedTitle), findsOneWidget);
+      expect(find.text(DentalSurgicalInstrument.compositeFilling.localizedTitle), findsOneWidget);
+      expect(find.text(DentalSurgicalInstrument.prostheticCrown.localizedTitle), findsOneWidget);
+      expect(find.text(DentalSurgicalInstrument.orthoBracket.localizedTitle), findsOneWidget);
+
+      // Select Titanium Implant instrument
+      await tester.tap(find.text(DentalSurgicalInstrument.implantFixture.localizedTitle));
+      await tester.pumpAndSettle();
+
+      // Toggle internal pulp and root canals
+      await tester.tap(pulpBtn);
+      await tester.pumpAndSettle();
+
+      // Tap Return to Full Arch
+      await tester.tap(returnBtn);
+      await tester.pumpAndSettle();
+
+      // Verify we returned to full arch view
+      expect(find.byKey(const Key('btn_solo_tooth_3d')), findsOneWidget);
+    });
+
+    test('35. Specialty 3D mesh generators include comprehensive micro-anatomical structures, cartilages, tendons, and sphincters', () {
+      // Cardiology: Fibrous skeleton, valve complexes, coronary sinus, conduction system
+      final cardioFaces = Specialty3dAnatomicalModels.buildCardiologyMesh(ClinicalAgeStage.adult);
+      expect(cardioFaces.any((f) => f.partKey == 'cardio_fibrous_skeleton'), isTrue);
+      expect(cardioFaces.any((f) => f.partKey == 'cardio_mitral_complex'), isTrue);
+      expect(cardioFaces.any((f) => f.partKey == 'cardio_papillary_muscles'), isTrue);
+      expect(cardioFaces.any((f) => f.partKey == 'cardio_tricuspid_valve'), isTrue);
+      expect(cardioFaces.any((f) => f.partKey == 'cardio_aortic_cusps'), isTrue);
+      expect(cardioFaces.any((f) => f.partKey == 'cardio_coronary_sinus'), isTrue);
+      expect(cardioFaces.any((f) => f.partKey == 'cardio_conduction_system'), isTrue);
+
+      // Physiotherapy: Tendons, knee menisci, spinal discs, costal cartilages, IT band, thoracolumbar fascia
+      final physioFaces = Specialty3dAnatomicalModels.buildPhysiotherapyMesh(ClinicalAgeStage.adult);
+      expect(physioFaces.any((f) => f.partKey == 'physio_patellar_tendon'), isTrue);
+      expect(physioFaces.any((f) => f.partKey == 'physio_arm_tendons'), isTrue);
+      expect(physioFaces.any((f) => f.partKey == 'physio_knee_menisci'), isTrue);
+      expect(physioFaces.any((f) => f.partKey == 'physio_spinal_discs'), isTrue);
+      expect(physioFaces.any((f) => f.partKey == 'physio_costal_cartilages'), isTrue);
+      expect(physioFaces.any((f) => f.partKey == 'physio_it_band'), isTrue);
+      expect(physioFaces.any((f) => f.partKey == 'physio_thoracolumbar_fascia'), isTrue);
+
+      // Gastroenterology: Biliary duct tree, pancreatic duct, Sphincter of Oddi, LES, pylorus, rugae, taeniae coli
+      final giFaces = Specialty3dAnatomicalModels.buildGastroenterologyMesh(ClinicalAgeStage.adult);
+      expect(giFaces.any((f) => f.partKey == 'gi_biliary_duct_tree'), isTrue);
+      expect(giFaces.any((f) => f.partKey == 'gi_pancreatic_duct'), isTrue);
+      expect(giFaces.any((f) => f.partKey == 'gi_sphincter_oddi'), isTrue);
+      expect(giFaces.any((f) => f.partKey == 'gi_les_sphincter'), isTrue);
+      expect(giFaces.any((f) => f.partKey == 'gi_pyloric_sphincter'), isTrue);
+      expect(giFaces.any((f) => f.partKey == 'gi_ileocecal_valve'), isTrue);
+      expect(giFaces.any((f) => f.partKey == 'gi_gastric_rugae'), isTrue);
+      expect(giFaces.any((f) => f.partKey == 'gi_taeniae_coli'), isTrue);
+
+      // Dermatology: Rete ridges, stratum corneum, adipose septa, sensory receptors, microvascular loops, arrector pili
+      final dermFaces = Specialty3dAnatomicalModels.buildDermatologyMesh(ClinicalAgeStage.adult);
+      expect(dermFaces.any((f) => f.partKey == 'derm_rete_ridges'), isTrue);
+      expect(dermFaces.any((f) => f.partKey == 'derm_stratum_corneum'), isTrue);
+      expect(dermFaces.any((f) => f.partKey == 'derm_adipose_septa'), isTrue);
+      expect(dermFaces.any((f) => f.partKey == 'derm_sensory_receptors'), isTrue);
+      expect(dermFaces.any((f) => f.partKey == 'derm_microvascular_plexus'), isTrue);
+      expect(dermFaces.any((f) => f.partKey == 'derm_arrector_pili'), isTrue);
+    });
+
+    testWidgets('36. SkeletalBone3dCanvasWidget renders Cartilage & Discs toggle button and toggles state', (tester) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SkeletalBone3dCanvasWidget(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify Cartilage & Discs toggle button is rendered
+      final cartilageBtn = find.byKey(const ValueKey('btn_toggle_cartilage'));
+      expect(cartilageBtn, findsOneWidget);
+
+      // Tap to toggle cartilage layer
+      await tester.tap(cartilageBtn);
+      await tester.pumpAndSettle();
+
+      // Tap again to toggle back on
+      await tester.tap(cartilageBtn);
+      await tester.pumpAndSettle();
     });
   });
 }
