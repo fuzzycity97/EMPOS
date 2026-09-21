@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -214,6 +215,7 @@ class SkeletalBone3dCanvasWidget extends StatefulWidget {
   final Map<String, ClinicalAnatomyStatusEntry>? activeStatuses;
   final String? selectedBoneId;
   final void Function(String boneCode, String nameEn, String nameAr)? onBoneSelected;
+  final void Function(String boneCode, String nameEn, String nameAr)? onBoneSecondaryTap;
   final SkeletalAgeStage initialAgeStage;
   final bool initialSoloMode;
   final List<BoneInterventionPoint>? initialInterventions;
@@ -224,6 +226,7 @@ class SkeletalBone3dCanvasWidget extends StatefulWidget {
     this.activeStatuses,
     this.selectedBoneId,
     this.onBoneSelected,
+    this.onBoneSecondaryTap,
     this.initialAgeStage = SkeletalAgeStage.adult,
     this.initialSoloMode = false,
     this.initialInterventions,
@@ -358,6 +361,7 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
                           }
                         },
                         onTapUp: (details) => _handleCanvasTap(details.localPosition, canvasSize),
+                        onSecondaryTapUp: (details) => _handleCanvasSecondaryTap(details.localPosition, canvasSize),
                         child: AnimatedBuilder(
                           animation: Listenable.merge([
                             _yawNotifier,
@@ -1394,6 +1398,40 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
       }
     }
   }
+
+  void _handleCanvasSecondaryTap(Offset tapPos, Size canvasSize) {
+    final bones = _SkeletalMeshDatabase.allBones;
+    final yaw = _yawNotifier.value;
+    final pitch = _pitchNotifier.value;
+    final zoom = _zoomNotifier.value;
+    final pan = _panNotifier.value;
+    const fov = 680.0;
+    final cx = canvasSize.width * 0.5;
+    final cy = canvasSize.height * 0.52;
+
+    _BoneSegment3D? hitBone;
+    double minDistance = 110.0;
+
+    for (final bone in bones) {
+      if (_focusNotifier.value != SkeletalRegionFocus.full && bone.region != _focusNotifier.value) {
+        continue;
+      }
+      final rotated = bone.center.transform(yaw, pitch);
+      final scale = (fov / (fov + rotated.z)) * zoom;
+      final projX = cx + pan.dx + rotated.x * scale;
+      final projY = cy + pan.dy - rotated.y * scale;
+      final dist = (tapPos - Offset(projX, projY)).distance;
+      if (dist < minDistance) {
+        minDistance = dist;
+        hitBone = bone;
+      }
+    }
+
+    if (hitBone != null) {
+      _selectedBoneNotifier.value = hitBone.id;
+      widget.onBoneSecondaryTap?.call(hitBone.code, hitBone.nameEn, hitBone.nameAr);
+    }
+  }
 }
 
 /// 3D Skeletal Canvas Custom Painter
@@ -2120,24 +2158,26 @@ class _Skeletal3DPainter extends CustomPainter {
           ..strokeWidth = 1.2
           ..style = PaintingStyle.stroke;
         canvas.drawPath(path, xrayStroke);
-      } else {
+        // Cortical bone specular sheen & rim depth
+        final halfDir = const BonePoint3D(0.35, 0.45, 0.82).normalized();
+        final specDot = math.max(0.0, normN.x * halfDir.x + normN.y * halfDir.y + normN.z * halfDir.z);
+        final specular = math.pow(specDot, 16.0) * 0.32;
+
+        final baseR = boneBaseColor.r * 255;
+        final baseG = boneBaseColor.g * 255;
+        final baseB = boneBaseColor.b * 255;
+
         final shadedColor = Color.fromARGB(
           255,
-          (boneBaseColor.r * 255 * intensity).toInt().clamp(0, 255),
-          (boneBaseColor.g * 255 * intensity).toInt().clamp(0, 255),
-          (boneBaseColor.b * 255 * intensity).toInt().clamp(0, 255),
+          (baseR * intensity + 255 * specular).toInt().clamp(0, 255),
+          (baseG * intensity + 255 * specular).toInt().clamp(0, 255),
+          (baseB * intensity + 255 * specular).toInt().clamp(0, 255),
         );
 
         final fillPaint = Paint()
           ..color = shadedColor
           ..style = PaintingStyle.fill;
         canvas.drawPath(path, fillPaint);
-
-        final strokePaint = Paint()
-          ..color = (isDark ? Colors.black38 : Colors.black12)
-          ..strokeWidth = 0.8
-          ..style = PaintingStyle.stroke;
-        canvas.drawPath(path, strokePaint);
       }
     }
 

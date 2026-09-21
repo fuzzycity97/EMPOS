@@ -1,6 +1,7 @@
 // ignore_for_file: unused_element
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/domain/entities/store_blueprint.dart';
 import '../../domain/entities/anatomical_annotation_models.dart';
@@ -632,7 +633,7 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
       _attachmentsNotifier = widget.attachmentsNotifier!;
       _ownsAttachmentsNotifier = false;
     } else {
-      _attachmentsNotifier = ValueNotifier<List<MedicalAttachment>>([]);
+      _attachmentsNotifier = ValueNotifier<List<MedicalAttachment>>(_createDefaultMedicalAttachments());
       _ownsAttachmentsNotifier = true;
     }
 
@@ -738,7 +739,7 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
         _attachmentsNotifier = widget.attachmentsNotifier!;
         _ownsAttachmentsNotifier = false;
       } else {
-        _attachmentsNotifier = ValueNotifier<List<MedicalAttachment>>([]);
+        _attachmentsNotifier = ValueNotifier<List<MedicalAttachment>>(_createDefaultMedicalAttachments());
         _ownsAttachmentsNotifier = true;
       }
     }
@@ -947,13 +948,6 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                           },
                         ),
                         _buildActiveStatusesTray(context, activeStatuses, isDark),
-                        ValueListenableBuilder<bool>(
-                          valueListenable: _showInstrumentTrayNotifier,
-                          builder: (context, showTools, _) {
-                            if (!showTools) return const SizedBox.shrink();
-                            return _buildSpecialtyInstrumentTray(context, discipline, isDark);
-                          },
-                        ),
                       ],
                     ),
                   ),
@@ -1069,51 +1063,6 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                             color: pinActive ? accentColor : (isDark ? Colors.white70 : Colors.black87),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 8),
-          // Specialty Tools & Kits Toggle Button
-          ValueListenableBuilder<bool>(
-            valueListenable: _showInstrumentTrayNotifier,
-            builder: (context, toolsActive, _) {
-              return Material(
-                key: const ValueKey('btn_toggle_specialty_instrument_tray'),
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(6),
-                  onTap: () => _showInstrumentTrayNotifier.value = !_showInstrumentTrayNotifier.value,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: toolsActive
-                          ? const Color(0xFF0284C7).withValues(alpha: 0.22)
-                          : (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05)),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: toolsActive ? const Color(0xFF0284C7) : (isDark ? Colors.white12 : Colors.black12),
-                        width: toolsActive ? 1.5 : 1.0,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.wrench, size: 13, color: toolsActive ? const Color(0xFF38BDF8) : (isDark ? Colors.white70 : Colors.black87)),
-                        const SizedBox(width: 6),
-                        Text(
-                          toolsActive
-                              ? AppLanguage.tr('Tools & Kits (Active)', 'حقيبة الأدوات (نشط)')
-                              : AppLanguage.tr('Specialty Tools', 'حقيبة الأدوات'),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: toolsActive ? const Color(0xFF38BDF8) : (isDark ? Colors.white70 : Colors.black87),
                           ),
                         ),
                       ],
@@ -2185,6 +2134,14 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
               discipline: ClinicalSpecialtyDiscipline.orthopedics,
             );
           },
+          onBoneSecondaryTap: (code, nameEn, nameAr) {
+            _openPartScanInspectionDialog(
+              context,
+              partKey: 'ortho_$code',
+              partName: nameEn,
+              partNameAr: nameAr,
+            );
+          },
         ),
         const SizedBox(height: 14),
 
@@ -2216,6 +2173,12 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                   partName: b['name'] as String,
                   partNameAr: b['nameAr'] as String,
                   discipline: ClinicalSpecialtyDiscipline.orthopedics,
+                ),
+                onSecondaryTap: () => _openPartScanInspectionDialog(
+                  context,
+                  partKey: boneKey,
+                  partName: b['name'] as String,
+                  partNameAr: b['nameAr'] as String,
                 ),
                 child: Container(
                   padding: const EdgeInsets.all(10),
@@ -2282,19 +2245,6 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                 ),
               ),
             );
-          },
-        ),
-        const SizedBox(height: 14),
-
-        // Orthopedics Trauma & Goniometer Action Widget
-        OrthopedicsTraumaActionWidget(
-          onApply: (annotation, billingItems) {
-            for (final item in billingItems) {
-              onProcedureApplied?.call(
-                item,
-                'Orthopedic Order: ${annotation.targetLimbOrJoint} - ${item.name}',
-              );
-            }
           },
         ),
       ],
@@ -7463,66 +7413,147 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                       )
                     else
                       SizedBox(
-                        height: 140,
+                        height: 165,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: partScans.length,
                           separatorBuilder: (_, _) => const SizedBox(width: 12),
                           itemBuilder: (ctx, i) {
                             final scan = partScans[i];
-                            return InkWell(
-                              borderRadius: BorderRadius.circular(10),
-                              onTap: () {
-                                DoctorAttachmentsLightbox.openLightbox(context, scan);
-                              },
-                              child: Container(
-                                width: 220,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF1E293B),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFF0284C7)),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Icon(LucideIcons.fileText, color: Color(0xFF38BDF8), size: 16),
-                                        const SizedBox(width: 6),
-                                        Expanded(
-                                          child: Text(
-                                            scan.title,
-                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
+                            final IconData scanIcon;
+                            final Color iconColor;
+                            final String modalityLabel;
+
+                            switch (scan.type) {
+                              case MedicalAttachmentType.xrayRadiograph:
+                                scanIcon = LucideIcons.scanLine;
+                                iconColor = const Color(0xFF38BDF8);
+                                modalityLabel = 'X-Ray Radiograph';
+                                break;
+                              case MedicalAttachmentType.dicomScan:
+                                scanIcon = LucideIcons.scan;
+                                iconColor = const Color(0xFFA78BFA);
+                                modalityLabel = 'CT / MRI Scan';
+                                break;
+                              case MedicalAttachmentType.ultrasound:
+                                scanIcon = LucideIcons.waves;
+                                iconColor = const Color(0xFF2DD4BF);
+                                modalityLabel = 'Ultrasound (US)';
+                                break;
+                              case MedicalAttachmentType.labReport:
+                                scanIcon = LucideIcons.flaskConical;
+                                iconColor = const Color(0xFFFBBF24);
+                                modalityLabel = 'Lab Panel';
+                                break;
+                              case MedicalAttachmentType.prescriptionPhoto:
+                                scanIcon = LucideIcons.camera;
+                                iconColor = const Color(0xFF34D399);
+                                modalityLabel = 'Clinical Photo';
+                                break;
+                            }
+
+                            return Container(
+                              width: 260,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1E293B),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: iconColor.withValues(alpha: 0.6), width: 1.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.25),
+                                    blurRadius: 6,
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(5),
+                                        decoration: BoxDecoration(
+                                          color: iconColor.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(6),
                                         ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      scan.doctorNotes,
-                                      style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10.5),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const Spacer(),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(scan.fileSize, style: const TextStyle(color: Color(0xFF64748B), fontSize: 10)),
-                                        const Row(
+                                        child: Icon(scanIcon, color: iconColor, size: 14),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text('Open Lightbox', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 10.5, fontWeight: FontWeight.bold)),
-                                            SizedBox(width: 4),
-                                            Icon(LucideIcons.arrowUpRight, color: Color(0xFF38BDF8), size: 12),
+                                            Text(
+                                              scan.title,
+                                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11.5),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            Text(
+                                              modalityLabel,
+                                              style: TextStyle(color: iconColor, fontSize: 9, fontWeight: FontWeight.bold),
+                                            ),
                                           ],
                                         ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(LucideIcons.trash2, size: 13, color: Colors.redAccent),
+                                        tooltip: 'Remove',
+                                        constraints: const BoxConstraints(),
+                                        padding: const EdgeInsets.all(4),
+                                        onPressed: () {
+                                          final updated = List<MedicalAttachment>.from(_attachmentsNotifier.value);
+                                          updated.removeWhere((a) => a.id == scan.id);
+                                          _attachmentsNotifier.value = updated;
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    scan.doctorNotes,
+                                    style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const Spacer(),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          scan.fileSize,
+                                          style: const TextStyle(color: Color(0xFF64748B), fontSize: 9.5),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      InkWell(
+                                        onTap: () => DoctorAttachmentsLightbox.openLightbox(context, scan),
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: iconColor.withValues(alpha: 0.18),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                'View Lightbox',
+                                                style: TextStyle(color: iconColor, fontSize: 10, fontWeight: FontWeight.bold),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Icon(LucideIcons.arrowUpRight, color: iconColor, size: 11),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
                             );
                           },
@@ -7531,14 +7562,16 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                     const SizedBox(height: 18),
 
                     // Actions
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 10,
+                      runSpacing: 8,
                       children: [
                         TextButton(
                           onPressed: () => Navigator.of(dialogCtx).pop(),
                           child: const Text('Close', style: TextStyle(color: Colors.white70)),
                         ),
-                        const SizedBox(width: 10),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0284C7),
@@ -7547,7 +7580,7 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                           icon: const Icon(LucideIcons.plus, size: 16),
-                          label: Text('Attach Scan to $partName'),
+                          label: Text('Attach File / X-Ray to $partName'),
                           onPressed: () {
                             _showAddPartScanDialog(
                               context,
@@ -7578,6 +7611,7 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
     final titleCtrl = TextEditingController(text: '$partName X-Ray / Scan');
     final notesCtrl = TextEditingController(text: 'Attached to $partName ($partNameAr) via 3D Inspector');
     MedicalAttachmentType selectedType = MedicalAttachmentType.xrayRadiograph;
+    PlatformFile? pickedFile;
 
     showDialog(
       context: context,
@@ -7586,71 +7620,156 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
           builder: (dialogCtx, setDialogState) {
             return AlertDialog(
               backgroundColor: const Color(0xFF0F172A),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFF0284C7))),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Color(0xFF0284C7)),
+              ),
               title: Row(
                 children: [
                   const Icon(LucideIcons.upload, color: Color(0xFF38BDF8), size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Attach Scan to $partName',
+                      'Attach Medical File to $partName',
                       style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
               ),
               content: SizedBox(
-                width: 440,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: titleCtrl,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: const InputDecoration(
-                        labelText: 'Scan Title',
-                        labelStyle: TextStyle(color: Color(0xFF94A3B8)),
-                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF334155))),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<MedicalAttachmentType>(
-                      initialValue: selectedType,
-                      dropdownColor: const Color(0xFF1E293B),
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: const InputDecoration(
-                        labelText: 'Imaging Modality',
-                        labelStyle: TextStyle(color: Color(0xFF94A3B8)),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: MedicalAttachmentType.xrayRadiograph,
-                          child: Text('Digital X-Ray Radiograph'),
+                width: 460,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // File Picker Button
+                      InkWell(
+                        onTap: () async {
+                          try {
+                            final result = await FilePicker.platform.pickFiles(
+                              type: FileType.custom,
+                              allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf', 'dcm', 'dicom'],
+                            );
+                            if (result != null && result.files.isNotEmpty) {
+                              setDialogState(() {
+                                pickedFile = result.files.first;
+                                if (titleCtrl.text.trim().isEmpty || titleCtrl.text == '$partName X-Ray / Scan') {
+                                  titleCtrl.text = pickedFile!.name.split('.').first;
+                                }
+                              });
+                            }
+                          } catch (_) {}
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E293B),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: pickedFile != null ? const Color(0xFF38BDF8) : const Color(0xFF334155),
+                              width: pickedFile != null ? 1.5 : 1.0,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                pickedFile != null ? LucideIcons.fileCheck : LucideIcons.uploadCloud,
+                                size: 18,
+                                color: const Color(0xFF38BDF8),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  pickedFile != null
+                                      ? '${pickedFile!.name} (${(pickedFile!.size / 1024).toStringAsFixed(1)} KB)'
+                                      : 'Browse / Choose File (X-Ray, DICOM, CT, PDF)...',
+                                  style: TextStyle(
+                                    color: pickedFile != null ? Colors.white : const Color(0xFF94A3B8),
+                                    fontSize: 11,
+                                    fontWeight: pickedFile != null ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'Browse',
+                                  style: TextStyle(fontSize: 10, color: Color(0xFF38BDF8), fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        DropdownMenuItem(
-                          value: MedicalAttachmentType.dicomScan,
-                          child: Text('CT / MRI DICOM Scan'),
-                        ),
-                        DropdownMenuItem(
-                          value: MedicalAttachmentType.ultrasound,
-                          child: Text('High-Res Ultrasound (US)'),
-                        ),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) setDialogState(() => selectedType = val);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: notesCtrl,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: const InputDecoration(
-                        labelText: 'Clinical Notes / Radiologist Finding',
-                        labelStyle: TextStyle(color: Color(0xFF94A3B8)),
-                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF334155))),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+
+                      TextField(
+                        controller: titleCtrl,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: 'File / Scan Title',
+                          labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                          enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF334155))),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      DropdownButtonFormField<MedicalAttachmentType>(
+                        initialValue: selectedType,
+                        dropdownColor: const Color(0xFF1E293B),
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: 'Imaging Modality / File Category',
+                          labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: MedicalAttachmentType.xrayRadiograph,
+                            child: Text('Digital X-Ray Radiograph'),
+                          ),
+                          DropdownMenuItem(
+                            value: MedicalAttachmentType.dicomScan,
+                            child: Text('CT / MRI DICOM Scan'),
+                          ),
+                          DropdownMenuItem(
+                            value: MedicalAttachmentType.ultrasound,
+                            child: Text('High-Res Ultrasound (US)'),
+                          ),
+                          DropdownMenuItem(
+                            value: MedicalAttachmentType.labReport,
+                            child: Text('Laboratory Panel / Pathology Report'),
+                          ),
+                          DropdownMenuItem(
+                            value: MedicalAttachmentType.prescriptionPhoto,
+                            child: Text('Clinical Photography / Document'),
+                          ),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) setDialogState(() => selectedType = val);
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
+                      TextField(
+                        controller: notesCtrl,
+                        maxLines: 2,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: const InputDecoration(
+                          labelText: 'Clinical Notes / Radiologist Findings',
+                          labelStyle: TextStyle(color: Color(0xFF94A3B8)),
+                          enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF334155))),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               actions: [
@@ -7661,12 +7780,19 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0284C7)),
                   onPressed: () {
+                    final sizeStr = pickedFile != null
+                        ? (pickedFile!.size > 1024 * 1024
+                            ? '${(pickedFile!.size / (1024 * 1024)).toStringAsFixed(1)} MB'
+                            : '${(pickedFile!.size / 1024).toStringAsFixed(1)} KB')
+                        : '4.8 MB';
+
                     final newAttachment = MedicalAttachment(
                       id: 'scan_${DateTime.now().millisecondsSinceEpoch}',
                       title: titleCtrl.text.trim().isEmpty ? '$partName Scan' : titleCtrl.text.trim(),
                       type: selectedType,
                       uploadDate: DateTime.now(),
-                      fileSize: '5.8 MB',
+                      fileSize: sizeStr,
+                      filePath: pickedFile?.path,
                       doctorNotes: notesCtrl.text.trim(),
                       anatomicalPartKey: partKey,
                       anatomicalPartNameEn: partName,
@@ -7680,12 +7806,12 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                     Navigator.of(ctx).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Attached scan to $partName.'),
+                        content: Text('Attached file to $partName.'),
                         backgroundColor: const Color(0xFF0284C7),
                       ),
                     );
                   },
-                  child: const Text('Save Attachment', style: TextStyle(color: Colors.white)),
+                  child: const Text('Attach File', style: TextStyle(color: Colors.white)),
                 ),
               ],
             );
@@ -7693,6 +7819,95 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
         );
       },
     );
+  }
+
+  static List<MedicalAttachment> _createDefaultMedicalAttachments() {
+    return [
+      MedicalAttachment(
+        id: 'att_femur_1',
+        title: 'Right Femur AP/Lateral Digital Radiograph',
+        type: MedicalAttachmentType.xrayRadiograph,
+        uploadDate: DateTime.now().subtract(const Duration(days: 1)),
+        fileSize: '6.2 MB',
+        doctorNotes: 'Mid-shaft cortical alignment intact. Trace callus formation without dislocation.',
+        anatomicalPartKey: 'ortho_ORTHO-27506',
+        anatomicalPartNameEn: 'Femur (Thigh Bone)',
+        anatomicalPartNameAr: 'عظم الفخذ',
+        disciplineKey: 'orthopedics',
+      ),
+      MedicalAttachment(
+        id: 'att_pelvis_1',
+        title: 'Pelvis & Bilateral Hip Joints AP Survey',
+        type: MedicalAttachmentType.xrayRadiograph,
+        uploadDate: DateTime.now().subtract(const Duration(days: 2)),
+        fileSize: '8.4 MB',
+        doctorNotes: 'Normal acetabular roof angle and joint space. No subcapital fracture.',
+        anatomicalPartKey: 'ortho_ORTHO-27130',
+        anatomicalPartNameEn: 'Pelvis & Hip Joint',
+        anatomicalPartNameAr: 'الحوض ومفصل الورك',
+        disciplineKey: 'orthopedics',
+      ),
+      MedicalAttachment(
+        id: 'att_cardio_lv',
+        title: 'Transthoracic Echocardiogram (TTE) 4-Chamber Cine',
+        type: MedicalAttachmentType.ultrasound,
+        uploadDate: DateTime.now().subtract(const Duration(hours: 5)),
+        fileSize: '14.2 MB',
+        doctorNotes: 'Left Ventricular ejection fraction 62%. Normal basal septal thickness.',
+        anatomicalPartKey: 'cardio_leftVentricle',
+        anatomicalPartNameEn: 'Left Ventricle',
+        anatomicalPartNameAr: 'البطين الأيسر',
+        disciplineKey: 'cardiology',
+      ),
+      MedicalAttachment(
+        id: 'att_neuro_1',
+        title: 'Brain MRI T1/T2 Axial FLAIR Series',
+        type: MedicalAttachmentType.dicomScan,
+        uploadDate: DateTime.now().subtract(const Duration(days: 3)),
+        fileSize: '32.1 MB',
+        doctorNotes: 'Frontal cortex gray-white differentiation preserved. No acute intracranial hemorrhage.',
+        anatomicalPartKey: 'neuro_frontal',
+        anatomicalPartNameEn: 'Frontal Cortex',
+        anatomicalPartNameAr: 'الفص الجبهي',
+        disciplineKey: 'neurology',
+      ),
+      MedicalAttachment(
+        id: 'att_oph_retina',
+        title: 'High-Resolution Macular Spectral-Domain OCT',
+        type: MedicalAttachmentType.dicomScan,
+        uploadDate: DateTime.now().subtract(const Duration(days: 2)),
+        fileSize: '11.8 MB',
+        doctorNotes: 'Central foveal pit architecture preserved. No subretinal fluid or macular edema.',
+        anatomicalPartKey: 'oph_retina',
+        anatomicalPartNameEn: 'Retina & Macula',
+        anatomicalPartNameAr: 'الشبكية والبقعة الصفراء',
+        disciplineKey: 'ophthalmology',
+      ),
+      MedicalAttachment(
+        id: 'att_uro_kidneys',
+        title: 'Renal High-Resolution Ultrasound & Color Doppler',
+        type: MedicalAttachmentType.ultrasound,
+        uploadDate: DateTime.now().subtract(const Duration(days: 1)),
+        fileSize: '9.6 MB',
+        doctorNotes: 'Bilateral renal length 11.2 cm. No hydronephrosis or acoustic shadow calculus.',
+        anatomicalPartKey: 'uro_kidneys',
+        anatomicalPartNameEn: 'Bilateral Kidneys',
+        anatomicalPartNameAr: 'الكليتان',
+        disciplineKey: 'urology',
+      ),
+      MedicalAttachment(
+        id: 'att_dental_19',
+        title: 'Periapical Digital Radiograph Tooth #19',
+        type: MedicalAttachmentType.xrayRadiograph,
+        uploadDate: DateTime.now().subtract(const Duration(hours: 8)),
+        fileSize: '3.8 MB',
+        doctorNotes: 'Distal occlusal radiolucency approaching pulp horn. Periodontal ligament intact.',
+        anatomicalPartKey: 'tooth_19',
+        anatomicalPartNameEn: 'Tooth #19',
+        anatomicalPartNameAr: 'السن رقم 19',
+        disciplineKey: 'dental',
+      ),
+    ];
   }
 
   Widget _buildHotspot(
@@ -7723,6 +7938,14 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
             partName: partName,
             partNameAr: partNameAr,
             discipline: discipline,
+          );
+        },
+        onSecondaryTap: () {
+          _openPartScanInspectionDialog(
+            context,
+            partKey: partKey,
+            partName: partName,
+            partNameAr: partNameAr,
           );
         },
         borderRadius: BorderRadius.circular(20),

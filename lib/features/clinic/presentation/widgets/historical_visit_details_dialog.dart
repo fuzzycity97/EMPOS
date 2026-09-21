@@ -146,7 +146,7 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
                           borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
                         ),
                         child: Text(
-                          activeVisit.status.name.toUpperCase(),
+                          activeVisit.status.displayName,
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -460,7 +460,9 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
     final effectiveCust = cOverride ?? customer;
     final hasCustomer = effectiveCust != null;
     final customerDebt = hasCustomer ? effectiveCust.totalDebt : null;
-    final isPaid = effectiveVisit.isPaid || effectiveVisit.totalFee <= 0.001;
+    final isPaid = effectiveVisit.isPaid;
+    final isComplimentary = !effectiveVisit.isPaid && effectiveVisit.totalFee <= 0.001 && effectiveVisit.status == ClinicVisitStatus.completed;
+    final isOngoing = !effectiveVisit.isPaid && effectiveVisit.status != ClinicVisitStatus.completed;
 
     final effectiveInsurance = (effectiveVisit.insurancePaid > 0.001)
         ? effectiveVisit.insurancePaid
@@ -468,17 +470,23 @@ class HistoricalVisitDetailsDialog extends StatelessWidget {
     final effectiveCopay = effectiveVisit.patientCopay > 0.001
         ? effectiveVisit.patientCopay
         : (effectiveVisit.totalFee - effectiveInsurance);
-    final patientDue = isPaid ? 0.0 : effectiveCopay;
+    final patientDue = (isPaid || isComplimentary) ? 0.0 : effectiveCopay;
 
     final String statusText;
     final Color statusColor;
 
-    if (customerDebt != null && customerDebt > 0.001) {
+    if (isPaid && customerDebt != null && customerDebt > 0.001) {
       statusText = 'PARTIALLY SETTLED';
       statusColor = AppColors.warning;
     } else if (isPaid) {
       statusText = 'PAID & SETTLED';
       statusColor = AppColors.success;
+    } else if (isComplimentary) {
+      statusText = 'COMPLIMENTARY / NO CHARGE';
+      statusColor = AppColors.primaryLight;
+    } else if (isOngoing) {
+      statusText = effectiveVisit.totalFee > 0.001 ? 'AWAITING BILLING' : 'IN PROGRESS';
+      statusColor = AppColors.warning;
     } else if (effectiveVisit.status == ClinicVisitStatus.completed) {
       statusText = 'UNPAID (Due: ${patientDue.toStringAsFixed(2)} EGP)';
       statusColor = AppColors.danger;

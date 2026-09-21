@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -182,6 +183,8 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
   SpecialtyInstrument _selectedInstrument = SpecialtyInstrument.none;
   bool _autoRotate = false;
   late final AnimationController _autoRotController;
+  Timer? _singleTapTimer;
+  Offset? _pendingTapPos;
 
   @override
   void initState() {
@@ -206,6 +209,8 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
 
   @override
   void dispose() {
+    _singleTapTimer?.cancel();
+    _singleTapTimer = null;
     _autoRotController.dispose();
     super.dispose();
   }
@@ -250,7 +255,7 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final faces = widget.sceneMeshBuilder(
       _currentAgeStage,
-      instrument: _selectedInstrument,
+      instrument: SpecialtyInstrument.none,
       isSoloMode: _isSoloMode,
       soloPartKey: _selectedPartKey,
     );
@@ -481,54 +486,19 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
             ),
           ),
 
-          // 3. SPECIALIZED 3D MEDICAL INSTRUMENTS TOOLBAR
-          if (widget.availableInstruments.isNotEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF090D18) : const Color(0xFFE2E8F0),
-                border: Border(
-                  bottom: BorderSide(
-                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFCBD5E1),
-                  ),
-                ),
-              ),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(LucideIcons.wrench, size: 13, color: Color(0xFF38BDF8)),
-                        const SizedBox(width: 5),
-                        Text(
-                          AppLanguage.tr('3D Instruments & Hardware:', 'الأدوات والأجهزة الطبية 3D:'),
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white70 : Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 8),
-                    // None (normal anatomy)
-                    _buildInstrumentPill(SpecialtyInstrument.none, isDark),
-                    ...widget.availableInstruments.map((inst) => _buildInstrumentPill(inst, isDark)),
-                  ],
-                ),
-              ),
-            ),
-
-          // 4. MAIN 3D INTERACTIVE CANVAS VIEWPORT
+          // 3. MAIN 3D INTERACTIVE CANVAS VIEWPORT
           SizedBox(
             height: widget.height,
             child: Stack(
               children: [
                 Positioned.fill(
                   child: GestureDetector(
-                    onPanStart: (details) => _lastPanPos = details.localPosition,
+                    onPanStart: (details) {
+                      _singleTapTimer?.cancel();
+                      _singleTapTimer = null;
+                      _pendingTapPos = null;
+                      _lastPanPos = details.localPosition;
+                    },
                     onPanUpdate: (details) {
                       if (_lastPanPos != null) {
                         final dx = details.localPosition.dx - _lastPanPos!.dx;
@@ -542,12 +512,35 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                     },
                     onPanEnd: (_) => _lastPanPos = null,
                     onTapUp: (details) {
-                      _handleCanvasTap(details.localPosition, faces);
+                      if (_singleTapTimer != null && _singleTapTimer!.isActive) {
+                        // Second tap within 500ms window: cancel timer and trigger double tap (Solo Mode)!
+                        _singleTapTimer!.cancel();
+                        _singleTapTimer = null;
+                        _pendingTapPos = null;
+                        _handleCanvasDoubleTap(details.localPosition, faces);
+                      } else {
+                        // First tap: buffer location and wait one half second (500ms)
+                        _pendingTapPos = details.localPosition;
+                        _singleTapTimer = Timer(const Duration(milliseconds: 500), () {
+                          if (mounted && _pendingTapPos != null) {
+                            final pos = _pendingTapPos!;
+                            _pendingTapPos = null;
+                            _singleTapTimer = null;
+                            _handleCanvasTap(pos, faces);
+                          }
+                        });
+                      }
                     },
                     onSecondaryTapUp: (details) {
+                      _singleTapTimer?.cancel();
+                      _singleTapTimer = null;
+                      _pendingTapPos = null;
                       _handleCanvasSecondaryTap(details.localPosition, details.globalPosition, faces);
                     },
                     onLongPressStart: (details) {
+                      _singleTapTimer?.cancel();
+                      _singleTapTimer = null;
+                      _pendingTapPos = null;
                       _handleCanvasSecondaryTap(details.localPosition, details.globalPosition, faces);
                     },
                     child: CustomPaint(
@@ -560,6 +553,7 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                         primaryColor: widget.primaryColor,
                         activeStatuses: widget.activeStatuses,
                         hoveredPartKey: _hoveredPartKey,
+                        selectedPartKey: _selectedPartKey,
                       ),
                       size: Size.infinite,
                     ),
@@ -610,8 +604,8 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                         const SizedBox(width: 5),
                         Text(
                           _isSoloMode
-                              ? AppLanguage.tr('Solo Mode active • Drag to rotate 3D', 'الوضع المنفرد نشط • اسحب للتدوير 3D')
-                              : AppLanguage.tr('Drag to rotate 3D • Tap to select • Right-click / hold to view scans & X-rays', 'اسحب للتدوير 3D • انقر للتحديد • انقر بالزر الأيمن أو علق لعرض الأشعة والفحوصات'),
+                              ? AppLanguage.tr('Solo Mode active • Double-click to exit • Drag to rotate', 'الوضع المنفرد نشط • انقر مرتين للخروج • اسحب للتدوير')
+                              : AppLanguage.tr('Tap to select • Double-click for Solo 3D • Drag to rotate', 'انقر للتحديد • انقر مرتين للعرض المنفرد 3D • اسحب للتدوير'),
                           style: TextStyle(
                             fontSize: 9.5,
                             fontWeight: FontWeight.w600,
@@ -675,12 +669,12 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     );
   }
 
-  void _handleCanvasTap(Offset tapPos, List<MeshFace3D> faces) {
+  MeshFace3D? _findClosestFace(Offset tapPos, List<MeshFace3D> faces, {double maxDist = 58.0}) {
     final size = Size(double.infinity, widget.height);
     final scale = 1.0 * _zoom;
 
     MeshFace3D? closestFace;
-    double minSqDist = 55.0 * 55.0;
+    double minSqDist = maxDist * maxDist;
 
     for (final face in faces) {
       if (face.partKey == null) continue;
@@ -693,10 +687,15 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
         closestFace = face;
       }
     }
+    return closestFace;
+  }
+
+  void _handleCanvasTap(Offset tapPos, List<MeshFace3D> faces) {
+    final closestFace = _findClosestFace(tapPos, faces, maxDist: 58.0);
 
     if (closestFace != null) {
       setState(() {
-        _hoveredPartKey = closestFace!.partKey;
+        _hoveredPartKey = closestFace.partKey;
         _selectedPartKey = closestFace.partKey;
         _selectedPartNameEn = closestFace.partNameEn ?? closestFace.partKey!;
         _selectedPartNameAr = closestFace.partNameAr ?? closestFace.partNameEn ?? closestFace.partKey!;
@@ -709,12 +708,39 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     }
   }
 
+  void _handleCanvasDoubleTap(Offset tapPos, List<MeshFace3D> faces) {
+    final closestFace = _findClosestFace(tapPos, faces, maxDist: 75.0);
+
+    if (closestFace != null && closestFace.partKey != null) {
+      final key = closestFace.partKey!;
+      final en = closestFace.partNameEn ?? key;
+      final ar = closestFace.partNameAr ?? en;
+      setState(() {
+        _hoveredPartKey = key;
+        _selectedPartKey = key;
+        _selectedPartNameEn = en;
+        _selectedPartNameAr = ar;
+        // Toggle solo mode
+        if (_isSoloMode && _selectedPartKey == key) {
+          _isSoloMode = false;
+          _zoom = widget.initialZoom;
+        } else {
+          _isSoloMode = true;
+          _zoom = 1.6;
+        }
+      });
+    } else if (_isSoloMode) {
+      // Double clicking outside or background exits solo mode
+      _exitSoloMode();
+    }
+  }
+
   void _handleCanvasSecondaryTap(Offset tapPos, Offset globalPos, List<MeshFace3D> faces) {
     final size = Size(double.infinity, widget.height);
     final scale = 1.0 * _zoom;
 
     MeshFace3D? closestFace;
-    double minSqDist = 65.0 * 65.0;
+    double minSqDist = 110.0 * 110.0;
 
     for (final face in faces) {
       if (face.partKey == null) continue;
@@ -777,7 +803,8 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
   }
 }
 
-/// Custom painter that projects 3D faces, performs depth sorting, and applies lighting
+/// Custom painter that projects 3D faces with realistic multi-light studio shading,
+/// Blinn-Phong organic specular highlights, Fresnel curvature depth, and smooth face rendering.
 class _Generic3DScenePainter extends CustomPainter {
   final List<MeshFace3D> faces;
   final double yaw;
@@ -787,6 +814,7 @@ class _Generic3DScenePainter extends CustomPainter {
   final Color primaryColor;
   final Map<String, ClinicalAnatomyStatusEntry>? activeStatuses;
   final String? hoveredPartKey;
+  final String? selectedPartKey;
 
   _Generic3DScenePainter({
     required this.faces,
@@ -797,13 +825,20 @@ class _Generic3DScenePainter extends CustomPainter {
     required this.primaryColor,
     this.activeStatuses,
     this.hoveredPartKey,
+    this.selectedPartKey,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (faces.isEmpty) return;
 
-    final lightDir = const Point3D(-0.577, -0.577, 0.577).normalized();
+    // Realistic surgical key light from upper-front-left
+    final keyLight = const Point3D(-0.55, -0.65, 0.52).normalized();
+    // Soft cool bounce fill light from lower-front-right
+    final fillLight = const Point3D(0.45, 0.35, 0.65).normalized();
+    // Halfway vector for Blinn-Phong specular sheen (view is along +Z = 0, 0, 1)
+    final halfDir = (keyLight * -1.0 + const Point3D(0, 0, 1)).normalized();
+
     final transformedFaces = <_RenderFace>[];
 
     for (final face in faces) {
@@ -827,6 +862,7 @@ class _Generic3DScenePainter extends CustomPainter {
       ));
     }
 
+    // Depth sorting from back to front
     transformedFaces.sort((a, b) => a.avgZ.compareTo(b.avgZ));
     final scale = 1.0 * zoom;
 
@@ -851,14 +887,28 @@ class _Generic3DScenePainter extends CustomPainter {
         }
       }
 
-      final dot = (rf.normal.dot(lightDir) * -1.0).clamp(0.0, 1.0);
-      final ambient = 0.42;
-      final lightIntensity = (ambient + (1.0 - ambient) * dot).clamp(0.0, 1.0);
+      // Multi-light diffuse calculation
+      final keyDot = math.max(0.0, -rf.normal.dot(keyLight));
+      final fillDot = math.max(0.0, -rf.normal.dot(fillLight));
+      const ambient = 0.38;
+      final diffuse = (ambient + keyDot * 0.52 + fillDot * 0.20).clamp(0.0, 1.0);
 
-      final r = (faceColor.r * 255 * lightIntensity).toInt().clamp(0, 255);
-      final g = (faceColor.g * 255 * lightIntensity).toInt().clamp(0, 255);
-      final b = (faceColor.b * 255 * lightIntensity).toInt().clamp(0, 255);
-      final shadedColor = Color.fromARGB(faceColor.a > 0.05 ? (faceColor.a * 255).toInt() : 255, r, g, b);
+      // Blinn-Phong organic specular highlight for wet/glossy tissues & hardware
+      final specDot = math.max(0.0, rf.normal.dot(halfDir));
+      final specular = math.pow(specDot, 18.0) * 0.35;
+
+      // Fresnel rim glow highlighting organic 3D curvature
+      final rim = math.pow(1.0 - math.max(0.0, rf.normal.z.abs()), 2.6) * 0.22;
+
+      final baseR = faceColor.r * 255;
+      final baseG = faceColor.g * 255;
+      final baseB = faceColor.b * 255;
+
+      final r = (baseR * diffuse + 255 * specular + baseR * rim).toInt().clamp(0, 255);
+      final g = (baseG * diffuse + 255 * specular + baseG * rim).toInt().clamp(0, 255);
+      final b = (baseB * diffuse + 255 * specular + baseB * rim).toInt().clamp(0, 255);
+      final alpha = faceColor.a > 0.05 ? (faceColor.a * 255).toInt() : 255;
+      final shadedColor = Color.fromARGB(alpha, r, g, b);
 
       if (!face.isWireframe) {
         final fillPaint = Paint()
@@ -867,15 +917,21 @@ class _Generic3DScenePainter extends CustomPainter {
         canvas.drawPath(path, fillPaint);
       }
 
-      final borderPaint = Paint()
-        ..color = face.partKey == hoveredPartKey
-            ? Colors.amberAccent
-            : (face.isWireframe
-                ? shadedColor
-                : faceColor.withValues(alpha: isDark ? 0.35 : 0.25))
-        ..strokeWidth = face.partKey == hoveredPartKey ? 2.2 : (face.isWireframe ? 1.5 : 0.8)
-        ..style = PaintingStyle.stroke;
-      canvas.drawPath(path, borderPaint);
+      // Only draw stroke outlines for wireframe meshes or selected/hovered parts.
+      // This completely removes the "sketchy wireframe CAD" look while keeping clean selection highlights!
+      final isHovered = face.partKey != null && face.partKey == hoveredPartKey;
+      final isSelected = face.partKey != null && face.partKey == selectedPartKey;
+      if (face.isWireframe || isHovered || isSelected) {
+        final borderPaint = Paint()
+          ..color = isHovered
+              ? const Color(0xFFFBBF24) // Amber accent for hovered
+              : (isSelected
+                  ? primaryColor.withValues(alpha: 0.95)
+                  : shadedColor)
+          ..strokeWidth = (isHovered || isSelected) ? 2.2 : 1.2
+          ..style = PaintingStyle.stroke;
+        canvas.drawPath(path, borderPaint);
+      }
     }
   }
 
@@ -886,6 +942,7 @@ class _Generic3DScenePainter extends CustomPainter {
         old.zoom != zoom ||
         old.isDark != isDark ||
         old.hoveredPartKey != hoveredPartKey ||
+        old.selectedPartKey != selectedPartKey ||
         old.faces != faces ||
         old.activeStatuses != activeStatuses;
   }

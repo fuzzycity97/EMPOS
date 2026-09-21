@@ -143,44 +143,26 @@ class SpecialtyClinicalActionSheet extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(LucideIcons.slice, size: 16),
-                  label: const Text('Add Cut-Plane (50% Truncation)'),
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                  icon: const Icon(LucideIcons.checkCheck, size: 16),
+                  label: const Text('Apply Annotation & Kit'),
                   onPressed: () {
-                    cutPlaneNotifier.value = const CutPlaneAnnotation(
-                      startNormalized: Offset(0.2, 0.5),
-                      endNormalized: Offset(0.8, 0.5),
-                      angleRadians: pi / 4,
-                      label: 'Osteotomy / Amputation Line',
+                    final payload = AnatomicalConditionPayload(
+                      pathology: selectedPathologyNotifier.value,
+                      severityScore: severityNotifier.value,
+                      cutPlane: cutPlaneNotifier.value,
+                      tiedProcedureCodes: autoAttachedConsumablesNotifier.value,
+                      notes: 'Annotated via 3D Spatial Canvas for $organOrBoneName',
                     );
-                    autoAttachedConsumablesNotifier.value = [
-                      'Surgical Drape Pack (sterile)',
-                      'Oscillating Saw Blade (fine)',
-                      'Monofilament Suture Kit',
-                    ];
+                    onApplyCondition?.call(payload);
+                    Navigator.of(context).pop();
                   },
                 ),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                ),
-                icon: const Icon(LucideIcons.checkCheck, size: 16),
-                label: const Text('Apply Annotation & Kit'),
-                onPressed: () {
-                  final payload = AnatomicalConditionPayload(
-                    pathology: selectedPathologyNotifier.value,
-                    severityScore: severityNotifier.value,
-                    cutPlane: cutPlaneNotifier.value,
-                    tiedProcedureCodes: autoAttachedConsumablesNotifier.value,
-                    notes: 'Annotated via 3D Spatial Canvas for $organOrBoneName',
-                  );
-                  onApplyCondition?.call(payload);
-                  Navigator.of(context).pop();
-                },
               ),
             ],
           ),

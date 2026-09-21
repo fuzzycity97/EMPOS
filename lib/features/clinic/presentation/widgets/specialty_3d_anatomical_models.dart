@@ -3424,14 +3424,18 @@ class Specialty3dAnatomicalModels {
     int latSteps = 6,
     int lonSteps = 10,
   }) {
+    // Elevate subdivisions dynamically to ensure smooth, organic, realistic curvature across all disciplines
+    final int effLat = math.max(latSteps * 2, 14);
+    final int effLon = math.max(lonSteps * 2, 20);
+
     final faces = <MeshFace3D>[];
     final grid = <List<Point3D>>[];
 
-    for (int i = 0; i <= latSteps; i++) {
-      final lat = -math.pi / 2 + (i / latSteps) * math.pi;
+    for (int i = 0; i <= effLat; i++) {
+      final lat = -math.pi / 2 + (i / effLat) * math.pi;
       final row = <Point3D>[];
-      for (int j = 0; j <= lonSteps; j++) {
-        final lon = (j / lonSteps) * 2 * math.pi;
+      for (int j = 0; j <= effLon; j++) {
+        final lon = (j / effLon) * 2 * math.pi;
         final x = center.x + rx * math.cos(lat) * math.cos(lon);
         final y = center.y + ry * math.sin(lat);
         final z = center.z + rz * math.cos(lat) * math.sin(lon);
@@ -3440,8 +3444,8 @@ class Specialty3dAnatomicalModels {
       grid.add(row);
     }
 
-    for (int i = 0; i < latSteps; i++) {
-      for (int j = 0; j < lonSteps; j++) {
+    for (int i = 0; i < effLat; i++) {
+      for (int j = 0; j < effLon; j++) {
         final p0 = grid[i][j];
         final p1 = grid[i + 1][j];
         final p2 = grid[i + 1][j + 1];
@@ -3470,6 +3474,9 @@ class Specialty3dAnatomicalModels {
     int steps = 8,
     bool isWireframe = false,
   }) {
+    // Elevate radial steps to ensure smooth non-faceted vessels, ducts, and hardware
+    final int effSteps = math.max(steps * 2, 16);
+
     final faces = <MeshFace3D>[];
     final axis = (p2 - p1).normalized();
     Point3D perp = const Point3D(0, 1, 0);
@@ -3482,15 +3489,15 @@ class Specialty3dAnatomicalModels {
     final ring1 = <Point3D>[];
     final ring2 = <Point3D>[];
 
-    for (int i = 0; i < steps; i++) {
-      final theta = (i / steps) * 2 * math.pi;
+    for (int i = 0; i < effSteps; i++) {
+      final theta = (i / effSteps) * 2 * math.pi;
       final offset = (u * math.cos(theta) + v * math.sin(theta)) * radius;
       ring1.add(p1 + offset);
       ring2.add(p2 + offset);
     }
 
-    for (int i = 0; i < steps; i++) {
-      final next = (i + 1) % steps;
+    for (int i = 0; i < effSteps; i++) {
+      final next = (i + 1) % effSteps;
       faces.add(MeshFace3D(
         vertices: [ring1[i], ring1[next], ring2[next], ring2[i]],
         baseColor: color,
@@ -3598,7 +3605,7 @@ class Specialty3dAnatomicalModels {
         partKey: partKey,
         nameEn: nameEn,
         nameAr: nameAr,
-        steps: 6,
+        steps: 12,
       ));
     }
     return faces;
@@ -3612,7 +3619,7 @@ class Specialty3dAnatomicalModels {
     String? partKey,
     String? nameEn,
     String? nameAr,
-    int steps = 8,
+    int steps = 16,
   }) {
     Point3D perp = const Point3D(0, 1, 0);
     if ((normal.dot(perp)).abs() > 0.9) {

@@ -135,6 +135,8 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
   late final ValueNotifier<DentalSurgicalInstrument> _activeInstrumentNotifier;
   late final ValueNotifier<bool> _showPulpNotifier;
   Timer? _warningTimer;
+  Timer? _singleTapTimer;
+  Offset? _pendingTapPos;
   double _baseScale = 1.1;
 
   @override
@@ -154,6 +156,8 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
   @override
   void dispose() {
     _warningTimer?.cancel();
+    _singleTapTimer?.cancel();
+    _singleTapTimer = null;
     _rotX.dispose();
     _rotY.dispose();
     _scale.dispose();
@@ -210,6 +214,9 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
                         },
                         child: GestureDetector(
                           onScaleStart: (_) {
+                            _singleTapTimer?.cancel();
+                            _singleTapTimer = null;
+                            _pendingTapPos = null;
                             _baseScale = _scale.value;
                           },
                           onScaleUpdate: (details) {
@@ -222,51 +229,9 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
                               _panOffset.value += details.focalPointDelta;
                             }
                           },
-                        onTapUp: (details) {
+                        onTapUp: (details) => _handleDentalSingleTap(details.localPosition, Size(canvasW, canvasH), canvasW, canvasH),
+                        onDoubleTapDown: (details) {
                           final size = Size(canvasW, canvasH);
-                          if (widget.isPinMode && widget.onCanvasTapToPin != null) {
-                            final hit = _hitTestToothOrGingiva(
-                              details.localPosition,
-                              size,
-                              _rotX.value,
-                              _rotY.value,
-                              _scale.value,
-                              _panOffset.value,
-                            );
-
-                            if (hit == null || hit.distance > 65.0) {
-                              // Reject pinning to empty space!
-                              _emptySpaceWarningNotifier.value = AppLanguage.tr(
-                                'Tap directly on a tooth or gum arch to attach 3D Pin Note. Pins cannot float in empty space.',
-                                'يرجى النقر مباشرة على سن أو على قوس اللثة لتثبيت الدبوس. لا يمكن تثبيت الدبوس في الفراغ.',
-                              );
-                              _warningTimer?.cancel();
-                              _warningTimer = Timer(const Duration(seconds: 3), () {
-                                if (mounted && _emptySpaceWarningNotifier.value != null) {
-                                  _emptySpaceWarningNotifier.value = null;
-                                }
-                              });
-                              return;
-                            }
-
-                            final normX = (hit.screenPos.dx / canvasW).clamp(0.05, 0.95);
-                            final normY = (hit.screenPos.dy / canvasH).clamp(0.05, 0.95);
-                            final partName = hit.isGingiva
-                                ? 'Tooth #${hit.entry.effectiveToothCode} (${AppLanguage.tr('Gingiva / Gum', 'اللثة')})'
-                                : 'Tooth #${hit.entry.effectiveToothCode}';
-
-                            widget.onCanvasTapToPin!(
-                              normX,
-                              normY,
-                              toothCode: hit.entry.effectiveToothCode,
-                              partName: partName,
-                              x3d: hit.coord.x,
-                              y3d: hit.coord.y + (hit.isGingiva ? (hit.coord.isUpper ? -14.0 : 14.0) : 0.0),
-                              z3d: hit.coord.z,
-                            );
-                            return;
-                          }
-
                           final toothHit = _hitTestTooth(
                             details.localPosition,
                             size,
@@ -277,6 +242,9 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
                           );
                           if (toothHit != null) {
                             widget.onToothSelected(toothHit);
+                            _isSoloToothModeNotifier.value = !_isSoloToothModeNotifier.value;
+                          } else if (_isSoloToothModeNotifier.value) {
+                            _isSoloToothModeNotifier.value = false;
                           }
                         },
                         child: AnimatedBuilder(
@@ -461,6 +429,63 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
       ),
     ),
     );
+  }
+
+  void _handleDentalSingleTap(Offset localPos, Size size, double canvasW, double canvasH) {
+    if (widget.isPinMode && widget.onCanvasTapToPin != null) {
+      final hit = _hitTestToothOrGingiva(
+        localPos,
+        size,
+        _rotX.value,
+        _rotY.value,
+        _scale.value,
+        _panOffset.value,
+      );
+
+      if (hit == null || hit.distance > 65.0) {
+        // Reject pinning to empty space!
+        _emptySpaceWarningNotifier.value = AppLanguage.tr(
+          'Tap directly on a tooth or gum arch to attach 3D Pin Note. Pins cannot float in empty space.',
+          'يرجى النقر مباشرة على سن أو على قوس اللثة لتثبيت الدبوس. لا يمكن تثبيت الدبوس في الفراغ.',
+        );
+        _warningTimer?.cancel();
+        _warningTimer = Timer(const Duration(seconds: 3), () {
+          if (mounted && _emptySpaceWarningNotifier.value != null) {
+            _emptySpaceWarningNotifier.value = null;
+          }
+        });
+        return;
+      }
+
+      final normX = (hit.screenPos.dx / canvasW).clamp(0.05, 0.95);
+      final normY = (hit.screenPos.dy / canvasH).clamp(0.05, 0.95);
+      final partName = hit.isGingiva
+          ? 'Tooth #${hit.entry.effectiveToothCode} (${AppLanguage.tr('Gingiva / Gum', 'اللثة')})'
+          : 'Tooth #${hit.entry.effectiveToothCode}';
+
+      widget.onCanvasTapToPin!(
+        normX,
+        normY,
+        toothCode: hit.entry.effectiveToothCode,
+        partName: partName,
+        x3d: hit.coord.x,
+        y3d: hit.coord.y + (hit.isGingiva ? (hit.coord.isUpper ? -14.0 : 14.0) : 0.0),
+        z3d: hit.coord.z,
+      );
+      return;
+    }
+
+    final toothHit = _hitTestTooth(
+      localPos,
+      size,
+      _rotX.value,
+      _rotY.value,
+      _scale.value,
+      _panOffset.value,
+    );
+    if (toothHit != null) {
+      widget.onToothSelected(toothHit);
+    }
   }
 
   /// Projects all custom pins into true 3D space, anchored to specific teeth/gums.

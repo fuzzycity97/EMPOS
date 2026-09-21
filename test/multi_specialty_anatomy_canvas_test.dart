@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:empos/core/config/data/models/store_blueprint_model.dart';
 import 'package:empos/core/config/domain/entities/industry_type.dart';
@@ -1493,7 +1494,7 @@ void main() {
       }
     });
 
-    testWidgets('33. Clinical3dSceneViewer renders medical instruments and toggles solo inspection mode', (tester) async {
+    testWidgets('33. Clinical3dSceneViewer renders pure anatomical scene and confirms specialty instruments bar is removed', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -1521,13 +1522,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Verify instruments selector bar is rendered
-      expect(find.text(SpecialtyInstrument.kinesioTape.localizedTitle), findsOneWidget);
-      expect(find.text(SpecialtyInstrument.dryNeedle.localizedTitle), findsOneWidget);
+      // Verify specialty title is displayed in header
+      expect(find.text(AppLanguage.tr('3D Muscular Anatomy', 'المجسم العضلي ثلاثي الأبعاد')), findsOneWidget);
 
-      // Select an instrument
-      await tester.tap(find.text(SpecialtyInstrument.kinesioTape.localizedTitle));
-      await tester.pumpAndSettle();
+      // Verify specialty tools selector bar is completely removed
+      expect(find.text(SpecialtyInstrument.kinesioTape.localizedTitle), findsNothing);
+      expect(find.text(SpecialtyInstrument.dryNeedle.localizedTitle), findsNothing);
+      expect(find.text('3D Instruments & Hardware'), findsNothing);
     });
 
     testWidgets('34. DentalTooth3dCanvasWidget toggles Solo Tooth 3D mode, displays 3D surgical hardware, and returns to full arch', (tester) async {
@@ -1755,13 +1756,13 @@ void main() {
       expect(surgicalNeuroTools.every((t) => t.category == ClinicalInstrumentCategory.surgical), isTrue);
     });
 
-    testWidgets('39. MultiSpecialtyAnatomyCanvasWidget renders Specialty Instrument Tray and responds to category filtering', (tester) async {
+    testWidgets('39. Right-clicking an anatomical part opens attached files inspection dialog and allows attaching new files', (tester) async {
       tester.view.physicalSize = const Size(1400, 1000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      final bp = StoreBlueprintModel.defaultCardiologyBlueprint();
+      final bp = StoreBlueprintModel.defaultOrthopedicsBlueprint();
 
       await tester.pumpWidget(
         MaterialApp(
@@ -1769,7 +1770,7 @@ void main() {
             body: SingleChildScrollView(
               child: MultiSpecialtyAnatomyCanvasWidget(
                 blueprint: bp,
-                initialDiscipline: ClinicalSpecialtyDiscipline.cardiology,
+                initialDiscipline: ClinicalSpecialtyDiscipline.orthopedics,
               ),
             ),
           ),
@@ -1777,28 +1778,45 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Find Specialty Tools toggle button in header and tap to open
+      // Verify Specialty Tools toggle button is removed from header
       final toolsBtn = find.byKey(const ValueKey('btn_toggle_specialty_instrument_tray'));
-      expect(toolsBtn, findsOneWidget);
-      await tester.tap(toolsBtn);
+      expect(toolsBtn, findsNothing);
+
+      // Verify osteotomy cut plane tool is removed
+      expect(find.textContaining('Osteotomy / Amputation Line'), findsNothing);
+      expect(find.textContaining('Add Cut-Plane'), findsNothing);
+
+      // Locate the Femur bone card in the interactive bone grid
+      final femurCard = find.text('Femur (Thigh Bone)');
+      expect(femurCard, findsOneWidget);
+      await tester.ensureVisible(femurCard);
+
+      // Perform secondary tap (right-click) on the Femur part
+      await tester.tap(femurCard, buttons: kSecondaryMouseButton);
       await tester.pumpAndSettle();
 
-      // Verify Cardiology tools are displayed in the tray
-      expect(find.textContaining('Cardiology Stethoscope'), findsOneWidget);
-      expect(find.textContaining('12-Lead ECG Machine'), findsOneWidget);
+      // Verify the 3D Anatomical Scan & Imaging Inspector dialog opens for the Femur
+      expect(find.textContaining('Femur (Thigh Bone)'), findsWidgets);
+      expect(find.textContaining('3D Anatomical Scan & Imaging Inspector'), findsOneWidget);
+      expect(find.textContaining('Right Femur AP/Lateral Digital Radiograph'), findsOneWidget);
 
-      // Tap "Diagnostic" category filter pill
-      final diagFilter = find.text(AppLanguage.tr('Diagnostic (7)', 'تشخيصي (7)'));
-      expect(diagFilter, findsOneWidget);
-      await tester.ensureVisible(diagFilter);
-      await tester.tap(diagFilter);
+      // Tap on "Attach File / X-Ray to Femur (Thigh Bone)"
+      final attachBtn = find.text('Attach File / X-Ray to Femur (Thigh Bone)');
+      expect(attachBtn, findsOneWidget);
+      await tester.tap(attachBtn);
       await tester.pumpAndSettle();
 
-      // Tap on the Stethoscope card to expand/inspect
-      final stethCard = find.textContaining('Cardiology Stethoscope');
-      await tester.ensureVisible(stethCard.first);
-      await tester.tap(stethCard.first);
+      // Verify the add scan dialog is open
+      expect(find.text('Attach Medical File to Femur (Thigh Bone)'), findsOneWidget);
+
+      // Submit the form to attach the file
+      final confirmAttachBtn = find.widgetWithText(ElevatedButton, 'Attach File');
+      expect(confirmAttachBtn, findsOneWidget);
+      await tester.tap(confirmAttachBtn);
       await tester.pumpAndSettle();
+
+      // Verify success notification and dialog closed
+      expect(find.text('Attached file to Femur (Thigh Bone).'), findsOneWidget);
     });
 
     test('40. SpecialtyInstrumentRegistry & ClinicalSpecialtyDiscipline renderMode config', () {

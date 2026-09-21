@@ -120,7 +120,7 @@ class CardiologyVascularActionWidget extends StatelessWidget {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          isCritical ? 'CRITICAL ISCHEMIA (â‰¥70%)' : (stenosis >= 50 ? 'SIGNIFICANT LESION' : 'MILD / NON-SIGNIFICANT'),
+                          isCritical ? 'CRITICAL ISCHEMIA (≥70%)' : (stenosis >= 50 ? 'SIGNIFICANT LESION' : 'MILD / NON-SIGNIFICANT'),
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5, color: statusColor),
                         ),
                       ),

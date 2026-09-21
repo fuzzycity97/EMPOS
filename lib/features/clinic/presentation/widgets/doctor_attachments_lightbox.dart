@@ -361,7 +361,7 @@ class DoctorAttachmentsLightbox extends StatelessWidget {
                         border: Border.all(color: const Color(0xFF38BDF8), width: 0.5),
                       ),
                       child: Text(
-                        'â—  ${item.anatomicalPartNameEn ?? item.anatomicalPartKey!}',
+                        '● ${item.anatomicalPartNameEn ?? item.anatomicalPartKey!}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 8.5, color: Color(0xFF38BDF8), fontWeight: FontWeight.bold),

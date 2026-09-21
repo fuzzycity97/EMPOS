@@ -339,7 +339,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                         const SizedBox(width: 8),
                                         Expanded(
                                           child: Text(
-                                            AppLanguage.tr('Patient Management', 'Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„Ù…Ø±Ø¶Ù‰'),
+                                            AppLanguage.tr('Patient Management', 'إدارة المرضى'),
                                             style: theme.textTheme.titleMedium?.copyWith(
                                               fontWeight: FontWeight.bold,
                                             ),
@@ -362,7 +362,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                             ),
                                             icon: const Icon(LucideIcons.userSearch, size: 15),
                                             label: Text(
-                                              AppLanguage.tr('Archive', 'Ø§Ù„Ø£Ø±Ø´ÙŠÙ'),
+                                              AppLanguage.tr('Archive', 'الأرشيف'),
                                               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                             ),
                                             onPressed: () => _showAllPatientsArchiveDialog(
@@ -383,7 +383,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                             ),
                                             icon: const Icon(LucideIcons.calendarDays, size: 14),
                                             label: Text(
-                                              AppLanguage.tr("Today's Appts", 'Ù…ÙˆØ§Ø¹ÙŠØ¯ÙŠ Ø§Ù„ÙŠÙˆÙ…'),
+                                              AppLanguage.tr("Today's Appts", 'مواعيدي اليوم'),
                                               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                             ),
                                             onPressed: () => _showDoctorAppointmentsDialog(context, isDark),
@@ -406,7 +406,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                         ),
                                         icon: const Icon(LucideIcons.boxes, size: 14),
                                         label: Text(
-                                          AppLanguage.tr('Consumables & Stock', 'Ù…Ø®Ø²ÙˆÙ† Ø§Ù„Ù…Ø³ØªÙ‡Ù„ÙƒØ§Øª ÙˆØ§Ù„Ù…ÙˆØ§Ø¯'),
+                                          AppLanguage.tr('Consumables & Stock', 'مخزون المستهلكات والمواد'),
                                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                         ),
                                         onPressed: () => _showDoctorConsumablesStockDialog(context, isDark),
@@ -432,7 +432,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                               ),
                                               const SizedBox(height: 12),
                                               Text(
-                                                AppLanguage.tr('No patients in waiting queue', 'Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ù…Ø±Ø¶Ù‰ ÙÙŠ Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø±'),
+                                                AppLanguage.tr('No patients in waiting queue', 'لا يوجد مرضى في قائمة الانتظار'),
                                                 textAlign: TextAlign.center,
                                                 style: TextStyle(
                                                   fontWeight: FontWeight.bold,
@@ -444,7 +444,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                               Text(
                                                 AppLanguage.tr(
                                                   'Patients are registered and checked in at the Reception Desk.\nTransferred patients will automatically appear here.',
-                                                  'ÙŠØªÙ… ØªØ³Ø¬ÙŠÙ„ ÙˆØ§Ø³ØªÙ‚Ø¨Ø§Ù„ Ø§Ù„Ù…Ø±Ø¶Ù‰ Ù…Ù† Ù‚Ø³Ù… Ø§Ù„Ø§Ø³ØªÙ‚Ø¨Ø§Ù„.\nØ§Ù„Ù…Ø±Ø¶Ù‰ Ø§Ù„Ù…Ø­ÙˆÙ„ÙˆÙ† Ø³ÙŠØ¸Ù‡Ø±ÙˆÙ† ØªÙ„Ù‚Ø§Ø¦ÙŠØ§Ù‹ Ù‡Ù†Ø§.',
+                                                  'يتم تسجيل واستقبال المرضى من قسم الاستقبال.\nالمرضى المحولون سيظهرون تلقائياً هنا.',
                                                 ),
                                                 textAlign: TextAlign.center,
                                                 style: TextStyle(
@@ -457,7 +457,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                               OutlinedButton.icon(
                                                 icon: const Icon(LucideIcons.userPlus, size: 14),
                                                 label: Text(
-                                                  AppLanguage.tr('Add Demo Test Patient', 'Ø¥Ø¶Ø§ÙØ© Ù…Ø±ÙŠØ¶ ØªØ¬Ø±ÙŠØ¨ÙŠ'),
+                                                  AppLanguage.tr('Add Demo Test Patient', 'إضافة مريض تجريبي'),
                                                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
                                                 ),
                                                 onPressed: () {
@@ -644,7 +644,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                         ),
                                         const SizedBox(height: 20),
                                         Text(
-                                          AppLanguage.tr('No Active Patient Selected', 'Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ù…Ø±ÙŠØ¶ Ù…Ø­Ø¯Ø¯ Ø­Ø§Ù„ÙŠØ§Ù‹'),
+                                          AppLanguage.tr('No Active Patient Selected', 'لا يوجد مريض محدد حالياً'),
                                           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                                           textAlign: TextAlign.center,
                                         ),
@@ -652,7 +652,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                         Text(
                                           AppLanguage.tr(
                                             'Select a patient from the queue to start consultation, view 3D anatomical models, record clinical findings, and manage treatment fees.',
-                                            'ÙŠØ±Ø¬Ù‰ Ø§Ø®ØªÙŠØ§Ø± Ù…Ø±ÙŠØ¶ Ù…Ù† Ù‚Ø§Ø¦Ù…Ø© Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø± Ø¹Ù„Ù‰ Ø§Ù„ÙŠØ³Ø§Ø± Ù„Ø¨Ø¯Ø¡ Ø§Ù„ÙƒØ´Ù Ø§Ù„Ø·Ø¨ÙŠ ÙˆØªÙˆØ«ÙŠÙ‚ Ø§Ù„Ø¥Ø¬Ø±Ø§Ø¡Ø§Øª ÙˆÙ…Ø®Ø·Ø· Ø§Ù„Ø£Ø³Ù†Ø§Ù†ØŒ Ø£Ùˆ ØªØ³Ø¬ÙŠÙ„ Ù…Ø±ÙŠØ¶ Ø¬Ø¯ÙŠØ¯ Ù…Ù† Ø§Ù„Ø§Ø³ØªÙ‚Ø¨Ø§Ù„.',
+                                            'يرجى اختيار مريض من قائمة الانتظار على اليسار لبدء الكشف الطبي وتوثيق الإجراءات ومخطط الأسنان، أو تسجيل مريض جديد من الاستقبال.',
                                           ),
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
@@ -673,7 +673,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                             icon: const Icon(LucideIcons.play, size: 14),
                                             label: Text(
                                               AppLanguage.isArabic
-                                                  ? 'Ù…Ø¹Ø§ÙŠÙ†Ø© Ø£ÙˆÙ„ Ù…Ø±ÙŠØ¶ Ø¨Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø±: ${activeQueue.first.patientName}'
+                                                  ? 'معاينة أول مريض بالانتظار: ${activeQueue.first.patientName}'
                                                   : 'Consult First Queued Patient: ${activeQueue.first.patientName}',
                                             ),
                                             onPressed: () {
@@ -696,7 +696,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                               const SizedBox(width: 8),
                                               Flexible(
                                                 child: Text(
-                                                  AppLanguage.tr('Patients are admitted via the Reception Desk', 'ÙŠØªÙ… ØªØ³Ø¬ÙŠÙ„ ÙˆØ§Ø³ØªÙ‚Ø¨Ø§Ù„ Ø§Ù„Ù…Ø±Ø¶Ù‰ Ù…Ù† Ø´Ø§Ø´Ø© Ù‚Ø³Ù… Ø§Ù„Ø§Ø³ØªÙ‚Ø¨Ø§Ù„'),
+                                                  AppLanguage.tr('Patients are admitted via the Reception Desk', 'يتم تسجيل واستقبال المرضى من شاشة قسم الاستقبال'),
                                                   style: TextStyle(
                                                     fontSize: 11.5,
                                                     fontWeight: FontWeight.w600,
@@ -729,110 +729,133 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                           builder: (context) {
                                             Customer? matchedCustomer;
                                             try {
-                                              final custState = context.watch<CustomerBloc>().state;
-                                              if (custState is CustomersLoaded) {
-                                                matchedCustomer = custState.allCustomers.where((c) {
-                                                  if (c.id == activeVisit.patientId) return true;
-                                                  if (activePatient?.phone != null && activePatient!.phone.isNotEmpty && c.phone.trim() == activePatient.phone.trim()) return true;
-                                                  if (c.name.trim().toLowerCase() == activeVisit.patientName.trim().toLowerCase()) return true;
-                                                  return false;
-                                                }).firstOrNull;
-                                              }
-                                            } catch (_) {}
+                                      // Live Settlement Status Banner
+                                      Builder(
+                                        builder: (context) {
+                                          Customer? matchedCustomer;
+                                          try {
+                                            final custState = context.watch<CustomerBloc>().state;
+                                            if (custState is CustomersLoaded) {
+                                              matchedCustomer = custState.allCustomers.where((c) {
+                                                if (c.id == activeVisit.patientId) return true;
+                                                if (activePatient?.phone != null && activePatient!.phone.isNotEmpty && c.phone.trim() == activePatient.phone.trim()) return true;
+                                                if (c.name.trim().toLowerCase() == activeVisit.patientName.trim().toLowerCase()) return true;
+                                                return false;
+                                              }).firstOrNull;
+                                            }
+                                          } catch (_) {}
 
-                                            final custDebt = matchedCustomer?.totalDebt ?? 0.0;
-                                            final isPartiallySettled = activeVisit.isPaid && custDebt > 0.001;
-                                            final isFullySettled = (activeVisit.isPaid || activeVisit.totalFee <= 0.001) && !isPartiallySettled;
-                                            final totalPaidAmount = isPartiallySettled
-                                                ? (activeVisit.totalFee - custDebt).clamp(0.0, double.infinity)
-                                                : activeVisit.totalFee;
+                                          final custDebt = matchedCustomer?.totalDebt ?? 0.0;
+                                          final isPartiallySettled = activeVisit.isPaid && custDebt > 0.001;
+                                          final isFullySettled = activeVisit.isPaid && !isPartiallySettled;
+                                          final isComplimentary = !activeVisit.isPaid && activeVisit.totalFee <= 0.001 && activeVisit.status == ClinicVisitStatus.completed;
+                                          final isOngoing = !activeVisit.isPaid && activeVisit.status != ClinicVisitStatus.completed;
+                                          final totalPaidAmount = isPartiallySettled
+                                              ? (activeVisit.totalFee - custDebt).clamp(0.0, double.infinity)
+                                              : activeVisit.totalFee;
 
-                                            return Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                              decoration: BoxDecoration(
-                                                color: isPartiallySettled
-                                                    ? Colors.amber.withValues(alpha: 0.12)
-                                                    : (isFullySettled
-                                                        ? Colors.green.withValues(alpha: 0.12)
-                                                        : Colors.amber.withValues(alpha: 0.12)),
-                                                borderRadius: BorderRadius.circular(10),
-                                                border: Border.all(
-                                                  color: isPartiallySettled
-                                                      ? Colors.amber.withValues(alpha: 0.5)
-                                                      : (isFullySettled
-                                                          ? Colors.green.withValues(alpha: 0.4)
-                                                          : Colors.amber.withValues(alpha: 0.4)),
+                                          final Color bannerBgColor;
+                                          final Color bannerBorderColor;
+                                          final IconData bannerIcon;
+                                          final Color bannerIconColor;
+                                          final String bannerTitle;
+                                          final String bannerSubtitle;
+
+                                          if (isPartiallySettled) {
+                                            bannerBgColor = Colors.amber.withValues(alpha: 0.12);
+                                            bannerBorderColor = Colors.amber.withValues(alpha: 0.5);
+                                            bannerIcon = LucideIcons.hourglass;
+                                            bannerIconColor = Colors.amber[800]!;
+                                            bannerTitle = AppLanguage.tr(
+                                              'Visit Partially Settled • Outstanding Balance',
+                                              'تم سداد جزء من الزيارة • يوجد رصيد متبقي ذمة',
+                                            );
+                                            bannerSubtitle = 'Paid: EGP ${totalPaidAmount.toStringAsFixed(2)} • Remaining Account Debt: EGP ${custDebt.toStringAsFixed(2)} Due';
+                                          } else if (isFullySettled) {
+                                            bannerBgColor = Colors.green.withValues(alpha: 0.12);
+                                            bannerBorderColor = Colors.green.withValues(alpha: 0.4);
+                                            bannerIcon = LucideIcons.circleCheck;
+                                            bannerIconColor = Colors.green;
+                                            bannerTitle = AppLanguage.tr(
+                                              'Visit Paid & Settled at Reception',
+                                              'تم تحصيل وسداد الزيارة بالاستقبال',
+                                            );
+                                            bannerSubtitle = 'Total Paid: EGP ${activeVisit.totalFee.toStringAsFixed(2)}${activeVisit.insurancePaid > 0.001 ? " (Insurance Covered: EGP ${activeVisit.insurancePaid.toStringAsFixed(2)})" : ""}';
+                                          } else if (isComplimentary) {
+                                            bannerBgColor = Colors.teal.withValues(alpha: 0.12);
+                                            bannerBorderColor = Colors.teal.withValues(alpha: 0.4);
+                                            bannerIcon = LucideIcons.gift;
+                                            bannerIconColor = Colors.teal;
+                                            bannerTitle = AppLanguage.tr(
+                                              'Complimentary Consultation • No Charge',
+                                              'كشف طبي مجاني • بدون رسوم',
+                                            );
+                                            bannerSubtitle = AppLanguage.tr(
+                                              'Consultation completed with zero balance.',
+                                              'تم إنهاء الكشف الطبي بدون رسوم مالية.',
+                                            );
+                                          } else if (isOngoing) {
+                                            bannerBgColor = Colors.blue.withValues(alpha: 0.12);
+                                            bannerBorderColor = Colors.blue.withValues(alpha: 0.4);
+                                            bannerIcon = LucideIcons.stethoscope;
+                                            bannerIconColor = Colors.blueAccent;
+                                            bannerTitle = AppLanguage.tr(
+                                              'Consultation in Progress • Awaiting Billing',
+                                              'الكشف الطبي جاري • في انتظار الفاتورة',
+                                            );
+                                            bannerSubtitle = activeVisit.totalFee > 0.001
+                                                ? 'Current Estimated Fee: EGP ${activeVisit.totalFee.toStringAsFixed(2)} • Due upon completion at reception'
+                                                : 'Active consultation with ${activeVisit.patientName}. Fees will be calculated upon procedure entry.';
+                                          } else {
+                                            bannerBgColor = Colors.amber.withValues(alpha: 0.12);
+                                            bannerBorderColor = Colors.amber.withValues(alpha: 0.4);
+                                            bannerIcon = LucideIcons.hourglass;
+                                            bannerIconColor = Colors.amber[800]!;
+                                            bannerTitle = AppLanguage.tr(
+                                              'Consultation Completed • Awaiting Settlement at Reception',
+                                              'اكتمل الكشف الطبي • في انتظار السداد بالاستقبال',
+                                            );
+                                            bannerSubtitle = 'Patient Copay Due: EGP ${(activeVisit.patientCopay > 0.001 ? activeVisit.patientCopay : activeVisit.totalFee).toStringAsFixed(2)}${activeVisit.insurancePaid > 0.001 ? " (Insurance Claim: EGP ${activeVisit.insurancePaid.toStringAsFixed(2)})" : ""}';
+                                          }
+
+                                          return Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                            decoration: BoxDecoration(
+                                              color: bannerBgColor,
+                                              borderRadius: BorderRadius.circular(10),
+                                              border: Border.all(color: bannerBorderColor),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(bannerIcon, color: bannerIconColor, size: 22),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        bannerTitle,
+                                                        style: TextStyle(
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 13.5,
+                                                          color: bannerIconColor,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                        bannerSubtitle,
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                          color: isDark ? Colors.white70 : Colors.black87,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Icon(
-                                                    isPartiallySettled
-                                                        ? LucideIcons.hourglass
-                                                        : (isFullySettled
-                                                            ? LucideIcons.circleCheck
-                                                            : LucideIcons.hourglass),
-                                                    color: isPartiallySettled
+                                                ElevatedButton.icon(
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: isPartiallySettled
                                                         ? Colors.amber[800]
-                                                        : (isFullySettled ? Colors.green : Colors.amber[800]),
-                                                    size: 22,
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      children: [
-                                                        Text(
-                                                          isPartiallySettled
-                                                              ? AppLanguage.tr(
-                                                                  'Visit Partially Settled â€¢ Outstanding Balance',
-                                                                  'ØªÙ… Ø³Ø¯Ø§Ø¯ Ø¬Ø²Ø¡ Ù…Ù† Ø§Ù„Ø²ÙŠØ§Ø±Ø© â€¢ ÙŠÙˆØ¬Ø¯ Ø±ØµÙŠØ¯ Ù…ØªØ¨Ù‚ÙŠ Ø°Ù…Ø©',
-                                                                )
-                                                              : (isFullySettled
-                                                                  ? AppLanguage.tr(
-                                                                      'Visit Paid & Settled at Reception',
-                                                                      'ØªÙ… ØªØ­ØµÙŠÙ„ ÙˆØ³Ø¯Ø§Ø¯ Ø§Ù„Ø²ÙŠØ§Ø±Ø© Ø¨Ø§Ù„Ø§Ø³ØªÙ‚Ø¨Ø§Ù„',
-                                                                    )
-                                                                  : AppLanguage.tr(
-                                                                      'Consultation Completed â€¢ Awaiting Settlement at Reception',
-                                                                      'Ø§ÙƒØªÙ…Ù„ Ø§Ù„ÙƒØ´Ù Ø§Ù„Ø·Ø¨ÙŠ â€¢ ÙÙŠ Ø§Ù†ØªØ¸Ø§Ø± Ø§Ù„Ø³Ø¯Ø§Ø¯ Ø¨Ø§Ù„Ø§Ø³ØªÙ‚Ø¨Ø§Ù„',
-                                                                    )),
-                                                          style: TextStyle(
-                                                            fontWeight: FontWeight.bold,
-                                                            fontSize: 13.5,
-                                                            color: isPartiallySettled
-                                                                ? Colors.amber[800]
-                                                                : (isFullySettled ? Colors.green : Colors.amber[800]),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(height: 2),
-                                                        Text(
-                                                          isPartiallySettled
-                                                              ? 'Paid: EGP ${totalPaidAmount.toStringAsFixed(2)} â€¢ Remaining Account Debt: EGP ${custDebt.toStringAsFixed(2)} Due'
-                                                              : (isFullySettled
-                                                                  ? 'Total Paid: EGP ${activeVisit.totalFee.toStringAsFixed(2)}${activeVisit.insurancePaid > 0.001 ? " (Insurance Covered: EGP ${activeVisit.insurancePaid.toStringAsFixed(2)})" : ""}'
-                                                                  : 'Patient Copay Due: EGP ${(activeVisit.patientCopay > 0.001 ? activeVisit.patientCopay : activeVisit.totalFee).toStringAsFixed(2)}${activeVisit.insurancePaid > 0.001 ? " (Insurance Claim: EGP ${activeVisit.insurancePaid.toStringAsFixed(2)})" : ""}'),
-                                                          style: TextStyle(
-                                                            fontSize: 12,
-                                                            color: isDark ? Colors.white70 : Colors.black87,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  ElevatedButton.icon(
-                                                    style: ElevatedButton.styleFrom(
-                                                      backgroundColor: isPartiallySettled
-                                                          ? Colors.amber[800]
-                                                          : (isFullySettled ? Colors.green : Colors.amber[800]),
-                                                      foregroundColor: Colors.white,
-                                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                                      elevation: 0,
-                                                    ),
-                                                    icon: const Icon(LucideIcons.fileSpreadsheet, size: 14),
-                                                    label: Text(
-                                                      AppLanguage.tr('View History & Logs', 'Ø³Ø¬Ù„ Ø§Ù„Ø²ÙŠØ§Ø±Ø§Øª ÙˆØ§Ù„Ù…Ø¯ÙÙˆØ¹Ø§Øª'),
-                                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                                                     ),
                                                     onPressed: () => _showPatientHistoryDialog(
                                                       context,
@@ -936,7 +959,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                   const Icon(LucideIcons.checkCircle2, color: Colors.teal, size: 20),
                                                   const SizedBox(width: 8),
                                                   Text(
-                                                    AppLanguage.tr('Consultation Completed & Recorded', 'ØªÙ… ØªÙˆØ«ÙŠÙ‚ ÙˆØ¥Ù†Ù‡Ø§Ø¡ Ù‡Ø°Ø§ Ø§Ù„ÙƒØ´Ù Ø§Ù„Ø·Ø¨ÙŠ'),
+                                                    AppLanguage.tr('Consultation Completed & Recorded', 'تم توثيق وإنهاء هذا الكشف الطبي'),
                                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                                                   ),
                                                 ],
@@ -945,7 +968,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                 children: [
                                                   OutlinedButton.icon(
                                                     icon: const Icon(LucideIcons.fileSpreadsheet, size: 14),
-                                                    label: Text(AppLanguage.tr('Patient History', 'Ø³Ø¬Ù„ Ø§Ù„Ù…Ø±ÙŠØ¶')),
+                                                    label: Text(AppLanguage.tr('Patient History', 'سجل المريض')),
                                                     onPressed: () => _showPatientHistoryDialog(
                                                       context,
                                                       activeVisit,
@@ -961,7 +984,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                       foregroundColor: Colors.white,
                                                     ),
                                                     icon: const Icon(LucideIcons.userCheck, size: 14),
-                                                    label: Text(AppLanguage.tr('Next Queued Patient', 'Ø§Ù„Ù…Ø±ÙŠØ¶ Ø§Ù„ØªØ§Ù„ÙŠ Ø¨Ø§Ù„Ø§Ù†ØªØ¸Ø§Ø±')),
+                                                    label: Text(AppLanguage.tr('Next Queued Patient', 'المريض التالي بالانتظار')),
                                                     onPressed: () {
                                                                                                             if (activeQueue.isNotEmpty) {
                                                         selectedVisitNotifier.value = activeQueue.first.id;
@@ -1095,7 +1118,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'DISCONNECTED FROM LAN SERVER â€¢ Offline Mode (Attempting to reconnect...)',
+                    'DISCONNECTED FROM LAN SERVER • Offline Mode (Attempting to reconnect...)',
                     style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
@@ -1160,8 +1183,8 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                   const SizedBox(width: 8),
                   Text(
                     isHost
-                        ? 'â— LAN Sync Hub Online (Host Station)'
-                        : 'â— Connected to LAN Server (${lanState.address}:${lanState.port})',
+                        ? '● LAN Sync Hub Online (Host Station)'
+                        : '● Connected to LAN Server (${lanState.address}:${lanState.port})',
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
                   ),
                 ],
@@ -1250,7 +1273,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              cond.toLowerCase().contains('smok') ? 'ðŸš¬ $cond' : (cond.toLowerCase().contains('diabet') ? 'ðŸ©º $cond' : cond),
+                              cond.toLowerCase().contains('smok') ? '🚬 $cond' : (cond.toLowerCase().contains('diabet') ? '🩺 $cond' : cond),
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
@@ -1268,7 +1291,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              'âš ï¸ Allergy: $allergy',
+                              '⚠️ Allergy: $allergy',
                               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red),
                             ),
                           ),
@@ -1466,12 +1489,12 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
               final effectiveInsurance = (v.insurancePaid > 0.001) ? v.insurancePaid : 0.0;
               final effectiveCopay = v.patientCopay > 0 ? v.patientCopay : (v.totalFee - effectiveInsurance);
 
-              if (v.isPaid || v.totalFee <= 0.001) {
+              if (v.isPaid) {
                 totalPatientPaid += effectiveCopay;
                 totalInsurancePaid += effectiveInsurance;
               } else {
-                totalInsurancePaid += effectiveInsurance;
-                totalPending += effectiveCopay;
+                if (effectiveInsurance > 0.001) totalInsurancePaid += effectiveInsurance;
+                if (effectiveCopay > 0.001) totalPending += effectiveCopay;
               }
             }
 
@@ -1626,28 +1649,57 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                               itemBuilder: (context, idx) {
                                 final hVisit = historicalVisits[idx];
                                 final isCurrent = hVisit.id == currentVisit.id;
-                                final dateStr = DateFormat('yyyy-MM-dd â€¢ hh:mm a').format(hVisit.checkInTime);
+                                final dateStr = DateFormat('yyyy-MM-dd • hh:mm a').format(hVisit.checkInTime);
                                 final treatedTeeth = hVisit.toothChart.where((t) => t.state != ToothState.healthy).toList();
                                 final isDebtCarried = (matchedCustomer != null && matchedCustomer.totalDebt > 0.001);
-                                final isPartiallySettled = hVisit.isPaid && isDebtCarried;
-                                final isFullySettled = (hVisit.isPaid || hVisit.totalFee <= 0.001) && !isDebtCarried;
+
                                 final effectiveInsurance = (hVisit.insurancePaid > 0.001) ? hVisit.insurancePaid : 0.0;
                                 final effectiveCopay = hVisit.patientCopay > 0.001
                                     ? hVisit.patientCopay
                                     : (hVisit.totalFee - effectiveInsurance);
-                                final isInsuranceCovered = !isFullySettled && effectiveInsurance > 0.001;
-                                final visitDue = isPartiallySettled ? matchedCustomer.totalDebt : (isFullySettled ? 0.0 : effectiveCopay);
+
+                                final isPartiallySettled = hVisit.isPaid && isDebtCarried;
+                                final isFullySettled = hVisit.isPaid && !isDebtCarried;
+                                final isComplimentary = !hVisit.isPaid && hVisit.totalFee <= 0.001 && hVisit.status == ClinicVisitStatus.completed;
+                                final isOngoing = !hVisit.isPaid && (isCurrent || hVisit.status != ClinicVisitStatus.completed);
+                                final isInsuranceCovered = !isFullySettled && !isComplimentary && effectiveInsurance > 0.001;
+
                                 final insInfo = effectiveInsurance > 0.001
                                     ? ' (Carrier: EGP ${effectiveInsurance.toStringAsFixed(2)})'
                                     : '';
-                                final paidAmount = isPartiallySettled
-                                    ? (effectiveCopay - matchedCustomer.totalDebt).clamp(0.0, double.infinity)
-                                    : effectiveCopay;
-                                final settlementInfo = isPartiallySettled
-                                    ? 'Partially Settled (Paid: EGP ${paidAmount.toStringAsFixed(2)} â€¢ Due: EGP ${visitDue.toStringAsFixed(2)})$insInfo'
-                                    : (isFullySettled
-                                        ? '${effectiveInsurance > 0.001 ? "Copay Settled" : "Settled"}: EGP ${effectiveCopay.toStringAsFixed(2)}$insInfo'
-                                        : 'Due: EGP ${visitDue.toStringAsFixed(2)}$insInfo');
+
+                                String paymentStatusLabel;
+                                Color paymentStatusColor;
+                                String settlementInfo;
+
+                                if (isPartiallySettled) {
+                                  final paidAmount = (effectiveCopay - matchedCustomer.totalDebt).clamp(0.0, double.infinity);
+                                  paymentStatusLabel = 'PARTIALLY SETTLED';
+                                  paymentStatusColor = Colors.amber[800]!;
+                                  settlementInfo = 'Partially Settled (Paid: EGP ${paidAmount.toStringAsFixed(2)} • Due: EGP ${matchedCustomer.totalDebt.toStringAsFixed(2)})$insInfo';
+                                } else if (isFullySettled) {
+                                  paymentStatusLabel = 'PAID & SETTLED';
+                                  paymentStatusColor = Colors.green;
+                                  settlementInfo = '${effectiveInsurance > 0.001 ? "Copay Settled" : "Settled"}: EGP ${effectiveCopay.toStringAsFixed(2)}$insInfo';
+                                } else if (isComplimentary) {
+                                  paymentStatusLabel = 'COMPLIMENTARY';
+                                  paymentStatusColor = Colors.teal;
+                                  settlementInfo = 'Complimentary / No Charge$insInfo';
+                                } else if (isOngoing) {
+                                  paymentStatusLabel = effectiveCopay > 0.001 ? 'AWAITING BILLING' : 'IN CONSULTATION';
+                                  paymentStatusColor = Colors.blueAccent;
+                                  settlementInfo = effectiveCopay > 0.001
+                                      ? 'Awaiting Billing (Due: EGP ${effectiveCopay.toStringAsFixed(2)})$insInfo'
+                                      : 'In Consultation (Unbilled)';
+                                } else if (isInsuranceCovered) {
+                                  paymentStatusLabel = 'COPAY DUE';
+                                  paymentStatusColor = Colors.amber;
+                                  settlementInfo = 'Copay Due: EGP ${effectiveCopay.toStringAsFixed(2)})$insInfo';
+                                } else {
+                                  paymentStatusLabel = 'UNPAID';
+                                  paymentStatusColor = Colors.redAccent;
+                                  settlementInfo = 'Due: EGP ${effectiveCopay.toStringAsFixed(2)}$insInfo';
+                                }
 
                                 return InkWell(
                                   borderRadius: BorderRadius.circular(8),
@@ -1710,31 +1762,15 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                 Container(
                                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                   decoration: BoxDecoration(
-                                                    color: isPartiallySettled
-                                                        ? Colors.amber.withValues(alpha: 0.2)
-                                                        : (isFullySettled
-                                                            ? Colors.green.withValues(alpha: 0.2)
-                                                            : (isInsuranceCovered
-                                                                ? Colors.amber.withValues(alpha: 0.2)
-                                                                : Colors.red.withValues(alpha: 0.2))),
+                                                    color: paymentStatusColor.withValues(alpha: 0.2),
                                                     borderRadius: BorderRadius.circular(4),
                                                   ),
                                                   child: Text(
-                                                    isPartiallySettled
-                                                        ? 'PARTIALLY SETTLED'
-                                                        : (isFullySettled
-                                                            ? 'PAID & SETTLED'
-                                                            : (isInsuranceCovered
-                                                                ? 'COPAY DUE'
-                                                                : 'AWAITING BILLING')),
+                                                    paymentStatusLabel,
                                                     style: TextStyle(
                                                       fontSize: 10,
                                                       fontWeight: FontWeight.bold,
-                                                      color: isPartiallySettled
-                                                          ? Colors.amber[800]
-                                                          : (isFullySettled
-                                                              ? Colors.green
-                                                              : (isInsuranceCovered ? Colors.amber : Colors.redAccent)),
+                                                      color: paymentStatusColor,
                                                     ),
                                                   ),
                                                 ),
@@ -1746,7 +1782,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                     borderRadius: BorderRadius.circular(4),
                                                   ),
                                                   child: Text(
-                                                    hVisit.status.name.toUpperCase(),
+                                                    hVisit.status.displayName,
                                                     style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
                                                   ),
                                                 ),
@@ -1785,13 +1821,15 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
-                                              'Fee: EGP ${hVisit.totalFee.toStringAsFixed(2)} â€¢ $settlementInfo',
+                                              'Fee: EGP ${hVisit.totalFee.toStringAsFixed(2)} • $settlementInfo',
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.bold,
                                                 color: isFullySettled
                                                     ? Colors.green
-                                                    : (visitDue > 0.001 ? Colors.amber : Colors.white70),
+                                                    : (isComplimentary
+                                                        ? Colors.teal
+                                                        : (isOngoing ? Colors.blueAccent : Colors.amber)),
                                               ),
                                             ),
                                             const Text(
@@ -2105,7 +2143,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                               ],
                             ),
                             subtitle: Text(
-                              'Phone: ${patient.phone}${patient.insuranceProvider != null ? ' â€¢ Insured: ${patient.insuranceProvider}' : ''}',
+                              'Phone: ${patient.phone}${patient.insuranceProvider != null ? ' • Insured: ${patient.insuranceProvider}' : ''}',
                               style: const TextStyle(fontSize: 12),
                             ),
                             trailing: Row(
@@ -2212,11 +2250,11 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  AppLanguage.tr("Today's Scheduled Appointments", 'Ù…ÙˆØ§Ø¹ÙŠØ¯ Ø§Ù„ÙŠÙˆÙ… Ø§Ù„Ù…Ø¬Ø¯ÙˆÙ„Ø©'),
+                                  AppLanguage.tr("Today's Scheduled Appointments", 'مواعيد اليوم المجدولة'),
                                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                 ),
                                 Text(
-                                  AppLanguage.tr('Scheduled Appointments for Today (${todayBookings.length})', 'Ø§Ù„Ù…ÙˆØ§Ø¹ÙŠØ¯ Ø§Ù„Ù…Ø­Ø¬ÙˆØ²Ø© Ù„Ù„ÙŠÙˆÙ… (${todayBookings.length})'),
+                                  AppLanguage.tr('Scheduled Appointments for Today (${todayBookings.length})', 'المواعيد المحجوزة لليوم (${todayBookings.length})'),
                                   style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black54),
                                 ),
                               ],
@@ -2238,7 +2276,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                     Icon(LucideIcons.calendarDays, size: 40, color: isDark ? Colors.white24 : Colors.black26),
                                     const SizedBox(height: 10),
                                     Text(
-                                      AppLanguage.tr('No appointments scheduled for today', 'Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…ÙˆØ§Ø¹ÙŠØ¯ Ù…Ø­Ø¬ÙˆØ²Ø© Ø§Ù„ÙŠÙˆÙ…'),
+                                      AppLanguage.tr('No appointments scheduled for today', 'لا توجد مواعيد محجوزة اليوم'),
                                       style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 13),
                                     ),
                                   ],
@@ -2385,8 +2423,8 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                AppLanguage.tr('Medical Consumables & Stock', 'Ù…Ø®Ø²ÙˆÙ† Ø§Ù„Ù…Ø³ØªÙ‡Ù„ÙƒØ§Øª ÙˆØ§Ù„Ù…ÙˆØ§Ø¯ Ø§Ù„Ø·Ø¨ÙŠØ©'),
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                AppLanguage.tr('Medical Consumables & Stock', 'مخزون المستهلكات والمواد الطبية'),
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                               ),
                               Text(
                                 'Clinic Consumables & Tracked Quantities',
@@ -2408,7 +2446,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                     TextField(
                       onChanged: (val) => setStateDialog(() => searchQuery = val),
                       decoration: InputDecoration(
-                        hintText: AppLanguage.tr('Search consumables or barcode...', 'Ø¨Ø­Ø« ÙÙŠ Ø§Ù„Ù…Ø³ØªÙ‡Ù„ÙƒØ§Øª Ø£Ùˆ Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯...'),
+                        hintText: AppLanguage.tr('Search consumables or barcode...', 'بحث في المستهلكات أو الباركود...'),
                         prefixIcon: const Icon(Icons.search, size: 18),
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -2425,7 +2463,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                       child: filtered.isEmpty
                           ? Center(
                               child: Text(
-                                AppLanguage.tr('No registered consumables or materials currently', 'Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…Ø³ØªÙ‡Ù„ÙƒØ§Øª Ø£Ùˆ Ù…ÙˆØ§Ø¯ Ù…Ø³Ø¬Ù„Ø© Ø­Ø§Ù„ÙŠØ§Ù‹'),
+                                AppLanguage.tr('No registered consumables or materials currently', 'لا توجد مستهلكات أو مواد مسجلة حالياً'),
                                 style: TextStyle(color: isDark ? Colors.white54 : Colors.black45),
                               ),
                             )
@@ -2440,8 +2478,8 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                     ? Colors.red
                                     : (isLow ? Colors.amber : Colors.teal);
                                 final String statusText = isOut
-                                    ? AppLanguage.tr('Out of Stock', 'Ù†ÙØ° Ø§Ù„Ù…Ø®Ø²ÙˆÙ†')
-                                    : (isLow ? AppLanguage.tr('Low Stock', 'Ù…Ø®Ø²ÙˆÙ† Ù…Ù†Ø®ÙØ¶') : AppLanguage.tr('In Stock', 'Ù…ØªÙˆÙØ±'));
+                                    ? AppLanguage.tr('Out of Stock', 'نفذ المخزون')
+                                    : (isLow ? AppLanguage.tr('Low Stock', 'مخزون منخفض') : AppLanguage.tr('In Stock', 'متوفر'));
 
                                 return Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -2504,7 +2542,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                         crossAxisAlignment: CrossAxisAlignment.end,
                                         children: [
                                           Text(
-                                            '${prod.stock} ${AppLanguage.tr('units / pack', 'ÙˆØ­Ø¯Ø© / Ø¹Ù„Ø¨Ø©')}',
+                                            '${prod.stock} ${AppLanguage.tr('units / pack', 'وحدة / علبة')}',
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 14,
@@ -2548,7 +2586,7 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              AppLanguage.tr('Session consumables are automatically deducted upon procedure confirmation by the physician.', 'ÙŠØªÙ… Ø®ØµÙ… Ù…Ø³ØªÙ‡Ù„ÙƒØ§Øª Ø§Ù„Ø¬Ù„Ø³Ø§Øª Ø§Ù„Ø·Ø¨ÙŠØ© ØªÙ„Ù‚Ø§Ø¦ÙŠØ§Ù‹ Ø¹Ù†Ø¯ Ø§Ø¹ØªÙ…Ø§Ø¯ Ø§Ù„Ø·Ø¨ÙŠØ¨ Ù„Ù„Ø¥Ø¬Ø±Ø§Ø¡Ø§Øª Ø§Ù„Ø³Ø±ÙŠØ±ÙŠØ©.'),
+                              AppLanguage.tr('Session consumables are automatically deducted upon procedure confirmation by the physician.', 'يتم خصم مستهلكات الجلسات الطبية تلقائياً عند اعتماد الطبيب للإجراءات السريرية.'),
                               style: const TextStyle(fontSize: 11, color: Colors.blue),
                             ),
                           ),

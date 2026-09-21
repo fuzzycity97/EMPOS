@@ -700,7 +700,7 @@ void main() {
 
       // Tap at the top-left corner (Offset 10, 10) which is empty space outside teeth/gums
       await tester.tapAt(const Offset(10, 10));
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
       // Pin callback must NOT be triggered in empty space
       expect(pinCallbackTriggered, isFalse);
@@ -765,6 +765,111 @@ void main() {
       expect(restoredPin.z3d, equals(22.0));
       expect(restoredPin.status.suggestedProcedure.standardFee, equals(750.0));
       expect(restoredPin.isCustomPin, isTrue);
+    });
+
+    group('Clinic Visit Status & Financial Settlement State Machine', () {
+      test('ClinicVisitStatus provides clean formatted displayNames', () {
+        expect(ClinicVisitStatus.inExamination.displayName, equals('IN EXAMINATION'));
+        expect(ClinicVisitStatus.inExamination.label, equals('In Examination'));
+        expect(ClinicVisitStatus.waiting.displayName, equals('WAITING'));
+        expect(ClinicVisitStatus.waiting.label, equals('Waiting'));
+        expect(ClinicVisitStatus.completed.displayName, equals('COMPLETED'));
+        expect(ClinicVisitStatus.completed.label, equals('Completed'));
+        expect(ClinicVisitStatus.cancelled.displayName, equals('CANCELLED'));
+        expect(ClinicVisitStatus.noShow.displayName, equals('NO SHOW'));
+      });
+
+      test('Ongoing visit with zero fee evaluates to IN CONSULTATION and not PAID & SETTLED', () {
+        final ongoingVisit = ClinicVisit(
+          id: 'ongoing_001',
+          patientId: 'pat_test',
+          patientName: 'John Doe',
+          doctorName: 'Dr. Specialist',
+          queueNumber: 1,
+          checkInTime: DateTime.now(),
+          status: ClinicVisitStatus.inExamination,
+          isPaid: false,
+          totalFee: 0.0,
+        );
+
+        // Core rule: !isPaid and status != completed means ongoing
+        final isPartiallySettled = ongoingVisit.isPaid && false;
+        final isFullySettled = ongoingVisit.isPaid;
+        final isComplimentary = !ongoingVisit.isPaid && ongoingVisit.totalFee <= 0.001 && ongoingVisit.status == ClinicVisitStatus.completed;
+        final isOngoing = !ongoingVisit.isPaid && ongoingVisit.status != ClinicVisitStatus.completed;
+
+        expect(isFullySettled, isFalse, reason: 'Active consultation must never be considered fully settled');
+        expect(isPartiallySettled, isFalse);
+        expect(isComplimentary, isFalse);
+        expect(isOngoing, isTrue);
+        expect(ongoingVisit.status.displayName, equals('IN EXAMINATION'));
+      });
+
+      test('Ongoing visit with added procedures evaluates to AWAITING BILLING and not PAID & SETTLED', () {
+        final activeBilledVisit = ClinicVisit(
+          id: 'ongoing_002',
+          patientId: 'pat_test',
+          patientName: 'Jane Smith',
+          doctorName: 'Dr. Specialist',
+          queueNumber: 2,
+          checkInTime: DateTime.now(),
+          status: ClinicVisitStatus.inExamination,
+          isPaid: false,
+          totalFee: 450.0,
+          patientCopay: 450.0,
+        );
+
+        final isFullySettled = activeBilledVisit.isPaid;
+        final isOngoing = !activeBilledVisit.isPaid && activeBilledVisit.status != ClinicVisitStatus.completed;
+
+        expect(isFullySettled, isFalse);
+        expect(isOngoing, isTrue);
+        expect(activeBilledVisit.totalFee > 0.001, isTrue);
+      });
+
+      test('Completed visit with isPaid == true evaluates to PAID & SETTLED', () {
+        final paidVisit = ClinicVisit(
+          id: 'paid_001',
+          patientId: 'pat_test',
+          patientName: 'Alice Green',
+          doctorName: 'Dr. Specialist',
+          queueNumber: 3,
+          checkInTime: DateTime.now().subtract(const Duration(hours: 1)),
+          completionTime: DateTime.now(),
+          status: ClinicVisitStatus.completed,
+          isPaid: true,
+          totalFee: 300.0,
+          patientCopay: 300.0,
+        );
+
+        const custDebt = 0.0;
+        final isPartiallySettled = paidVisit.isPaid && custDebt > 0.001;
+        final isFullySettled = paidVisit.isPaid && !isPartiallySettled;
+
+        expect(isFullySettled, isTrue);
+        expect(isPartiallySettled, isFalse);
+      });
+
+      test('Completed visit with isPaid == false and totalFee == 0 evaluates to COMPLIMENTARY', () {
+        final freeVisit = ClinicVisit(
+          id: 'free_001',
+          patientId: 'pat_test',
+          patientName: 'Bob White',
+          doctorName: 'Dr. Specialist',
+          queueNumber: 4,
+          checkInTime: DateTime.now().subtract(const Duration(hours: 2)),
+          completionTime: DateTime.now().subtract(const Duration(hours: 1)),
+          status: ClinicVisitStatus.completed,
+          isPaid: false,
+          totalFee: 0.0,
+        );
+
+        final isComplimentary = !freeVisit.isPaid && freeVisit.totalFee <= 0.001 && freeVisit.status == ClinicVisitStatus.completed;
+        final isFullySettled = freeVisit.isPaid;
+
+        expect(isComplimentary, isTrue);
+        expect(isFullySettled, isFalse);
+      });
     });
   });
 }

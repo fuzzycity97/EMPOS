@@ -10,6 +10,36 @@ enum ClinicVisitStatus {
   cancelled,
   noShow;
 
+  String get displayName {
+    switch (this) {
+      case ClinicVisitStatus.waiting:
+        return 'WAITING';
+      case ClinicVisitStatus.inExamination:
+        return 'IN EXAMINATION';
+      case ClinicVisitStatus.completed:
+        return 'COMPLETED';
+      case ClinicVisitStatus.cancelled:
+        return 'CANCELLED';
+      case ClinicVisitStatus.noShow:
+        return 'NO SHOW';
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case ClinicVisitStatus.waiting:
+        return 'Waiting';
+      case ClinicVisitStatus.inExamination:
+        return 'In Examination';
+      case ClinicVisitStatus.completed:
+        return 'Completed';
+      case ClinicVisitStatus.cancelled:
+        return 'Cancelled';
+      case ClinicVisitStatus.noShow:
+        return 'No Show';
+    }
+  }
+
   static ClinicVisitStatus fromString(String? val) {
     if (val == null) return ClinicVisitStatus.waiting;
     final lower = val.toLowerCase().replaceAll('_', '');
