@@ -723,12 +723,6 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                       ),
                                       const SizedBox(height: 16),
 
-                                      // Live Settlement Status Banner for Completed Consultations
-                                      if (activeVisit.status == ClinicVisitStatus.completed) ...[
-                                        Builder(
-                                          builder: (context) {
-                                            Customer? matchedCustomer;
-                                            try {
                                       // Live Settlement Status Banner
                                       Builder(
                                         builder: (context) {
@@ -856,22 +850,30 @@ class _DoctorStationPageState extends State<DoctorStationPage> {
                                                   style: ElevatedButton.styleFrom(
                                                     backgroundColor: isPartiallySettled
                                                         ? Colors.amber[800]
-                                                    ),
-                                                    onPressed: () => _showPatientHistoryDialog(
-                                                      context,
-                                                      activeVisit,
-                                                      activePatient,
-                                                      loadedState.queue,
-                                                      loadedState.activeToothChart,
-                                                    ),
+                                                        : (isFullySettled ? Colors.green : Colors.amber[800]),
+                                                    foregroundColor: Colors.white,
+                                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                    elevation: 0,
                                                   ),
-                                                ],
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                        const SizedBox(height: 16),
-                                      ],
+                                                  icon: const Icon(LucideIcons.fileSpreadsheet, size: 14),
+                                                  label: Text(
+                                                    AppLanguage.tr('View History & Logs', 'سجل الزيارات والمدفوعات'),
+                                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                                  ),
+                                                  onPressed: () => _showPatientHistoryDialog(
+                                                    context,
+                                                    activeVisit,
+                                                    activePatient,
+                                                    loadedState.queue,
+                                                    loadedState.activeToothChart,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
 
                                       RepaintBoundary(
                                         child: MultiSpecialtyAnatomyCanvasWidget(
