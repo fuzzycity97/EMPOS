@@ -198,6 +198,12 @@ if (-not $TriadOnly) {
             Path = "integration_test/app_test.dart"
             Est  = 1
             Desc = "Verifies clean DI service locator boot and initial wizard launch"
+        },
+        @{
+            Name = "Visual GUI Observer & Live Screen Snapshot Capture"
+            Path = "integration_test/visual_gui_observer_test.dart"
+            Est  = 1
+            Desc = "Captures high-res visual PNG frames of the running GUI and audits on-screen elements"
         }
     )
 
