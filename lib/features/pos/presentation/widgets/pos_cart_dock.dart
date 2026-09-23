@@ -501,6 +501,7 @@ class PosCartDock extends StatelessWidget {
                   width: double.infinity,
                   height: 46,
                   child: ElevatedButton.icon(
+                    key: const Key('pos_checkout_button'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,

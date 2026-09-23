@@ -164,9 +164,13 @@ class _BootstrapSplashScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Loading Turnkey Store Blueprint & Hardware Toggles...',
-              style: TextStyle(fontSize: 13, color: AppColors.textMutedDark),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: AppDimensions.space24),
+              child: Text(
+                'Loading Turnkey Store Blueprint & Hardware Toggles...',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: AppColors.textMutedDark),
+              ),
             ),
             const SizedBox(height: AppDimensions.space32),
             const SizedBox(

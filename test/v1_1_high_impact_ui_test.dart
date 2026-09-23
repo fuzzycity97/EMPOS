@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:empos/core/theme/app_theme.dart';
 import 'package:empos/features/clinic/presentation/bloc/clinic_bloc.dart';
 import 'package:empos/features/clinic/presentation/bloc/clinic_event.dart';
+import 'package:empos/features/clinic/presentation/bloc/clinic_state.dart';
 import 'package:empos/features/clinic/presentation/widgets/patient_intake_dialog.dart';
 import 'package:empos/features/clinic/presentation/widgets/doctor_attachments_lightbox.dart';
 import 'package:empos/features/pos/presentation/widgets/restaurant_table_map_widget.dart';
@@ -31,6 +32,7 @@ void main() {
       addTearDown(() => tester.view.resetPhysicalSize());
 
       final mockClinicBloc = MockClinicBloc();
+      when(() => mockClinicBloc.state).thenReturn(ClinicInitial());
 
       await tester.pumpWidget(
         MaterialApp(

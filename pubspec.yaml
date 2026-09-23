@@ -69,12 +69,16 @@ dependencies:
   uuid: ^4.5.1
 
   http: any
+  flutter_secure_storage: ^10.3.4
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   bloc_test: ^10.0.0
   mocktail: ^1.0.4
+  hive_test: ^1.0.1
+  integration_test:
+    sdk: flutter
 
 dependency_overrides:
   path_provider_foundation: 2.4.0

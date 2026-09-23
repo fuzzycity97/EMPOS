@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:equatable/equatable.dart';
+import 'sync_envelope_signing.dart';
 
 class SyncEnvelope extends Equatable {
   final String type;
@@ -8,6 +9,7 @@ class SyncEnvelope extends Equatable {
   final String senderRole;
   final int ts;
   final Map<String, dynamic>? payload;
+  final String? signature;
 
   const SyncEnvelope({
     required this.type,
@@ -16,6 +18,7 @@ class SyncEnvelope extends Equatable {
     required this.senderRole,
     required this.ts,
     this.payload,
+    this.signature,
   });
 
   factory SyncEnvelope.create({
@@ -25,14 +28,33 @@ class SyncEnvelope extends Equatable {
     required String senderRole,
     Map<String, dynamic>? payload,
     int? timestamp,
+    String? signature,
+    String? sharedSecretHex,
   }) {
+    final effectiveTs = timestamp ?? DateTime.now().millisecondsSinceEpoch;
+    final sig = signature ??
+        (sharedSecretHex != null && sharedSecretHex.isNotEmpty
+            ? EnvelopeSigner.sign(
+                canonicalPayload: EnvelopeSigner.canonicalize(
+                  type: type,
+                  scope: scope,
+                  senderRole: senderRole,
+                  senderId: senderId,
+                  payload: payload,
+                  timestampEpochMs: effectiveTs,
+                ),
+                sharedSecretHex: sharedSecretHex,
+              )
+            : null);
+
     return SyncEnvelope(
       type: type,
       scope: scope,
       senderId: senderId,
       senderRole: senderRole,
-      ts: timestamp ?? DateTime.now().millisecondsSinceEpoch,
+      ts: effectiveTs,
       payload: payload,
+      signature: sig,
     );
   }
 
@@ -48,6 +70,7 @@ class SyncEnvelope extends Equatable {
           : json['payload'] is Map
               ? Map<String, dynamic>.from(json['payload'] as Map)
               : null,
+      signature: json['signature']?.toString(),
     );
   }
 
@@ -63,6 +86,7 @@ class SyncEnvelope extends Equatable {
       'senderRole': senderRole,
       'ts': ts,
       if (payload != null) 'payload': payload,
+      if (signature != null) 'signature': signature,
     };
   }
 
@@ -75,6 +99,7 @@ class SyncEnvelope extends Equatable {
     String? senderRole,
     int? ts,
     Map<String, dynamic>? payload,
+    String? signature,
   }) {
     return SyncEnvelope(
       type: type ?? this.type,
@@ -83,9 +108,10 @@ class SyncEnvelope extends Equatable {
       senderRole: senderRole ?? this.senderRole,
       ts: ts ?? this.ts,
       payload: payload ?? this.payload,
+      signature: signature ?? this.signature,
     );
   }
 
   @override
-  List<Object?> get props => [type, scope, senderId, senderRole, ts, payload];
+  List<Object?> get props => [type, scope, senderId, senderRole, ts, payload, signature];
 }

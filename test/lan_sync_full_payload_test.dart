@@ -116,6 +116,8 @@ void main() {
     when(() => mockGetWait.call(any())).thenAnswer((_) async => const Right(15));
     when(() => mockClinicRepo.savePatient(any())).thenAnswer((inv) async => Right(inv.positionalArguments[0] as PatientProfile));
     when(() => mockClinicRepo.saveVisit(any())).thenAnswer((inv) async => Right(inv.positionalArguments[0] as ClinicVisit));
+    when(() => mockClinicRepo.getMedicalRiskFactors()).thenAnswer((_) async => const Right([]));
+    when(() => mockClinicRepo.saveMedicalRiskFactors(any())).thenAnswer((_) async => const Right(null));
   });
 
   tearDown(() {

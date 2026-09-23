@@ -843,6 +843,7 @@ class _NavHeaderButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: InkWell(
+        key: Key('nav_button_${label.toLowerCase().replaceAll(' ', '_').replaceAll('&', 'and')}'),
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
         child: AnimatedContainer(

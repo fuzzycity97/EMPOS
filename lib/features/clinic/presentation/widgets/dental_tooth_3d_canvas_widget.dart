@@ -136,7 +136,6 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
   late final ValueNotifier<bool> _showPulpNotifier;
   Timer? _warningTimer;
   Timer? _singleTapTimer;
-  Offset? _pendingTapPos;
   double _baseScale = 1.1;
 
   @override
@@ -216,7 +215,6 @@ class _DentalTooth3dCanvasWidgetState extends State<DentalTooth3dCanvasWidget> {
                           onScaleStart: (_) {
                             _singleTapTimer?.cancel();
                             _singleTapTimer = null;
-                            _pendingTapPos = null;
                             _baseScale = _scale.value;
                           },
                           onScaleUpdate: (details) {

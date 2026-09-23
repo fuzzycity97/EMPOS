@@ -460,6 +460,7 @@ class CheckoutDialog extends StatelessWidget {
                 width: double.infinity,
                 height: 48,
                 child: ElevatedButton.icon(
+                  key: const Key('confirm_checkout_button'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.success,
                     foregroundColor: Colors.white,
@@ -615,6 +616,7 @@ class CheckoutDialog extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     TextField(
+                      key: const Key('payment_amount_field'),
                       controller: cashReceivedController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
@@ -651,9 +653,11 @@ class CheckoutDialog extends StatelessWidget {
             animation: cashReceivedController,
             builder: (context, _) {
               final rec = double.tryParse(cashReceivedController.text.trim()) ?? 0.0;
-              final diff = rec - cart.grandTotal;
+              final rawDiff = rec - cart.grandTotal;
+              final diffInCents = (rawDiff * 100).round();
+              final diff = diffInCents / 100.0;
 
-              if (diff >= 0) {
+              if (diffInCents >= 0) {
                 return Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -673,6 +677,7 @@ class CheckoutDialog extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 'Payment Status: Fully Paid',
+                                key: Key('settlement_status_label'),
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
@@ -686,11 +691,58 @@ class CheckoutDialog extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Change Due: ${CurrencyFormatter.format(diff)}',
+                        'Change Due: ${CurrencyFormatter.format(diff > 0 ? diff : 0.0)}',
+                        key: const Key('settlement_balance_label'),
                         style: const TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w900,
                           color: AppColors.success,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              } else if (rec <= 0.001) {
+                return Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                    border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Expanded(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.alertCircle, size: 16, color: AppColors.danger),
+                            SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'Payment Status: Unpaid',
+                                key: Key('settlement_status_label'),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.danger,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Remaining: ${CurrencyFormatter.format(cart.grandTotal)}',
+                        key: const Key('settlement_balance_label'),
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.danger,
                           fontFamily: 'monospace',
                         ),
                       ),
@@ -718,6 +770,7 @@ class CheckoutDialog extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 'Payment Status: Partially Paid',
+                                key: Key('settlement_status_label'),
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
@@ -732,6 +785,7 @@ class CheckoutDialog extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         'Remaining: ${CurrencyFormatter.format(remaining)}',
+                        key: const Key('settlement_balance_label'),
                         style: const TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w900,

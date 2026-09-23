@@ -20,8 +20,8 @@ void main() {
       expect(IndustryVertical.fromString('retail'), IndustryVertical.retail);
     });
 
-    test('SpecificIndustry contains exactly 41 blueprint identifiers with accurate vertical mapping', () {
-      expect(SpecificIndustry.values.length, 41);
+    test('SpecificIndustry contains blueprint identifiers with accurate vertical mapping', () {
+      expect(SpecificIndustry.values.length, 68);
 
       // Medical Vertical (8)
       expect(SpecificIndustry.dentalClinic.vertical, IndustryVertical.medical);

@@ -52,137 +52,180 @@ class FirstRunSyncWizardPage extends StatelessWidget {
       backgroundColor: isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC),
       body: SafeArea(
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppDimensions.space24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 580),
-              child: Container(
-                padding: const EdgeInsets.all(AppDimensions.space24),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.surfaceDark : Colors.white,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
-                  border: Border.all(color: isDark ? AppColors.borderDark : Colors.black12),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 18,
-                      offset: Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Header Brand
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(AppDimensions.space10),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-                          ),
-                          child: const Icon(LucideIcons.network, color: AppColors.primary, size: 24),
-                        ),
-                        const SizedBox(width: 14),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'First-Run Sync Setup',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Select this device role to establish local network synchronization',
-                                style: TextStyle(fontSize: 12, color: AppColors.textSecondaryDark),
-                              ),
-                            ],
-                          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isMobile = constraints.maxWidth < 520;
+              final outerPadding = isMobile ? AppDimensions.space12 : AppDimensions.space24;
+              final innerPadding = isMobile ? AppDimensions.space16 : AppDimensions.space24;
+
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(outerPadding),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 580),
+                  child: Container(
+                    padding: EdgeInsets.all(innerPadding),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.surfaceDark : Colors.white,
+                      borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
+                      border: Border.all(color: isDark ? AppColors.borderDark : Colors.black12),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 18,
+                          offset: Offset(0, 8),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
-
-                    // Step 1: Role Selection (Host Server vs Satellite Client)
-                    const Text(
-                      '1. Select Station Operating Role',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.2),
-                    ),
-                    const SizedBox(height: 10),
-                    ValueListenableBuilder<AppNodeRole>(
-                      valueListenable: roleNotifier,
-                      builder: (context, currentRole, _) {
-                        return Row(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Header Brand
+                        Row(
                           children: [
-                            Expanded(
-                              child: _buildRoleCard(
-                                title: 'Host Server',
-                                subtitle: 'Master Station / Server',
-                                description: 'Binds embedded server daemon & coordinates peer sync.',
-                                icon: LucideIcons.server,
-                                isSelected: currentRole == AppNodeRole.host,
-                                onTap: () => roleNotifier.value = AppNodeRole.host,
-                                isDark: isDark,
+                            Container(
+                              padding: const EdgeInsets.all(AppDimensions.space10),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
                               ),
+                              child: const Icon(LucideIcons.network, color: AppColors.primary, size: 24),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildRoleCard(
-                                title: 'Satellite Client',
-                                subtitle: 'Cashier, Doctor, Tablet',
-                                description: 'Connects to a host server via LAN discovery or Cloud tunnel.',
-                                icon: LucideIcons.laptop,
-                                isSelected: currentRole == AppNodeRole.client,
-                                onTap: () => roleNotifier.value = AppNodeRole.client,
-                                isDark: isDark,
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'First-Run Sync Setup',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Select this device role to establish local network synchronization',
+                                    style: TextStyle(fontSize: 12, color: AppColors.textSecondaryDark),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 20),
+                        ),
+                        const SizedBox(height: 24),
 
-                    // Step 2: Role Configuration
-                    ValueListenableBuilder<AppNodeRole>(
-                      valueListenable: roleNotifier,
-                      builder: (context, currentRole, _) {
-                        if (currentRole == AppNodeRole.host) {
-                          return _buildHostConfigSection(isDark);
-                        } else {
-                          return _buildClientConfigSection(context, isDark);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 24),
+                        // Step 1: Role Selection (Host Server vs Satellite Client)
+                        const Text(
+                          '1. Select Station Operating Role',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 0.2),
+                        ),
+                        const SizedBox(height: 10),
+                        ValueListenableBuilder<AppNodeRole>(
+                          valueListenable: roleNotifier,
+                          builder: (context, currentRole, _) {
+                            if (isMobile) {
+                              return Column(
+                                children: [
+                                  _buildRoleCard(
+                                    title: 'Host Server',
+                                    subtitle: 'Master Station / Server',
+                                    description: 'Binds embedded server daemon & coordinates peer sync.',
+                                    icon: LucideIcons.server,
+                                    isSelected: currentRole == AppNodeRole.host,
+                                    onTap: () => roleNotifier.value = AppNodeRole.host,
+                                    isDark: isDark,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _buildRoleCard(
+                                    title: 'Satellite Client',
+                                    subtitle: 'Cashier, Doctor, Tablet',
+                                    description: 'Connects to a host server via LAN discovery or Cloud tunnel.',
+                                    icon: LucideIcons.laptop,
+                                    isSelected: currentRole == AppNodeRole.client,
+                                    onTap: () => roleNotifier.value = AppNodeRole.client,
+                                    isDark: isDark,
+                                  ),
+                                ],
+                              );
+                            }
+                            return Row(
+                              children: [
+                                Expanded(
+                                  child: _buildRoleCard(
+                                    title: 'Host Server',
+                                    subtitle: 'Master Station / Server',
+                                    description: 'Binds embedded server daemon & coordinates peer sync.',
+                                    icon: LucideIcons.server,
+                                    isSelected: currentRole == AppNodeRole.host,
+                                    onTap: () => roleNotifier.value = AppNodeRole.host,
+                                    isDark: isDark,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _buildRoleCard(
+                                    title: 'Satellite Client',
+                                    subtitle: 'Cashier, Doctor, Tablet',
+                                    description: 'Connects to a host server via LAN discovery or Cloud tunnel.',
+                                    icon: LucideIcons.laptop,
+                                    isSelected: currentRole == AppNodeRole.client,
+                                    onTap: () => roleNotifier.value = AppNodeRole.client,
+                                    isDark: isDark,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 20),
 
-                    // Step 3: Save & Proceed Button
-                    ValueListenableBuilder<AppNodeRole>(
-                      valueListenable: roleNotifier,
-                      builder: (context, currentRole, _) {
-                        return ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-                            ),
-                          ),
-                          icon: const Icon(LucideIcons.arrowRight, size: 18),
-                          label: Text(
-                            currentRole == AppNodeRole.host
-                                ? 'Start Host Server & Launch Terminal'
-                                : 'Connect Satellite Client & Launch Terminal',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
-                          ),
+                        // Step 2: Role Configuration
+                        ValueListenableBuilder<AppNodeRole>(
+                          valueListenable: roleNotifier,
+                          builder: (context, currentRole, _) {
+                            if (currentRole == AppNodeRole.host) {
+                              return _buildHostConfigSection(isDark);
+                            } else {
+                              return _buildClientConfigSection(context, isDark);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Step 3: Save & Proceed Button
+                        ValueListenableBuilder<AppNodeRole>(
+                          valueListenable: roleNotifier,
+                          builder: (context, currentRole, _) {
+                            return ElevatedButton(
+                              key: const Key('first_run_launch_button'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(LucideIcons.arrowRight, size: 18),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      currentRole == AppNodeRole.host
+                                          ? 'Start Host Server & Launch Terminal'
+                                          : 'Connect Satellite Client & Launch Terminal',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
                           onPressed: () async {
                             if (currentRole == AppNodeRole.host) {
                               final port = int.tryParse(hostPortController.text.trim()) ?? 3000;
@@ -207,10 +250,12 @@ class FirstRunSyncWizardPage extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildRoleCard({

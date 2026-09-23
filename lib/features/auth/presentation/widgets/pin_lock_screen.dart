@@ -318,6 +318,7 @@ class PinLockScreen extends StatelessWidget {
       color: isAction ? AppColors.surfaceElevatedDark : AppColors.surfaceElevatedDark.withValues(alpha: 0.6),
       borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
       child: InkWell(
+        key: Key('keypad_button_$label'),
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         splashColor: AppColors.primary.withValues(alpha: 0.2),
@@ -349,6 +350,7 @@ class PinLockScreen extends StatelessWidget {
 
   Widget _buildDemoChip(BuildContext context, String title, String pin, Color color) {
     return InkWell(
+      key: Key('demo_chip_$pin'),
       onTap: () {
         pinNotifier.value = pin;
         context.read<AuthBloc>().add(LoginRequested(pin));

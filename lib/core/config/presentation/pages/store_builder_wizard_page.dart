@@ -220,12 +220,15 @@ class StoreBuilderWizardPage extends StatelessWidget {
                           children: [
                             Icon(LucideIcons.layers, size: 16, color: Theme.of(context).colorScheme.primary),
                             const SizedBox(width: 8),
-                            Text(
-                              'Specialized Blueprint Template (${specificList.length} Options)',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textPrimaryDark,
+                            Expanded(
+                              child: Text(
+                                'Specialized Blueprint Template (${specificList.length} Options)',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimaryDark,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],

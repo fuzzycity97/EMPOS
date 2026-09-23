@@ -361,6 +361,7 @@ class OrderDetailsDialog extends StatelessWidget {
       ),
       child: Text(
         label,
+        key: const Key('order_status_badge'),
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w900,

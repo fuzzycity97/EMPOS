@@ -12,7 +12,6 @@ import 'clinical_status_inspector_modal.dart';
 import 'dental_tooth_matrix_widget.dart';
 import 'dermatology_action_widget.dart';
 import 'ophthalmology_action_widget.dart';
-import 'orthopedics_trauma_action_widget.dart';
 import 'skeletal_bone_3d_canvas_widget.dart';
 import 'clinical_3d_engine_core.dart';
 import 'specialty_3d_anatomical_models.dart';

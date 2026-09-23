@@ -47,8 +47,15 @@ $completedCount = 0
 $lastPassed = 0
 $lastFailed = 0
 
+$isIntegration = ($targetList | Where-Object { $_ -match 'integration_test' }).Count -gt 0
+
 if ($Target) {
-    & flutter test --reporter expanded --concurrency=$concurrency $targetList 2>&1 | ForEach-Object {
+    $cmdArgs = if ($isIntegration) {
+        @('test', '-d', 'windows') + $targetList
+    } else {
+        @('test', '--reporter', 'expanded', "--concurrency=$concurrency") + $targetList
+    }
+    & flutter $cmdArgs 2>&1 | ForEach-Object {
         $line = $_.ToString()
 
         if ($line -match '^(\d\d:\d\d)\s+\+(\d+)(?:\s+\-(\d+))?:\s*(.*)$') {

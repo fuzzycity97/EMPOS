@@ -11,11 +11,17 @@ import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../../domain/entities/connected_node.dart';
 import '../../domain/entities/sync_envelope.dart';
+import '../../domain/entities/sync_envelope_signing.dart';
 import '../../domain/repositories/lan_sync_repository.dart';
+import '../device_pairing_secret_store.dart';
 import '../message_routes.dart';
 import '../services/lan_discovery_service.dart';
 
 class LanSyncRepositoryImpl implements LanSyncRepository {
+  LanSyncRepositoryImpl({DevicePairingSecretStore? secretStore})
+      : _secretStore = secretStore;
+
+  final DevicePairingSecretStore? _secretStore;
   static const String offlineQueueBoxName = 'empos_offline_sync_queue';
   static const String _lanProfileStorageKey = 'empos_lan_sync_profile';
 
@@ -434,7 +440,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
               _broadcastPeerListToClients();
             }
 
-            if (!_incomingEventsController.isClosed) {
+            if (wouldAcceptEnvelope(envelope) && !_incomingEventsController.isClosed) {
               _incomingEventsController.add(envelope);
             }
 
@@ -681,7 +687,7 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
               }
             }
 
-            if (!_incomingEventsController.isClosed) {
+            if (wouldAcceptEnvelope(envelope) && !_incomingEventsController.isClosed) {
               _incomingEventsController.add(envelope);
             }
           } catch (_) {}
@@ -805,7 +811,23 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
 
   @override
   Future<void> broadcast(SyncEnvelope envelope) async {
-    final raw = envelope.toRawJson();
+    SyncEnvelope outgoing = envelope;
+    if (_clusterSecretHex != null && _clusterSecretHex!.isNotEmpty && envelope.signature == null) {
+      final sig = EnvelopeSigner.sign(
+        canonicalPayload: EnvelopeSigner.canonicalize(
+          type: envelope.type,
+          scope: envelope.scope,
+          senderRole: envelope.senderRole,
+          senderId: envelope.senderId,
+          payload: envelope.payload,
+          timestampEpochMs: envelope.ts,
+        ),
+        sharedSecretHex: _clusterSecretHex!,
+      );
+      outgoing = envelope.copyWith(signature: sig);
+    }
+
+    final raw = outgoing.toRawJson();
 
     final isTransient = envelope.type == MessageRoutes.syncRequestActiveState ||
         envelope.type == MessageRoutes.nodeJoined ||
@@ -963,6 +985,82 @@ class LanSyncRepositoryImpl implements LanSyncRepository {
     if (!_connectedNodesController.isClosed) {
       _connectedNodesController.add(connectedNodes);
     }
+  }
+
+  static String? _clusterSecretHex;
+  static void setClusterSecretHex(String? secret) => _clusterSecretHex = secret;
+  static String? get clusterSecretHex => _clusterSecretHex;
+
+  @override
+  bool wouldAcceptEnvelope(SyncEnvelope envelope) {
+    final role = envelope.senderRole.toLowerCase();
+    final type = envelope.type.toLowerCase();
+    final isPrivileged = role.contains('admin') ||
+        role.contains('god') ||
+        role.contains('tech') ||
+        type.startsWith('rmm.') ||
+        type.contains('command');
+
+    // Reject unsigned or invalid privileged envelopes immediately
+    if (isPrivileged) {
+      if (envelope.signature == null || envelope.signature!.isEmpty) {
+        return false;
+      }
+
+      final peerSecret = _secretStore?.getSecretForPeerSync(envelope.senderId);
+      final secret = peerSecret ?? _clusterSecretHex;
+      if (secret == null || secret.isEmpty) {
+        // Node has no secret configured or paired for this peer to authenticate admin commands
+        return false;
+      }
+
+      final canonical = EnvelopeSigner.canonicalize(
+        type: envelope.type,
+        scope: envelope.scope,
+        senderRole: envelope.senderRole,
+        senderId: envelope.senderId,
+        payload: envelope.payload,
+        timestampEpochMs: envelope.ts,
+      );
+
+      final isValid = EnvelopeSigner.verify(
+        canonicalPayload: canonical,
+        sharedSecretHex: secret,
+        providedSignatureHex: envelope.signature!,
+      );
+
+      if (!isValid) return false;
+
+      // Replay attack prevention: verify envelope is not older than 5 minutes
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if ((now - envelope.ts).abs() > 300000) {
+        return false;
+      }
+
+      return true;
+    }
+
+    // If a peer or cluster secret is provisioned, verify signature on signed envelopes
+    final peerSecret = _secretStore?.getSecretForPeerSync(envelope.senderId);
+    final secret = peerSecret ?? _clusterSecretHex;
+    if (secret != null && secret.isNotEmpty && envelope.signature != null) {
+      final canonical = EnvelopeSigner.canonicalize(
+        type: envelope.type,
+        scope: envelope.scope,
+        senderRole: envelope.senderRole,
+        senderId: envelope.senderId,
+        payload: envelope.payload,
+        timestampEpochMs: envelope.ts,
+      );
+
+      return EnvelopeSigner.verify(
+        canonicalPayload: canonical,
+        sharedSecretHex: secret,
+        providedSignatureHex: envelope.signature!,
+      );
+    }
+
+    return true;
   }
 
   void dispose() {

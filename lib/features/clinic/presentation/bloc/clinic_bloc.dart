@@ -692,6 +692,19 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           await _savePatientLocally(patient);
         }
 
+        // Sync to CustomerRepository so patient is immediately searchable in CRM/POS
+        if (customerRepository != null) {
+          try {
+            final cust = Customer(
+              id: patient.id,
+              name: patient.name,
+              phone: patient.phone,
+              createdAt: patient.createdAt,
+            );
+            await customerRepository!.saveCustomer(cust);
+          } catch (_) {}
+        }
+
         // Broadcast patient checked in event with FULL DATA PAYLOAD to all LAN stations
         final envelope = SyncEnvelope.create(
           type: MessageRoutes.patientCheckedIn,
@@ -949,8 +962,10 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
           );
 
           String targetCustId = visit.patientId;
+          Customer currentCust;
           if (existingCust != null) {
             targetCustId = existingCust.id;
+            currentCust = existingCust;
           } else {
             final newCust = Customer(
               id: visit.patientId,
@@ -960,6 +975,14 @@ class ClinicBloc extends Bloc<ClinicEvent, ClinicState> {
               createdAt: DateTime.now(),
             );
             await customerRepository!.saveCustomer(newCust);
+            currentCust = newCust;
+          }
+
+          if (remainingDebt > 0.001) {
+            final updatedDebtCust = currentCust.copyWith(
+              totalDebt: currentCust.totalDebt + remainingDebt,
+            );
+            await customerRepository!.saveCustomer(updatedDebtCust);
           }
 
           // 1. Record consultation charge in ledger if copay was due (ONLY the patient copay share!)

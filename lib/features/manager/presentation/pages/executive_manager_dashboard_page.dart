@@ -576,6 +576,7 @@ class ExecutiveManagerDashboardPage extends StatelessWidget {
 
   Widget _kpiCard(String title, String value, String sub, IconData icon, Color color, bool isDark) {
     return Container(
+      key: Key('kpi_${title.toLowerCase().replaceAll(' ', '_')}'),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isDark ? AppColors.surfaceDark : Colors.white,

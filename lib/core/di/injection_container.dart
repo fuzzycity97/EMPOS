@@ -163,6 +163,10 @@ import '../../features/clinic/presentation/bloc/clinic_bloc.dart';
 final sl = GetIt.instance;
 
 Future<void> initServiceLocator() async {
+  if (sl.isRegistered<SharedPreferences>()) {
+    return;
+  }
+
   // ---------------------------------------------------------------------------
   // External & Third Party Services
   // ---------------------------------------------------------------------------

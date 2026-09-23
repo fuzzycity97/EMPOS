@@ -180,7 +180,6 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
   String? _selectedPartNameEn;
   String? _selectedPartNameAr;
   bool _isSoloMode = false;
-  SpecialtyInstrument _selectedInstrument = SpecialtyInstrument.none;
   bool _autoRotate = false;
   late final AnimationController _autoRotController;
   Timer? _singleTapTimer;
@@ -622,49 +621,6 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
 
           if (widget.overlayBottomWidget != null) widget.overlayBottomWidget!,
         ],
-      ),
-    );
-  }
-
-  Widget _buildInstrumentPill(SpecialtyInstrument inst, bool isDark) {
-    final isSel = inst == _selectedInstrument;
-    return Padding(
-      padding: const EdgeInsets.only(left: 6),
-      child: InkWell(
-        onTap: () => setState(() => _selectedInstrument = inst),
-        borderRadius: BorderRadius.circular(16),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: isSel
-                ? const Color(0xFF0284C7)
-                : (isDark ? const Color(0xFF1E293B) : Colors.white),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSel
-                  ? const Color(0xFF38BDF8)
-                  : (isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1)),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (isSel) const Icon(Icons.check, size: 11, color: Colors.white),
-              if (isSel) const SizedBox(width: 3),
-              Text(
-                inst.localizedTitle,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                  color: isSel
-                      ? Colors.white
-                      : (isDark ? Colors.white70 : const Color(0xFF334155)),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

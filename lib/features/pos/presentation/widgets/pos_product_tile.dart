@@ -24,6 +24,7 @@ class PosProductTile extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
+          key: Key('pos_product_tile_${product.id}'),
           onTap: isOutOfStock ? null : onAddToCart,
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         child: AnimatedContainer(

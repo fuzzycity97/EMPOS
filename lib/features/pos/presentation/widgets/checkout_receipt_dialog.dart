@@ -143,6 +143,7 @@ class CheckoutReceiptDialog extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
+                    key: const Key('print_receipt_button'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF0F172A),
                       side: const BorderSide(color: Color(0xFFCBD5E1)),
@@ -159,6 +160,7 @@ class CheckoutReceiptDialog extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
+                    key: const Key('new_sale_button'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
