@@ -59,4 +59,5 @@ EMPOS_Database_*
 
 # Node / JS e2e dependencies
 node_modules/
+e2e/artifacts/
 

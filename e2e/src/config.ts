@@ -1,4 +1,4 @@
-﻿import path from 'path';
+import path from 'path';
 
 export const CONFIG = {
   // Test Environment Isolation
@@ -12,15 +12,33 @@ export const CONFIG = {
     path: '/',
   },
 
-  // Multi-Instance Dual Node Configuration
+  // Multi-Instance Triad Node Configuration
   instances: {
+    god: {
+      id: 'GOD',
+      observatoryPort: 8887,
+      syncPort: 9090,
+      dartArgs: [
+        '--dart-define=INSTANCE_ID=GOD',
+        '--dart-define=SYNC_PORT=9090',
+        '--dart-define=ENVIRONMENT=test',
+      ],
+      capabilities: {
+        platformName: 'Windows',
+        'appium:automationName': 'Flutter',
+        'appium:app': path.resolve(__dirname, '../../build/windows/x64/runner/Debug/empos.exe'),
+        'appium:environment': {
+          'FLUTTER_TEST_ARGS': '--observatory-port=8887 --dart-define=INSTANCE_ID=GOD'
+        }
+      }
+    },
     receptionist: {
       id: 'test_receptionist',
       observatoryPort: 8888,
-      syncPort: 9090,
+      syncPort: 9092,
       dartArgs: [
         '--dart-define=INSTANCE_ID=test_receptionist',
-        '--dart-define=SYNC_PORT=9090',
+        '--dart-define=SYNC_PORT=9092',
         '--dart-define=ENVIRONMENT=test',
       ],
       capabilities: {
