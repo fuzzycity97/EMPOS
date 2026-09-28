@@ -150,12 +150,30 @@ class ToothGlbMeshLibrary {
     final accessors = (gltf['accessors'] as List).cast<Map<String, dynamic>>();
     final bufferViews = (gltf['bufferViews'] as List).cast<Map<String, dynamic>>();
 
-    final positionAccessor = accessors[0];
-    final indexAccessor = accessors[1];
-    final positionView = bufferViews[positionAccessor['bufferView'] as int];
-    final indexView = bufferViews[indexAccessor['bufferView'] as int];
+    final meshes = (gltf['meshes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final primitives = meshes.isNotEmpty
+        ? ((meshes.first['primitives'] as List?)?.cast<Map<String, dynamic>>() ?? [])
+        : <Map<String, dynamic>>[];
 
-    final posOffset = positionView['byteOffset'] as int? ?? 0;
+    int posAccessorIdx = 0;
+    int? indexAccessorIdx;
+
+    if (primitives.isNotEmpty) {
+      final prim = primitives.first;
+      final attrs = prim['attributes'] as Map<String, dynamic>? ?? {};
+      if (attrs.containsKey('POSITION')) {
+        posAccessorIdx = attrs['POSITION'] as int;
+      }
+      if (prim.containsKey('indices')) {
+        indexAccessorIdx = prim['indices'] as int?;
+      }
+    } else {
+      if (accessors.length > 1) indexAccessorIdx = 1;
+    }
+
+    final positionAccessor = accessors[posAccessorIdx];
+    final positionView = bufferViews[positionAccessor['bufferView'] as int];
+    final posOffset = (positionView['byteOffset'] as int? ?? 0) + (positionAccessor['byteOffset'] as int? ?? 0);
     final posLength = positionAccessor['count'] as int;
     const posStride = 12;
 
@@ -176,11 +194,44 @@ class ToothGlbMeshLibrary {
       if (r > maxRadius) maxRadius = r;
     }
 
-    final indexOffset = indexView['byteOffset'] as int? ?? 0;
-    final indexCount = indexAccessor['count'] as int;
     final indices = <int>[];
-    for (var i = 0; i < indexCount; i++) {
-      indices.add(_readUint32(binBytes, indexOffset + i * 4));
+    if (indexAccessorIdx != null && indexAccessorIdx < accessors.length) {
+      final indexAccessor = accessors[indexAccessorIdx];
+      final indexView = bufferViews[indexAccessor['bufferView'] as int];
+      final indexOffset = (indexView['byteOffset'] as int? ?? 0) + (indexAccessor['byteOffset'] as int? ?? 0);
+      final indexCount = indexAccessor['count'] as int;
+      final componentType = indexAccessor['componentType'] as int? ?? 5125;
+
+      if (componentType == 5123) {
+        // uint16
+        for (var i = 0; i < indexCount; i++) {
+          final pos = indexOffset + i * 2;
+          final idx = binBytes[pos] | (binBytes[pos + 1] << 8);
+          if (idx < vertices.length) {
+            indices.add(idx);
+          }
+        }
+      } else if (componentType == 5121) {
+        // uint8
+        for (var i = 0; i < indexCount; i++) {
+          final idx = binBytes[indexOffset + i];
+          if (idx < vertices.length) {
+            indices.add(idx);
+          }
+        }
+      } else {
+        // uint32
+        for (var i = 0; i < indexCount; i++) {
+          final idx = _readUint32(binBytes, indexOffset + i * 4);
+          if (idx < vertices.length) {
+            indices.add(idx);
+          }
+        }
+      }
+    } else {
+      for (var i = 0; i < vertices.length; i++) {
+        indices.add(i);
+      }
     }
 
     return ToothGlbMesh(

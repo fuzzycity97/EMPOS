@@ -1754,7 +1754,13 @@ class _Tooth3dPainter extends CustomPainter {
     var crownCount = 0;
     var maxScreenRadius = 12.0;
 
-    for (var i = 0; i < mesh.indices.length; i += 3) {
+    for (var i = 0; i + 2 < mesh.indices.length; i += 3) {
+      final idx0 = mesh.indices[i];
+      final idx1 = mesh.indices[i + 1];
+      final idx2 = mesh.indices[i + 2];
+      if (idx0 >= mesh.vertices.length || idx1 >= mesh.vertices.length || idx2 >= mesh.vertices.length) {
+        continue;
+      }
       final projected = <_Point3d>[];
       final screenPts = <Offset>[];
 

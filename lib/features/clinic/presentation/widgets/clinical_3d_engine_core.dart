@@ -488,76 +488,83 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
           // 3. MAIN 3D INTERACTIVE CANVAS VIEWPORT
           SizedBox(
             height: widget.height,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    onPanStart: (details) {
-                      _singleTapTimer?.cancel();
-                      _singleTapTimer = null;
-                      _pendingTapPos = null;
-                      _lastPanPos = details.localPosition;
-                    },
-                    onPanUpdate: (details) {
-                      if (_lastPanPos != null) {
-                        final dx = details.localPosition.dx - _lastPanPos!.dx;
-                        final dy = details.localPosition.dy - _lastPanPos!.dy;
-                        setState(() {
-                          _yaw += dx * 0.012;
-                          _pitch = (_pitch + dy * 0.012).clamp(-1.4, 1.4);
-                        });
-                        _lastPanPos = details.localPosition;
-                      }
-                    },
-                    onPanEnd: (_) => _lastPanPos = null,
-                    onTapUp: (details) {
-                      if (_singleTapTimer != null && _singleTapTimer!.isActive) {
-                        // Second tap within 500ms window: cancel timer and trigger double tap (Solo Mode)!
-                        _singleTapTimer!.cancel();
-                        _singleTapTimer = null;
-                        _pendingTapPos = null;
-                        _handleCanvasDoubleTap(details.localPosition, faces);
-                      } else {
-                        // First tap: buffer location and wait one half second (500ms)
-                        _pendingTapPos = details.localPosition;
-                        _singleTapTimer = Timer(const Duration(milliseconds: 500), () {
-                          if (mounted && _pendingTapPos != null) {
-                            final pos = _pendingTapPos!;
-                            _pendingTapPos = null;
-                            _singleTapTimer = null;
-                            _handleCanvasTap(pos, faces);
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final actualW = (constraints.maxWidth.isFinite && constraints.maxWidth > 0)
+                    ? constraints.maxWidth
+                    : 600.0;
+                final viewportSize = Size(actualW, widget.height);
+
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: GestureDetector(
+                        onPanStart: (details) {
+                          _singleTapTimer?.cancel();
+                          _singleTapTimer = null;
+                          _pendingTapPos = null;
+                          _lastPanPos = details.localPosition;
+                        },
+                        onPanUpdate: (details) {
+                          if (_lastPanPos != null) {
+                            final dx = details.localPosition.dx - _lastPanPos!.dx;
+                            final dy = details.localPosition.dy - _lastPanPos!.dy;
+                            setState(() {
+                              _yaw += dx * 0.012;
+                              _pitch = (_pitch + dy * 0.012).clamp(-1.4, 1.4);
+                            });
+                            _lastPanPos = details.localPosition;
                           }
-                        });
-                      }
-                    },
-                    onSecondaryTapUp: (details) {
-                      _singleTapTimer?.cancel();
-                      _singleTapTimer = null;
-                      _pendingTapPos = null;
-                      _handleCanvasSecondaryTap(details.localPosition, details.globalPosition, faces);
-                    },
-                    onLongPressStart: (details) {
-                      _singleTapTimer?.cancel();
-                      _singleTapTimer = null;
-                      _pendingTapPos = null;
-                      _handleCanvasSecondaryTap(details.localPosition, details.globalPosition, faces);
-                    },
-                    child: CustomPaint(
-                      painter: _Generic3DScenePainter(
-                        faces: faces,
-                        yaw: _yaw,
-                        pitch: _pitch,
-                        zoom: _zoom,
-                        isDark: isDark,
-                        primaryColor: widget.primaryColor,
-                        activeStatuses: widget.activeStatuses,
-                        hoveredPartKey: _hoveredPartKey,
-                        selectedPartKey: _selectedPartKey,
+                        },
+                        onPanEnd: (_) => _lastPanPos = null,
+                        onTapUp: (details) {
+                          if (_singleTapTimer != null && _singleTapTimer!.isActive) {
+                            // Second tap within 500ms window: cancel timer and trigger double tap (Solo Mode)!
+                            _singleTapTimer!.cancel();
+                            _singleTapTimer = null;
+                            _pendingTapPos = null;
+                            _handleCanvasDoubleTap(details.localPosition, faces, viewportSize);
+                          } else {
+                            // First tap: buffer location and wait one half second (500ms)
+                            _pendingTapPos = details.localPosition;
+                            _singleTapTimer = Timer(const Duration(milliseconds: 500), () {
+                              if (mounted && _pendingTapPos != null) {
+                                final pos = _pendingTapPos!;
+                                _pendingTapPos = null;
+                                _singleTapTimer = null;
+                                _handleCanvasTap(pos, faces, viewportSize);
+                              }
+                            });
+                          }
+                        },
+                        onSecondaryTapUp: (details) {
+                          _singleTapTimer?.cancel();
+                          _singleTapTimer = null;
+                          _pendingTapPos = null;
+                          _handleCanvasSecondaryTap(details.localPosition, details.globalPosition, faces, viewportSize);
+                        },
+                        onLongPressStart: (details) {
+                          _singleTapTimer?.cancel();
+                          _singleTapTimer = null;
+                          _pendingTapPos = null;
+                          _handleCanvasSecondaryTap(details.localPosition, details.globalPosition, faces, viewportSize);
+                        },
+                        child: CustomPaint(
+                          painter: _Generic3DScenePainter(
+                            faces: faces,
+                            yaw: _yaw,
+                            pitch: _pitch,
+                            zoom: _zoom,
+                            isDark: isDark,
+                            primaryColor: widget.primaryColor,
+                            activeStatuses: widget.activeStatuses,
+                            hoveredPartKey: _hoveredPartKey,
+                            selectedPartKey: _selectedPartKey,
+                          ),
+                          size: Size.infinite,
+                        ),
                       ),
-                      size: Size.infinite,
                     ),
-                  ),
-                ),
 
                 // Floating zoom buttons
                 Positioned(
@@ -616,8 +623,10 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                   ),
                 ),
               ],
-            ),
-          ),
+            );
+          },
+        ),
+      ),
 
           if (widget.overlayBottomWidget != null) widget.overlayBottomWidget!,
         ],
@@ -625,8 +634,7 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     );
   }
 
-  MeshFace3D? _findClosestFace(Offset tapPos, List<MeshFace3D> faces, {double maxDist = 58.0}) {
-    final size = Size(double.infinity, widget.height);
+  MeshFace3D? _findClosestFace(Offset tapPos, List<MeshFace3D> faces, Size size, {double maxDist = 75.0}) {
     final scale = 1.0 * _zoom;
 
     MeshFace3D? closestFace;
@@ -646,8 +654,8 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     return closestFace;
   }
 
-  void _handleCanvasTap(Offset tapPos, List<MeshFace3D> faces) {
-    final closestFace = _findClosestFace(tapPos, faces, maxDist: 58.0);
+  void _handleCanvasTap(Offset tapPos, List<MeshFace3D> faces, Size size) {
+    final closestFace = _findClosestFace(tapPos, faces, size, maxDist: 75.0);
 
     if (closestFace != null) {
       setState(() {
@@ -664,8 +672,8 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     }
   }
 
-  void _handleCanvasDoubleTap(Offset tapPos, List<MeshFace3D> faces) {
-    final closestFace = _findClosestFace(tapPos, faces, maxDist: 75.0);
+  void _handleCanvasDoubleTap(Offset tapPos, List<MeshFace3D> faces, Size size) {
+    final closestFace = _findClosestFace(tapPos, faces, size, maxDist: 100.0);
 
     if (closestFace != null && closestFace.partKey != null) {
       final key = closestFace.partKey!;
@@ -691,12 +699,11 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     }
   }
 
-  void _handleCanvasSecondaryTap(Offset tapPos, Offset globalPos, List<MeshFace3D> faces) {
-    final size = Size(double.infinity, widget.height);
+  void _handleCanvasSecondaryTap(Offset tapPos, Offset globalPos, List<MeshFace3D> faces, Size size) {
     final scale = 1.0 * _zoom;
 
     MeshFace3D? closestFace;
-    double minSqDist = 110.0 * 110.0;
+    double minSqDist = 120.0 * 120.0;
 
     for (final face in faces) {
       if (face.partKey == null) continue;

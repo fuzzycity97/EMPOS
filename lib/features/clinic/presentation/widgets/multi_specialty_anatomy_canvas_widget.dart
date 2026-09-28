@@ -928,7 +928,7 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
                                         ),
                                       ),
                                     // Custom pins placed on the active anatomical model / workbench
-                                    if (discipline != ClinicalSpecialtyDiscipline.ophthalmology && discipline != ClinicalSpecialtyDiscipline.dental)
+                                    if (discipline != ClinicalSpecialtyDiscipline.dental)
                                       ...activeStatuses.values.where((e) => e.isCustomPin).map((pin) {
                                         final w = (constraints.maxWidth.isFinite && constraints.maxWidth > 0) ? constraints.maxWidth : 400.0;
                                         final h = (constraints.maxHeight.isFinite && constraints.maxHeight > 0) ? constraints.maxHeight : 380.0;

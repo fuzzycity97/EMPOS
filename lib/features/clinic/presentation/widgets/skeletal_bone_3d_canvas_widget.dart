@@ -360,6 +360,7 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
                           }
                         },
                         onTapUp: (details) => _handleCanvasTap(details.localPosition, canvasSize),
+                        onDoubleTapDown: (details) => _handleCanvasDoubleTap(details.localPosition, canvasSize),
                         onSecondaryTapUp: (details) => _handleCanvasSecondaryTap(details.localPosition, canvasSize),
                         child: AnimatedBuilder(
                           animation: Listenable.merge([
@@ -1429,6 +1430,19 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
     if (hitBone != null) {
       _selectedBoneNotifier.value = hitBone.id;
       widget.onBoneSecondaryTap?.call(hitBone.code, hitBone.nameEn, hitBone.nameAr);
+    }
+  }
+
+  void _handleCanvasDoubleTap(Offset tapPos, Size canvasSize) {
+    if (_isSoloModeNotifier.value) {
+      _isSoloModeNotifier.value = false;
+      _resetCamera();
+      return;
+    }
+    _handleCanvasTap(tapPos, canvasSize);
+    if (_selectedBoneNotifier.value != null) {
+      _isSoloModeNotifier.value = true;
+      _resetCamera();
     }
   }
 }
