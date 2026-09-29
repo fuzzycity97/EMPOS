@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -23,6 +24,38 @@ enum ClinicalAgeStage {
   const ClinicalAgeStage(this.titleEn, this.titleAr, this.ageRange, this.descAr);
 
   String get localizedTitle => AppLanguage.isArabic ? titleAr : titleEn;
+}
+
+/// Real-time 3D Graphics Performance and Statistics Tracker across all clinical disciplines
+class Clinical3dPerformanceTracker {
+  static final Clinical3dPerformanceTracker instance = Clinical3dPerformanceTracker._();
+  Clinical3dPerformanceTracker._();
+
+  int _frameCount = 0;
+  int _lastTimeMicros = 0;
+  double fps = 60.0;
+  int lastFrameTimeMs = 1;
+  int lastTriangles = 0;
+  int lastDrawCalls = 1;
+
+  void recordFrame(int triangles, int drawCalls, int frameTimeMs) {
+    lastTriangles = triangles;
+    lastDrawCalls = drawCalls;
+    lastFrameTimeMs = frameTimeMs;
+
+    _frameCount++;
+    final now = DateTime.now().microsecondsSinceEpoch;
+    if (_lastTimeMicros == 0) {
+      _lastTimeMicros = now;
+      return;
+    }
+    final elapsed = now - _lastTimeMicros;
+    if (elapsed >= 400000) {
+      fps = (_frameCount * 1000000.0 / elapsed).clamp(1.0, 60.0);
+      _frameCount = 0;
+      _lastTimeMicros = now;
+    }
+  }
 }
 
 /// Simple 3D point with vector operations and rotation
@@ -172,9 +205,11 @@ class Clinical3dSceneViewer extends StatefulWidget {
 
 class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with SingleTickerProviderStateMixin {
   late ClinicalAgeStage _currentAgeStage;
-  late double _yaw;
-  late double _pitch;
-  late double _zoom;
+  late final ValueNotifier<double> _yawNotifier;
+  late final ValueNotifier<double> _pitchNotifier;
+  late final ValueNotifier<double> _zoomNotifier;
+  late final ValueNotifier<bool> _showStatsNotifier;
+  List<MeshFace3D> _cachedFaces = const [];
   Offset? _lastPanPos;
   String? _hoveredPartKey;
   String? _selectedPartKey;
@@ -186,13 +221,24 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
   Timer? _singleTapTimer;
   Offset? _pendingTapPos;
 
+  void _rebuildFaces() {
+    _cachedFaces = widget.sceneMeshBuilder(
+      _currentAgeStage,
+      instrument: SpecialtyInstrument.none,
+      isSoloMode: _isSoloMode,
+      soloPartKey: _selectedPartKey,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _currentAgeStage = widget.initialAgeStage;
-    _yaw = widget.initialYaw;
-    _pitch = widget.initialPitch;
-    _zoom = widget.initialZoom;
+    _yawNotifier = ValueNotifier<double>(widget.initialYaw);
+    _pitchNotifier = ValueNotifier<double>(widget.initialPitch);
+    _zoomNotifier = ValueNotifier<double>(widget.initialZoom);
+    _showStatsNotifier = ValueNotifier<bool>(false);
+    _rebuildFaces();
 
     SpecialtyGlbMeshLibrary.addListener(_onGlbMeshUpdated);
 
@@ -201,17 +247,18 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
       duration: const Duration(seconds: 18),
     )..addListener(() {
         if (_autoRotate) {
-          setState(() {
-            _yaw += 0.015;
-            if (_yaw > math.pi * 2) _yaw -= math.pi * 2;
-          });
+          var y = _yawNotifier.value + 0.015;
+          if (y > math.pi * 2) y -= math.pi * 2;
+          _yawNotifier.value = y;
         }
       });
   }
 
   void _onGlbMeshUpdated() {
     if (mounted) {
-      setState(() {});
+      setState(() {
+        _rebuildFaces();
+      });
     }
   }
 
@@ -221,15 +268,17 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     _singleTapTimer?.cancel();
     _singleTapTimer = null;
     _autoRotController.dispose();
+    _yawNotifier.dispose();
+    _pitchNotifier.dispose();
+    _zoomNotifier.dispose();
+    _showStatsNotifier.dispose();
     super.dispose();
   }
 
   void _resetCamera() {
-    setState(() {
-      _yaw = widget.initialYaw;
-      _pitch = widget.initialPitch;
-      _zoom = widget.initialZoom;
-    });
+    _yawNotifier.value = widget.initialYaw;
+    _pitchNotifier.value = widget.initialPitch;
+    _zoomNotifier.value = widget.initialZoom;
   }
 
   void _toggleAutoRotate() {
@@ -247,7 +296,8 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     if (_selectedPartKey != null) {
       setState(() {
         _isSoloMode = true;
-        _zoom = 1.6; // zoom into the solo part
+        _zoomNotifier.value = 1.6;
+        _rebuildFaces();
       });
     }
   }
@@ -255,19 +305,15 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
   void _exitSoloMode() {
     setState(() {
       _isSoloMode = false;
-      _zoom = widget.initialZoom;
+      _zoomNotifier.value = widget.initialZoom;
+      _rebuildFaces();
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final faces = widget.sceneMeshBuilder(
-      _currentAgeStage,
-      instrument: SpecialtyInstrument.none,
-      isSoloMode: _isSoloMode,
-      soloPartKey: _selectedPartKey,
-    );
+    final faces = _cachedFaces;
 
     return Container(
       decoration: BoxDecoration(
@@ -402,6 +448,20 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                   tooltip: 'Reset View (إعادة ضبط)',
                   onPressed: _resetCamera,
                 ),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _showStatsNotifier,
+                  builder: (context, showStats, _) {
+                    return IconButton(
+                      icon: Icon(
+                        LucideIcons.activity,
+                        size: 18,
+                        color: showStats ? const Color(0xFF10B981) : (isDark ? Colors.white70 : Colors.black54),
+                      ),
+                      tooltip: 'Toggle 3D FPS & GPU Performance HUD',
+                      onPressed: () => _showStatsNotifier.value = !_showStatsNotifier.value,
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -443,7 +503,10 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                       padding: const EdgeInsets.only(right: 6),
                       child: InkWell(
                         onTap: () {
-                          setState(() => _currentAgeStage = stage);
+                          setState(() {
+                            _currentAgeStage = stage;
+                            _rebuildFaces();
+                          });
                           widget.onAgeStageChanged?.call(stage);
                         },
                         borderRadius: BorderRadius.circular(20),
@@ -519,23 +582,19 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                           if (_lastPanPos != null) {
                             final dx = details.localPosition.dx - _lastPanPos!.dx;
                             final dy = details.localPosition.dy - _lastPanPos!.dy;
-                            setState(() {
-                              _yaw += dx * 0.012;
-                              _pitch = (_pitch + dy * 0.012).clamp(-1.4, 1.4);
-                            });
+                            _yawNotifier.value += dx * 0.012;
+                            _pitchNotifier.value = (_pitchNotifier.value + dy * 0.012).clamp(-1.4, 1.4);
                             _lastPanPos = details.localPosition;
                           }
                         },
                         onPanEnd: (_) => _lastPanPos = null,
                         onTapUp: (details) {
                           if (_singleTapTimer != null && _singleTapTimer!.isActive) {
-                            // Second tap within 500ms window: cancel timer and trigger double tap (Solo Mode)!
                             _singleTapTimer!.cancel();
                             _singleTapTimer = null;
                             _pendingTapPos = null;
                             _handleCanvasDoubleTap(details.localPosition, faces, viewportSize);
                           } else {
-                            // First tap: buffer location and wait one half second (500ms)
                             _pendingTapPos = details.localPosition;
                             _singleTapTimer = Timer(const Duration(milliseconds: 500), () {
                               if (mounted && _pendingTapPos != null) {
@@ -559,19 +618,24 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                           _pendingTapPos = null;
                           _handleCanvasSecondaryTap(details.localPosition, details.globalPosition, faces, viewportSize);
                         },
-                        child: CustomPaint(
-                          painter: _Generic3DScenePainter(
-                            faces: faces,
-                            yaw: _yaw,
-                            pitch: _pitch,
-                            zoom: _zoom,
-                            isDark: isDark,
-                            primaryColor: widget.primaryColor,
-                            activeStatuses: widget.activeStatuses,
-                            hoveredPartKey: _hoveredPartKey,
-                            selectedPartKey: _selectedPartKey,
-                          ),
-                          size: Size.infinite,
+                        child: AnimatedBuilder(
+                          animation: Listenable.merge([_yawNotifier, _pitchNotifier, _zoomNotifier]),
+                          builder: (context, _) {
+                            return CustomPaint(
+                              painter: _Generic3DScenePainter(
+                                faces: faces,
+                                yaw: _yawNotifier.value,
+                                pitch: _pitchNotifier.value,
+                                zoom: _zoomNotifier.value,
+                                isDark: isDark,
+                                primaryColor: widget.primaryColor,
+                                activeStatuses: widget.activeStatuses,
+                                hoveredPartKey: _hoveredPartKey,
+                                selectedPartKey: _selectedPartKey,
+                              ),
+                              size: Size.infinite,
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -586,18 +650,68 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                       _buildFloatingCircleBtn(
                         icon: Icons.add,
                         tooltip: 'Zoom In',
-                        onTap: () => setState(() => _zoom = (_zoom * 1.15).clamp(0.4, 4.0)),
+                        onTap: () => _zoomNotifier.value = (_zoomNotifier.value * 1.15).clamp(0.4, 4.0),
                         isDark: isDark,
                       ),
                       const SizedBox(height: 6),
                       _buildFloatingCircleBtn(
                         icon: Icons.remove,
                         tooltip: 'Zoom Out',
-                        onTap: () => setState(() => _zoom = (_zoom / 1.15).clamp(0.4, 4.0)),
+                        onTap: () => _zoomNotifier.value = (_zoomNotifier.value / 1.15).clamp(0.4, 4.0),
                         isDark: isDark,
                       ),
                     ],
                   ),
+                ),
+
+                // Real-time 3D Performance & FPS Stats HUD
+                ValueListenableBuilder<bool>(
+                  valueListenable: _showStatsNotifier,
+                  builder: (context, showStats, _) {
+                    if (!showStats) return const SizedBox.shrink();
+                    final tracker = Clinical3dPerformanceTracker.instance;
+                    return Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.88),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF10B981), width: 1.2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.3),
+                              blurRadius: 10,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF10B981),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 7),
+                            Text(
+                              '${tracker.fps.toStringAsFixed(0)} FPS | ${tracker.lastDrawCalls} Call | ${tracker.lastTriangles} Tris | ${tracker.lastFrameTimeMs}ms',
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF34D399),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
 
                 // Hint overlay pill
@@ -645,14 +759,14 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
   }
 
   MeshFace3D? _findClosestFace(Offset tapPos, List<MeshFace3D> faces, Size size, {double maxDist = 75.0}) {
-    final scale = 1.0 * _zoom;
+    final scale = 1.0 * _zoomNotifier.value;
 
     MeshFace3D? closestFace;
     double minSqDist = maxDist * maxDist;
 
     for (final face in faces) {
       if (face.partKey == null) continue;
-      final rotC = face.centroid.rotateEuler(_yaw, _pitch);
+      final rotC = face.centroid.rotateEuler(_yawNotifier.value, _pitchNotifier.value);
       final screenPos = rotC.toScreen(size, scale);
       final distSq = (screenPos.dx - tapPos.dx) * (screenPos.dx - tapPos.dx) +
           (screenPos.dy - tapPos.dy) * (screenPos.dy - tapPos.dy);
@@ -697,11 +811,12 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
         // Toggle solo mode
         if (_isSoloMode && _selectedPartKey == key) {
           _isSoloMode = false;
-          _zoom = widget.initialZoom;
+          _zoomNotifier.value = widget.initialZoom;
         } else {
           _isSoloMode = true;
-          _zoom = 1.6;
+          _zoomNotifier.value = 1.6;
         }
+        _rebuildFaces();
       });
     } else if (_isSoloMode) {
       // Double clicking outside or background exits solo mode
@@ -710,14 +825,14 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
   }
 
   void _handleCanvasSecondaryTap(Offset tapPos, Offset globalPos, List<MeshFace3D> faces, Size size) {
-    final scale = 1.0 * _zoom;
+    final scale = 1.0 * _zoomNotifier.value;
 
     MeshFace3D? closestFace;
     double minSqDist = 120.0 * 120.0;
 
     for (final face in faces) {
       if (face.partKey == null) continue;
-      final rotC = face.centroid.rotateEuler(_yaw, _pitch);
+      final rotC = face.centroid.rotateEuler(_yawNotifier.value, _pitchNotifier.value);
       final screenPos = rotC.toScreen(size, scale);
       final distSq = (screenPos.dx - tapPos.dx) * (screenPos.dx - tapPos.dx) +
           (screenPos.dy - tapPos.dy) * (screenPos.dy - tapPos.dy);
@@ -779,6 +894,9 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
 /// Custom painter that projects 3D faces with realistic multi-light studio shading,
 /// Blinn-Phong organic specular highlights, Fresnel curvature depth, and smooth face rendering.
 class _Generic3DScenePainter extends CustomPainter {
+  static final Paint _sharedSolidPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _sharedStrokePaint = Paint()..style = PaintingStyle.stroke;
+
   final List<MeshFace3D> faces;
   final double yaw;
   final double pitch;
@@ -804,6 +922,8 @@ class _Generic3DScenePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (faces.isEmpty) return;
+
+    final stopwatch = Stopwatch()..start();
 
     // Realistic surgical key light from upper-front-left
     final keyLight = const Point3D(-0.55, -0.65, 0.52).normalized();
@@ -839,18 +959,16 @@ class _Generic3DScenePainter extends CustomPainter {
     transformedFaces.sort((a, b) => a.avgZ.compareTo(b.avgZ));
     final scale = 1.0 * zoom;
 
+    final solidPositions = <Offset>[];
+    final solidColors = <Color>[];
+    int drawCalls = 0;
+
     for (final rf in transformedFaces) {
       final face = rf.original;
       final rotVerts = rf.rotatedVertices;
       if (rotVerts.isEmpty) continue;
 
       final screenPts = rotVerts.map((v) => v.toScreen(size, scale)).toList();
-
-      final path = Path()..moveTo(screenPts[0].dx, screenPts[0].dy);
-      for (int i = 1; i < screenPts.length; i++) {
-        path.lineTo(screenPts[i].dx, screenPts[i].dy);
-      }
-      path.close();
 
       Color faceColor = face.baseColor;
       if (face.partKey != null && activeStatuses != null) {
@@ -889,29 +1007,57 @@ class _Generic3DScenePainter extends CustomPainter {
       final alpha = faceColor.a > 0.05 ? (faceColor.a * 255).toInt() : 255;
       final shadedColor = Color.fromARGB(alpha, r, g, b);
 
-      if (!face.isWireframe) {
-        final fillPaint = Paint()
-          ..color = shadedColor
-          ..style = PaintingStyle.fill;
-        canvas.drawPath(path, fillPaint);
+      if (!face.isWireframe && screenPts.length >= 3) {
+        // GPU vertex batching: triangulate polygonal face fan
+        for (int i = 1; i < screenPts.length - 1; i++) {
+          solidPositions.add(screenPts[0]);
+          solidPositions.add(screenPts[i]);
+          solidPositions.add(screenPts[i + 1]);
+          solidColors.add(shadedColor);
+          solidColors.add(shadedColor);
+          solidColors.add(shadedColor);
+        }
       }
 
-      // Only draw stroke outlines for wireframe meshes or selected/hovered parts.
-      // This completely removes the "sketchy wireframe CAD" look while keeping clean selection highlights!
+      // Draw stroke outlines ONLY for wireframes or selected/hovered parts
       final isHovered = face.partKey != null && face.partKey == hoveredPartKey;
       final isSelected = face.partKey != null && face.partKey == selectedPartKey;
       if (face.isWireframe || isHovered || isSelected) {
-        final borderPaint = Paint()
+        final path = Path()..moveTo(screenPts[0].dx, screenPts[0].dy);
+        for (int i = 1; i < screenPts.length; i++) {
+          path.lineTo(screenPts[i].dx, screenPts[i].dy);
+        }
+        path.close();
+
+        _sharedStrokePaint
           ..color = isHovered
-              ? const Color(0xFFFBBF24) // Amber accent for hovered
+              ? const Color(0xFFFBBF24)
               : (isSelected
                   ? primaryColor.withValues(alpha: 0.95)
                   : shadedColor)
-          ..strokeWidth = (isHovered || isSelected) ? 2.2 : 1.2
-          ..style = PaintingStyle.stroke;
-        canvas.drawPath(path, borderPaint);
+          ..strokeWidth = (isHovered || isSelected) ? 2.2 : 1.2;
+        canvas.drawPath(path, _sharedStrokePaint);
+        drawCalls++;
       }
     }
+
+    // Hardware-accelerated GPU batch dispatch in a SINGLE draw call
+    if (solidPositions.isNotEmpty) {
+      final vertices = ui.Vertices(
+        ui.VertexMode.triangles,
+        solidPositions,
+        colors: solidColors,
+      );
+      canvas.drawVertices(vertices, BlendMode.dst, _sharedSolidPaint);
+      drawCalls++;
+    }
+
+    stopwatch.stop();
+    Clinical3dPerformanceTracker.instance.recordFrame(
+      faces.length,
+      drawCalls,
+      stopwatch.elapsedMilliseconds,
+    );
   }
 
   @override

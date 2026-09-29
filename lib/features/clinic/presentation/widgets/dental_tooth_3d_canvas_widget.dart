@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -1445,6 +1446,7 @@ class _ProjectedTriangle {
 }
 
 class _Tooth3dPainter extends CustomPainter {
+  static final Paint _sharedBatchPaint = Paint()..style = PaintingStyle.fill;
   static const _light = _Point3d(-0.35, -0.65, 0.67);
 
   final List<ToothChartEntry> toothChart;
@@ -1560,13 +1562,23 @@ class _Tooth3dPainter extends CustomPainter {
 
     // ── 3. DEPTH-SORT ALL TRIANGLES (TEETH + GUM) ────────────────────────────
     allTriangles.sort((a, b) => a.depth.compareTo(b.depth));
-    for (final tri in allTriangles) {
-      final path = Path()
-        ..moveTo(tri.a.dx, tri.a.dy)
-        ..lineTo(tri.b.dx, tri.b.dy)
-        ..lineTo(tri.c.dx, tri.c.dy)
-        ..close();
-      canvas.drawPath(path, Paint()..color = tri.color);
+    // GPU-batched vertex dispatch (1 draw call instead of N drawPath calls)
+    if (allTriangles.isNotEmpty) {
+      final positions = <Offset>[];
+      final colors = <Color>[];
+      for (final tri in allTriangles) {
+        positions.add(tri.a);
+        positions.add(tri.b);
+        positions.add(tri.c);
+        colors.add(tri.color);
+        colors.add(tri.color);
+        colors.add(tri.color);
+      }
+      canvas.drawVertices(
+        ui.Vertices(ui.VertexMode.triangles, positions, colors: colors),
+        BlendMode.dst,
+        _sharedBatchPaint,
+      );
     }
 
     // ── 4. WIRE ARCH BRIDGES (SUBTLE ARCH GUIDES) ────────────────────────────
@@ -2425,13 +2437,23 @@ class _Tooth3dPainter extends CustomPainter {
 
     // ── 5. DEPTH-SORT & RENDER TRIANGLES ─────────────────────────────────────
     allTriangles.sort((a, b) => a.depth.compareTo(b.depth));
-    for (final tri in allTriangles) {
-      final path = Path()
-        ..moveTo(tri.a.dx, tri.a.dy)
-        ..lineTo(tri.b.dx, tri.b.dy)
-        ..lineTo(tri.c.dx, tri.c.dy)
-        ..close();
-      canvas.drawPath(path, Paint()..color = tri.color);
+    // GPU-batched vertex dispatch for solo tooth view
+    if (allTriangles.isNotEmpty) {
+      final positions = <Offset>[];
+      final colors = <Color>[];
+      for (final tri in allTriangles) {
+        positions.add(tri.a);
+        positions.add(tri.b);
+        positions.add(tri.c);
+        colors.add(tri.color);
+        colors.add(tri.color);
+        colors.add(tri.color);
+      }
+      canvas.drawVertices(
+        ui.Vertices(ui.VertexMode.triangles, positions, colors: colors),
+        BlendMode.dst,
+        _sharedBatchPaint,
+      );
     }
 
     // ── 6. 3D CLINICAL ANNOTATION CALLOUTS ────────────────────────────────────
