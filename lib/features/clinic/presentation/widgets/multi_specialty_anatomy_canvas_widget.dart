@@ -15,6 +15,7 @@ import 'ophthalmology_action_widget.dart';
 import 'skeletal_bone_3d_canvas_widget.dart';
 import 'clinical_3d_engine_core.dart';
 import 'specialty_3d_anatomical_models.dart';
+import 'specialty_glb_mesh_library.dart';
 import '../../domain/entities/clinical_anatomy_status_entry.dart';
 import '../../domain/entities/specialty_instrument_registry.dart';
 import 'doctor_attachments_lightbox.dart';
@@ -619,6 +620,8 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
       );
       _ownsDisciplineNotifier = true;
     }
+    _activeDisciplineNotifier.addListener(_onActiveDisciplineChanged);
+    SpecialtyGlbMeshLibrary.preload(_activeDisciplineNotifier.value);
 
     if (widget.partStatusesNotifier != null) {
       _partStatusesNotifier = widget.partStatusesNotifier!;
@@ -770,8 +773,13 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
     }
   }
 
+  void _onActiveDisciplineChanged() {
+    SpecialtyGlbMeshLibrary.preload(_activeDisciplineNotifier.value);
+  }
+
   @override
   void dispose() {
+    _activeDisciplineNotifier.removeListener(_onActiveDisciplineChanged);
     if (_ownsDisciplineNotifier) {
       _activeDisciplineNotifier.dispose();
     }

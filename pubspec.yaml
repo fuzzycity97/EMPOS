@@ -86,72 +86,10 @@ dependency_overrides:
 flutter:
   uses-material-design: true
   assets:
-    - assets\models\aesthetics\head_muscle_chart/
-    - assets\models\cardiology\heart_anatomy/
-    - assets\models\cardiology\heart_apical_4ch/
-    - assets\models\cardiology\heart_c/
-    - assets\models\cardiology\heart_interior/
-    - assets\models\cardiology\heart_labeled/
-    - assets\models\dermatology/
-    - assets\models\dermatology\skin_cross_section/
-    - assets\models\ent/
-    - assets\models\ent\cochlea_cross_section/
-    - assets\models\ent\human_ear/
-    - assets\models\ent\middle_ear/
-    - assets\models\ent\paranasal_sinuses/
-    - assets\models\gastroenterology\hepatobiliary_pancreas/
-    - assets\models\general/
-    - assets\models\general\lymphatic_system/
-    - assets\models\general\thyroid_microscopy/
-    - assets\models\neurology/
-    - assets\models\neurology\circle_of_willis/
-    - assets\models\neurology\cranial_nerves/
-    - assets\models\obgyn/
-    - assets\models\obgyn\female_pelvic_floor/
-    - assets\models\obgyn\pelvic_floor_muscles/
-    - assets\models\obgyn\uterus_anatomy/
-    - assets\models\obgyn\uterus_endometrioma/
-    - assets\models\ophthalmology\eye_cross_section/
-    - assets\models\ophthalmology\eye_glb/
-    - assets\models\orthopedics/
-    - assets\models\orthopedics\bone_fixation_plate/
-    - assets\models\orthopedics\elbow_joint/
-    - assets\models\orthopedics\foot_bones/
-    - assets\models\orthopedics\hand_bones/
-    - assets\models\orthopedics\hip_bone/
-    - assets\models\orthopedics\knee_bones_cartilage/
-    - assets\models\orthopedics\knee_menisci_ligaments/
-    - assets\models\orthopedics\lumbar_spine_pathology/
-    - assets\models\orthopedics\pelvic_bone/
-    - assets\models\orthopedics\pelvis_dense_cloud/
-    - assets\models\orthopedics\rotator_cuff/
-    - assets\models\respiratory\larynx_detail/
-    - assets\models\respiratory\larynx_trachea_bronchi/
-    - assets\models\respiratory\lungs_realistic/
-    - assets\models\teeth/
-    - assets\models\teeth\arch_gums_tongue/
-    - assets\models\teeth\canine_dundee/
-    - assets\models\teeth\dental_implant/
-    - assets\models\teeth\incisor_dundee/
-    - assets\models\teeth\incisor_lateral_dundee/
-    - assets\models\teeth\mandibular_canine/
-    - assets\models\teeth\mandibular_incisor/
-    - assets\models\teeth\muscles_of_mastication/
-    - assets\models\teeth\permanent_dentition/
-    - assets\models\urology\bladder_and_prostate/
-    - assets\models\urology\kidney_cross_section/
-    - assets\models\teeth\mandibular_first_molar/
-    - assets\models\teeth\mandibular_first_premolar/
-    - assets\models\teeth\mandibular_left_canine/
-    - assets\models\teeth\mandibular_left_central_incisor/
-    - assets\models\teeth\mandibular_left_lateral_incisor/
-    - assets\models\teeth\mandibular_left_second_premolar/
-    - assets\models\teeth\mandibular_second_molar/
-    - assets\models\teeth\mandibular_third_molar/
-    - assets\models\teeth\maxillary_canine/
-    - assets\models\teeth\maxillary_lateral_incisor/
-    - assets\models\teeth\maxillary_left_central_incisor/
+    - assets/models/
+    - assets/models/aesthetics/
     - assets/models/aesthetics/head_muscle_chart/
+    - assets/models/cardiology/
     - assets/models/cardiology/heart_anatomy/
     - assets/models/cardiology/heart_apical_4ch/
     - assets/models/cardiology/heart_c/
@@ -164,6 +102,7 @@ flutter:
     - assets/models/ent/human_ear/
     - assets/models/ent/middle_ear/
     - assets/models/ent/paranasal_sinuses/
+    - assets/models/gastroenterology/
     - assets/models/gastroenterology/hepatobiliary_pancreas/
     - assets/models/general/
     - assets/models/general/lymphatic_system/
@@ -176,6 +115,7 @@ flutter:
     - assets/models/obgyn/pelvic_floor_muscles/
     - assets/models/obgyn/uterus_anatomy/
     - assets/models/obgyn/uterus_endometrioma/
+    - assets/models/ophthalmology/
     - assets/models/ophthalmology/eye_cross_section/
     - assets/models/ophthalmology/eye_glb/
     - assets/models/orthopedics/
@@ -187,7 +127,10 @@ flutter:
     - assets/models/orthopedics/knee_bones_cartilage/
     - assets/models/orthopedics/knee_menisci_ligaments/
     - assets/models/orthopedics/lumbar_spine_pathology/
+    - assets/models/orthopedics/pelvic_bone/
+    - assets/models/orthopedics/pelvis_dense_cloud/
     - assets/models/orthopedics/rotator_cuff/
+    - assets/models/respiratory/
     - assets/models/respiratory/larynx_detail/
     - assets/models/respiratory/larynx_trachea_bronchi/
     - assets/models/respiratory/lungs_realistic/
@@ -198,8 +141,21 @@ flutter:
     - assets/models/teeth/incisor_dundee/
     - assets/models/teeth/incisor_lateral_dundee/
     - assets/models/teeth/mandibular_canine/
+    - assets/models/teeth/mandibular_first_molar/
+    - assets/models/teeth/mandibular_first_premolar/
     - assets/models/teeth/mandibular_incisor/
+    - assets/models/teeth/mandibular_left_canine/
+    - assets/models/teeth/mandibular_left_central_incisor/
+    - assets/models/teeth/mandibular_left_lateral_incisor/
+    - assets/models/teeth/mandibular_left_second_premolar/
+    - assets/models/teeth/mandibular_second_molar/
+    - assets/models/teeth/mandibular_third_molar/
+    - assets/models/teeth/maxillary_canine/
+    - assets/models/teeth/maxillary_first_premolar/
+    - assets/models/teeth/maxillary_lateral_incisor/
+    - assets/models/teeth/maxillary_left_central_incisor/
     - assets/models/teeth/muscles_of_mastication/
     - assets/models/teeth/permanent_dentition/
+    - assets/models/urology/
     - assets/models/urology/bladder_and_prostate/
     - assets/models/urology/kidney_cross_section/

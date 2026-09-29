@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/localization/app_language.dart';
 import '../../domain/entities/clinical_anatomy_status_entry.dart';
 import 'specialty_3d_anatomical_models.dart';
+import 'specialty_glb_mesh_library.dart';
 
 /// Universal Clinical Age Progression Stages for all medical disciplines
 enum ClinicalAgeStage {
@@ -193,6 +194,8 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     _pitch = widget.initialPitch;
     _zoom = widget.initialZoom;
 
+    SpecialtyGlbMeshLibrary.addListener(_onGlbMeshUpdated);
+
     _autoRotController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 18),
@@ -206,8 +209,15 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
       });
   }
 
+  void _onGlbMeshUpdated() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   void dispose() {
+    SpecialtyGlbMeshLibrary.removeListener(_onGlbMeshUpdated);
     _singleTapTimer?.cancel();
     _singleTapTimer = null;
     _autoRotController.dispose();

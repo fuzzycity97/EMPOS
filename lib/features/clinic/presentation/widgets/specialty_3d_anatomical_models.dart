@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../../core/localization/app_language.dart';
 import 'clinical_3d_engine_core.dart';
+import 'multi_specialty_anatomy_canvas_widget.dart';
+import 'specialty_glb_mesh_library.dart';
 
 /// Available 3D Medical Instruments & Surgical Tools across Clinical Disciplines
 enum SpecialtyInstrument {
@@ -85,6 +87,25 @@ enum SpecialtyInstrument {
 
 /// 3D Anatomical Mesh Generators for Medical Disciplines with Age Progression & Specialized Instruments
 class Specialty3dAnatomicalModels {
+  /// Checks whether a real high-fidelity 3D GLB model is cached for the discipline.
+  /// If loaded, returns the real mesh (filtered for solo mode if active).
+  /// If not yet loaded, triggers asynchronous preloading and returns null
+  /// (allowing the procedural fallback to render for frame 0 without blocking).
+  static List<MeshFace3D>? _checkRealGlb(
+    ClinicalSpecialtyDiscipline discipline, {
+    bool isSoloMode = false,
+    String? soloPartKey,
+  }) {
+    if (SpecialtyGlbMeshLibrary.isLoaded(discipline)) {
+      return SpecialtyGlbMeshLibrary.getMesh(
+        discipline,
+        isSoloMode: isSoloMode,
+        soloPartKey: soloPartKey,
+      );
+    }
+    SpecialtyGlbMeshLibrary.preload(discipline);
+    return null;
+  }
   // ─────────────────────────────────────────────────────────────────────────
   // 1. CARDIOLOGY & CORONARY TREE 3D MESH GENERATOR
   // ─────────────────────────────────────────────────────────────────────────
@@ -94,6 +115,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.cardiology, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
 
     // Age-specific geometry factors
@@ -494,6 +518,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.physiotherapy, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
 
     final double bulk = stage == ClinicalAgeStage.adult
@@ -908,6 +935,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.gastroenterology, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
 
     final double stomachTilt = stage == ClinicalAgeStage.infant ? 0.45 : 0.15;
@@ -1262,6 +1292,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.dermatology, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
 
     final double epidermalThickness = stage == ClinicalAgeStage.infant ? 4.0 : (stage == ClinicalAgeStage.geriatric ? 5.0 : 8.0);
@@ -1547,6 +1580,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.neurology, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
     final double scale = stage == ClinicalAgeStage.infant ? 0.75 : (stage == ClinicalAgeStage.geriatric ? 0.92 : 1.0);
     final Color cortexColor = stage == ClinicalAgeStage.geriatric ? const Color(0xFF9333EA) : const Color(0xFF8B5CF6);
@@ -1700,6 +1736,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.neuroOtology, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
 
     // Semicircular Canals (Posterior, Anterior, Lateral)
@@ -1817,6 +1856,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.neuroPsychiatry, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
     final double scale = stage == ClinicalAgeStage.infant ? 0.75 : 1.0;
 
@@ -1941,6 +1983,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.rhinologyEnt, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
     final double sinScale = stage == ClinicalAgeStage.child ? 0.65 : 1.0;
 
@@ -2103,6 +2148,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.urology, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
     final double prostateHypertrophy = stage == ClinicalAgeStage.geriatric ? 1.45 : 1.0;
 
@@ -2255,6 +2303,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.obgyn, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
     final bool isPreg = stage == ClinicalAgeStage.infant; // used to illustrate gestational sac if infant mode
 
@@ -2400,6 +2451,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.pulmonology, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
     final double lungScale = stage == ClinicalAgeStage.infant ? 0.7 : 1.0;
 
@@ -2536,6 +2590,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.podiatry, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
 
     // Calcaneus (Heel Bone & Tuberosity)
@@ -2648,6 +2705,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.plasticSurgery, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
     final double laxity = stage == ClinicalAgeStage.geriatric ? 1.25 : 1.0;
 
@@ -2743,6 +2803,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.medicalAesthetics, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
 
     // Glabellar Complex (Corrugator & Procerus Muscles - Botox site)
@@ -2852,6 +2915,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.painManagement, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
 
     // Lumbar Vertebral Column (L1 through L5)
@@ -2959,6 +3025,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.acupuncture, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
 
     // Anatomical Body Canvas Form (Torso & Head Silhouette)
@@ -3085,6 +3154,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.speechPathology, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
 
     // Lingual Motor Apparatus (Tongue Musculature)
@@ -3182,6 +3254,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.veterinary, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
     final double sz = stage == ClinicalAgeStage.infant ? 0.65 : 1.0;
 
@@ -3316,6 +3391,9 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
+    final realMesh = _checkRealGlb(ClinicalSpecialtyDiscipline.vascularVein, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+    if (realMesh != null) return realMesh;
+
     var faces = <MeshFace3D>[];
 
     // Saphenofemoral Junction (SFJ)
