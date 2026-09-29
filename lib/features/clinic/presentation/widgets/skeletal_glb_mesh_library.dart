@@ -151,7 +151,16 @@ class SkeletalGlbMeshLibrary {
         final p1 = positions[i1];
         final p2 = positions[i2];
 
-        final cyRaw = (p0.y / scaleFactor) + 1000.0;
+        // Guard against degenerate or abnormally stretched triangles across mesh cuts
+        final d01 = (p1 - p0).length;
+        final d12 = (p2 - p1).length;
+        final d20 = (p0 - p2).length;
+        if (d01 > 48.0 || d12 > 48.0 || d20 > 48.0) {
+          continue;
+        }
+
+        // Use true triangle centroid for classification to prevent spiky stretched borders
+        final cyRaw = (((p0.y + p1.y + p2.y) / 3.0) / scaleFactor) + 1000.0;
         final cx = (p0.x + p1.x + p2.x) / 3.0;
 
         // Classify triangle into target bone segment

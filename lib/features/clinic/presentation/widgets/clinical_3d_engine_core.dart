@@ -860,18 +860,24 @@ class _Generic3DScenePainter extends CustomPainter {
         }
       }
 
+      // Double-sided surface lighting (THREE.DoubleSide equivalent)
+      Point3D effNorm = rf.normal;
+      if (effNorm.z < 0) {
+        effNorm = effNorm * -1.0;
+      }
+
       // Multi-light diffuse calculation
-      final keyDot = math.max(0.0, -rf.normal.dot(keyLight));
-      final fillDot = math.max(0.0, -rf.normal.dot(fillLight));
+      final keyDot = math.max(0.0, -effNorm.dot(keyLight));
+      final fillDot = math.max(0.0, -effNorm.dot(fillLight));
       const ambient = 0.38;
       final diffuse = (ambient + keyDot * 0.52 + fillDot * 0.20).clamp(0.0, 1.0);
 
       // Blinn-Phong organic specular highlight for wet/glossy tissues & hardware
-      final specDot = math.max(0.0, rf.normal.dot(halfDir));
+      final specDot = math.max(0.0, effNorm.dot(halfDir));
       final specular = math.pow(specDot, 18.0) * 0.35;
 
       // Fresnel rim glow highlighting organic 3D curvature
-      final rim = math.pow(1.0 - math.max(0.0, rf.normal.z.abs()), 2.6) * 0.22;
+      final rim = math.pow(1.0 - math.max(0.0, effNorm.z.abs()), 2.6) * 0.22;
 
       final baseR = faceColor.r * 255;
       final baseG = faceColor.g * 255;

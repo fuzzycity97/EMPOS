@@ -36,7 +36,8 @@ enum SkeletalAgeStage {
 enum SkeletalRenderMode {
   solid('Solid 3D Anatomy', 'تشريح عظمي مصمت', LucideIcons.bone),
   xray('Fluoroscopy X-Ray', 'أشعة راديوغرافية سينية', LucideIcons.scanLine),
-  heatmap('Bone Density Heatmap', 'خريطة الكثافة ومناطق الخطر', LucideIcons.flame);
+  heatmap('Bone Density Heatmap', 'خريطة الكثافة ومناطق الخطر', LucideIcons.flame),
+  wireframe('CAD Wireframe Grid', 'شبكة خطية ثلاثية الأبعاد', LucideIcons.grid);
 
   final String labelEn;
   final String labelAr;
@@ -1678,7 +1679,13 @@ class _Skeletal3DPainter extends CustomPainter {
       }
       path.close();
 
-      if (renderMode == SkeletalRenderMode.xray) {
+      if (renderMode == SkeletalRenderMode.wireframe) {
+        final wireStroke = Paint()
+          ..color = (isDark ? Colors.cyanAccent.withValues(alpha: 0.75) : Colors.teal.withValues(alpha: 0.75))
+          ..strokeWidth = 1.0
+          ..style = PaintingStyle.stroke;
+        canvas.drawPath(path, wireStroke);
+      } else if (renderMode == SkeletalRenderMode.xray) {
         final xrayFill = Paint()
           ..color = boneBaseColor.withValues(alpha: 0.22)
           ..style = PaintingStyle.fill;
@@ -1700,12 +1707,6 @@ class _Skeletal3DPainter extends CustomPainter {
           ..color = shadedColor
           ..style = PaintingStyle.fill;
         canvas.drawPath(path, fillPaint);
-
-        final strokePaint = Paint()
-          ..color = (isDark ? Colors.cyanAccent.withValues(alpha: 0.35) : Colors.teal.withValues(alpha: 0.3))
-          ..strokeWidth = 1.2
-          ..style = PaintingStyle.stroke;
-        canvas.drawPath(path, strokePaint);
       }
     }
 
@@ -2207,12 +2208,9 @@ class _Skeletal3DPainter extends CustomPainter {
 
       final normN = BonePoint3D(normal.x / nLen, normal.y / nLen, normal.z / nLen);
 
-      if (renderMode == SkeletalRenderMode.solid && normN.z > 0.45) {
-        continue;
-      }
-
+      // Double-sided lighting: calculate illumination for both front & back faces
       final dot = (normN.x * normLight.x + normN.y * normLight.y + normN.z * normLight.z).clamp(-1.0, 1.0);
-      final intensity = (0.45 + 0.55 * math.max(0.0, -dot)).clamp(0.2, 1.0);
+      final intensity = (0.42 + 0.58 * math.max(0.0, -dot)).clamp(0.25, 1.0);
 
       final path = Path();
       final proj0 = _project(p0, cx, cy);
@@ -2223,7 +2221,13 @@ class _Skeletal3DPainter extends CustomPainter {
       }
       path.close();
 
-      if (renderMode == SkeletalRenderMode.xray) {
+      if (renderMode == SkeletalRenderMode.wireframe) {
+        final wireStroke = Paint()
+          ..color = (isDark ? Colors.cyanAccent.withValues(alpha: 0.65) : Colors.teal.withValues(alpha: 0.6))
+          ..strokeWidth = 1.0
+          ..style = PaintingStyle.stroke;
+        canvas.drawPath(path, wireStroke);
+      } else if (renderMode == SkeletalRenderMode.xray) {
         final xrayFill = Paint()
           ..color = boneBaseColor.withValues(alpha: 0.16)
           ..style = PaintingStyle.fill;
@@ -2234,7 +2238,8 @@ class _Skeletal3DPainter extends CustomPainter {
           ..strokeWidth = 1.2
           ..style = PaintingStyle.stroke;
         canvas.drawPath(path, xrayStroke);
-        // Cortical bone specular sheen & rim depth
+      } else {
+        // Solid 3D Surface with Blinn-Phong specular sheen & rim depth
         final halfDir = const BonePoint3D(0.35, 0.45, 0.82).normalized();
         final specDot = math.max(0.0, normN.x * halfDir.x + normN.y * halfDir.y + normN.z * halfDir.z);
         final specular = math.pow(specDot, 16.0) * 0.32;
