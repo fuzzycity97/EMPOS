@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/localization/app_language.dart';
 import '../../domain/entities/clinical_anatomy_status_entry.dart';
+import 'skeletal_glb_mesh_library.dart';
 
 /// Skeletal Age Stage for Anatomical Morphing
 enum SkeletalAgeStage {
@@ -177,7 +178,7 @@ class BoneInterventionPoint {
 }
 
 /// 3D Bone Segment Definition
-class _BoneSegment3D {
+class BoneSegment3D {
   final String id;
   final String code;
   final String nameEn;
@@ -191,7 +192,7 @@ class _BoneSegment3D {
   final bool hasGeriatricSpurRisk;
   final double boneDensityTScore;
 
-  const _BoneSegment3D({
+  const BoneSegment3D({
     required this.id,
     required this.code,
     required this.nameEn,
@@ -208,6 +209,8 @@ class _BoneSegment3D {
 
   String get name => AppLanguage.isArabic ? nameAr : nameEn;
 }
+
+typedef _BoneSegment3D = BoneSegment3D;
 
 /// Interactive 3D Skeletal Bone Canvas Widget.
 class SkeletalBone3dCanvasWidget extends StatefulWidget {
@@ -267,6 +270,16 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
     _showCartilageNotifier = ValueNotifier<bool>(true);
     _activeToolNotifier = ValueNotifier<SurgicalHardwareType?>(null);
     _interventionsNotifier = ValueNotifier<List<BoneInterventionPoint>>(widget.initialInterventions ?? []);
+    _loadRealGlbSkeleton();
+  }
+
+  void _loadRealGlbSkeleton() {
+    SkeletalGlbMeshLibrary.loadSkeleton().then((glbBones) {
+      if (mounted && glbBones.isNotEmpty) {
+        _SkeletalMeshDatabase.setGlbBones(glbBones);
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -914,6 +927,56 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
               ),
             );
           },
+        ),
+        const SizedBox(width: 8),
+
+        // High-Fidelity 3D GLB Model Toggle & Indicator
+        InkWell(
+          key: const ValueKey('btn_toggle_glb_model'),
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {
+            if (_SkeletalMeshDatabase.hasRealGlbLoaded) {
+              _SkeletalMeshDatabase.setGlbBones([]);
+            } else {
+              _loadRealGlbSkeleton();
+            }
+            setState(() {});
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: _SkeletalMeshDatabase.hasRealGlbLoaded
+                  ? const Color(0xFF059669)
+                  : (isDark ? const Color(0xFF0F172A) : Colors.white),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _SkeletalMeshDatabase.hasRealGlbLoaded ? Colors.transparent : Colors.white24,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.box,
+                  size: 13,
+                  color: _SkeletalMeshDatabase.hasRealGlbLoaded ? Colors.white : const Color(0xFF059669),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  _SkeletalMeshDatabase.hasRealGlbLoaded
+                      ? (AppLanguage.isArabic ? 'مجسم ثلاثي الأبعاد GLB نشط' : '3D GLB Model Active')
+                      : (AppLanguage.isArabic ? 'تفعيل مجسم GLB' : 'Load 3D GLB Model'),
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.bold,
+                    color: _SkeletalMeshDatabase.hasRealGlbLoaded
+                        ? Colors.white
+                        : (isDark ? Colors.white70 : Colors.black87),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );
@@ -2264,6 +2327,10 @@ class _Skeletal3DPainter extends CustomPainter {
 
   void _paintArticularCartilageAndJoints(Canvas canvas, double cx, double cy) {
     if (!showCartilage) return;
+    if (_SkeletalMeshDatabase.hasRealGlbLoaded) {
+      // True 3D high-fidelity GLB models already render genuine anatomical condyles and cartilage surfaces
+      return;
+    }
 
     final cartilagePaint = Paint()
       ..color = const Color(0xFF38BDF8).withValues(alpha: renderMode == SkeletalRenderMode.xray ? 0.35 : 0.85)
@@ -2499,7 +2566,19 @@ class _Skeletal3DPainter extends CustomPainter {
 
 /// Comprehensive 3D Anatomical Bone Geometry Database
 class _SkeletalMeshDatabase {
-  static final List<_BoneSegment3D> allBones = [
+  static List<_BoneSegment3D>? _glbBones;
+
+  static List<_BoneSegment3D> get allBones => _glbBones ?? _fallbackBones;
+
+  static bool get hasRealGlbLoaded => _glbBones != null && _glbBones!.isNotEmpty;
+
+  static void setGlbBones(List<_BoneSegment3D> bones) {
+    if (bones.isNotEmpty) {
+      _glbBones = bones;
+    }
+  }
+
+  static final List<_BoneSegment3D> _fallbackBones = [
     // 1. CRANIAL & FACIAL
     _BoneSegment3D(
       id: 'bone_cranium',
