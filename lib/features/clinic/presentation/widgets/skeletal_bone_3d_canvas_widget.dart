@@ -1513,6 +1513,10 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
 
 /// 3D Skeletal Canvas Custom Painter
 class _Skeletal3DPainter extends CustomPainter {
+  // ── Shared Paint pool — allocated ONCE, reused every frame ──────────────
+  static final _fillPaint   = Paint()..style = PaintingStyle.fill;
+  static final _strokePaint = Paint()..style = PaintingStyle.stroke;
+
   final double yaw;
   final double pitch;
   final double zoom;
@@ -1680,22 +1684,17 @@ class _Skeletal3DPainter extends CustomPainter {
       path.close();
 
       if (renderMode == SkeletalRenderMode.wireframe) {
-        final wireStroke = Paint()
-          ..color = (isDark ? Colors.cyanAccent.withValues(alpha: 0.75) : Colors.teal.withValues(alpha: 0.75))
-          ..strokeWidth = 1.0
-          ..style = PaintingStyle.stroke;
-        canvas.drawPath(path, wireStroke);
+        _strokePaint
+          ..color = isDark ? Colors.cyanAccent.withValues(alpha: 0.75) : Colors.teal.withValues(alpha: 0.75)
+          ..strokeWidth = 1.0;
+        canvas.drawPath(path, _strokePaint);
       } else if (renderMode == SkeletalRenderMode.xray) {
-        final xrayFill = Paint()
-          ..color = boneBaseColor.withValues(alpha: 0.22)
-          ..style = PaintingStyle.fill;
-        canvas.drawPath(path, xrayFill);
-
-        final xrayStroke = Paint()
+        _fillPaint..color = boneBaseColor.withValues(alpha: 0.22);
+        canvas.drawPath(path, _fillPaint);
+        _strokePaint
           ..color = boneBaseColor.withValues(alpha: 0.85)
-          ..strokeWidth = 1.6
-          ..style = PaintingStyle.stroke;
-        canvas.drawPath(path, xrayStroke);
+          ..strokeWidth = 1.6;
+        canvas.drawPath(path, _strokePaint);
       } else {
         final shadedColor = Color.fromARGB(
           255,
@@ -1703,10 +1702,8 @@ class _Skeletal3DPainter extends CustomPainter {
           (boneBaseColor.g * 255 * intensity).toInt().clamp(0, 255),
           (boneBaseColor.b * 255 * intensity).toInt().clamp(0, 255),
         );
-        final fillPaint = Paint()
-          ..color = shadedColor
-          ..style = PaintingStyle.fill;
-        canvas.drawPath(path, fillPaint);
+        _fillPaint..color = shadedColor;
+        canvas.drawPath(path, _fillPaint);
       }
     }
 
@@ -2222,58 +2219,45 @@ class _Skeletal3DPainter extends CustomPainter {
       path.close();
 
       if (renderMode == SkeletalRenderMode.wireframe) {
-        final wireStroke = Paint()
-          ..color = (isDark ? Colors.cyanAccent.withValues(alpha: 0.65) : Colors.teal.withValues(alpha: 0.6))
-          ..strokeWidth = 1.0
-          ..style = PaintingStyle.stroke;
-        canvas.drawPath(path, wireStroke);
+        _strokePaint
+          ..color = isDark ? Colors.cyanAccent.withValues(alpha: 0.65) : Colors.teal.withValues(alpha: 0.6)
+          ..strokeWidth = 1.0;
+        canvas.drawPath(path, _strokePaint);
       } else if (renderMode == SkeletalRenderMode.xray) {
-        final xrayFill = Paint()
-          ..color = boneBaseColor.withValues(alpha: 0.16)
-          ..style = PaintingStyle.fill;
-        canvas.drawPath(path, xrayFill);
-
-        final xrayStroke = Paint()
+        _fillPaint..color = boneBaseColor.withValues(alpha: 0.16);
+        canvas.drawPath(path, _fillPaint);
+        _strokePaint
           ..color = boneBaseColor.withValues(alpha: 0.75)
-          ..strokeWidth = 1.2
-          ..style = PaintingStyle.stroke;
-        canvas.drawPath(path, xrayStroke);
+          ..strokeWidth = 1.2;
+        canvas.drawPath(path, _strokePaint);
       } else {
         // Solid 3D Surface with Blinn-Phong specular sheen & rim depth
-        final halfDir = const BonePoint3D(0.35, 0.45, 0.82).normalized();
-        final specDot = math.max(0.0, normN.x * halfDir.x + normN.y * halfDir.y + normN.z * halfDir.z);
+        const halfDirX = 0.35 / 0.9654, halfDirY = 0.45 / 0.9654, halfDirZ = 0.82 / 0.9654;
+        final specDot = math.max(0.0, normN.x * halfDirX + normN.y * halfDirY + normN.z * halfDirZ);
         final specular = math.pow(specDot, 16.0) * 0.32;
 
         final baseR = boneBaseColor.r * 255;
         final baseG = boneBaseColor.g * 255;
         final baseB = boneBaseColor.b * 255;
 
-        final shadedColor = Color.fromARGB(
+        _fillPaint..color = Color.fromARGB(
           255,
           (baseR * intensity + 255 * specular).toInt().clamp(0, 255),
           (baseG * intensity + 255 * specular).toInt().clamp(0, 255),
           (baseB * intensity + 255 * specular).toInt().clamp(0, 255),
         );
-
-        final fillPaint = Paint()
-          ..color = shadedColor
-          ..style = PaintingStyle.fill;
-        canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, _fillPaint);
       }
     }
 
     if (isSelected) {
       final centerProj = _project(bone.center.transform(yaw, pitch), cx, cy);
-      final glowPaint = Paint()
+      _strokePaint
         ..color = const Color(0xFF0D9488).withValues(alpha: 0.35)
-        ..style = PaintingStyle.stroke
         ..strokeWidth = 3.0;
-      canvas.drawCircle(centerProj, bone.hitRadius * zoom, glowPaint);
-
-      final corePaint = Paint()
-        ..color = const Color(0xFF0D9488)
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(centerProj, 4.0 * zoom, corePaint);
+      canvas.drawCircle(centerProj, bone.hitRadius * zoom, _strokePaint);
+      _fillPaint..color = const Color(0xFF0D9488);
+      canvas.drawCircle(centerProj, 4.0 * zoom, _fillPaint);
     }
   }
 

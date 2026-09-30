@@ -1099,13 +1099,19 @@ class _Generic3DScenePainter extends CustomPainter {
       if (pid == hovIdx || pid == selIdx) strokeTris.add(i);
     }
 
-    // Build Offset list for drawVertices
-    final offsets = List<Offset>.generate(n * 3, (k) => Offset(sxArr[k], syArr[k]));
+    // sxArr and syArr are Float64List — interleave into a Float32List for Vertices.raw()
+    final rawPos = Float32List(n * 6); // [x0,y0, x1,y1, x2,y2, ...] per triangle
+    final rawCol = Int32List(n * 3);   // ARGB per vertex
+    for (var k = 0; k < n * 3; k++) {
+      rawPos[k * 2]     = sxArr[k].toDouble();
+      rawPos[k * 2 + 1] = syArr[k].toDouble();
+      rawCol[k] = cArr[k].toARGB32();
+    }
 
-    final vertices = ui.Vertices(
+    final vertices = ui.Vertices.raw(
       ui.VertexMode.triangles,
-      offsets,
-      colors: cArr,
+      rawPos,
+      colors: rawCol,
     );
     canvas.drawVertices(vertices, BlendMode.dst, _sharedSolidPaint);
     int drawCalls = 1;
