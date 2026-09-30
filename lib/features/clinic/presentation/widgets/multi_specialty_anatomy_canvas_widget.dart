@@ -2132,6 +2132,7 @@ class _MultiSpecialtyAnatomyCanvasWidgetState extends State<MultiSpecialtyAnatom
         // Interactive 3D Skeletal Bone Model with Multi-Age Morphing
         SkeletalBone3dCanvasWidget(
           activeStatuses: activeStatuses,
+          initialRenderMode: SkeletalRenderMode.gpu,
           onBoneSelected: (code, nameEn, nameAr) {
             _openStatusInspector(
               context,

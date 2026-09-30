@@ -7,6 +7,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
   flutter_secure_storage_windows
   printing
+  webview_flutter_windows
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

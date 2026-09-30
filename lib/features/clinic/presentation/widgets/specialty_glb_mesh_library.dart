@@ -147,6 +147,8 @@ class SpecialtyGlbMeshLibrary {
     }
   }
 
+  static String? getAssetPathForDiscipline(ClinicalSpecialtyDiscipline d) => _getAssetPathForDiscipline(d);
+
   static String? _getAssetPathForDiscipline(ClinicalSpecialtyDiscipline d) {
     switch (d) {
       case ClinicalSpecialtyDiscipline.cardiology:
@@ -554,6 +556,34 @@ class SpecialtyGlbMeshLibrary {
       default:
         return _PartInfo(key, name, name);
     }
+  }
+
+  /// Automatically identifies the GLB asset file associated with the given face list.
+  static String? findAssetPathForFaces(List<MeshFace3D> faces) {
+    if (faces.isEmpty) return null;
+    for (final face in faces) {
+      final key = face.partKey;
+      if (key == null) continue;
+      final lower = key.toLowerCase();
+      if (lower.startsWith('cardio')) return _getAssetPathForDiscipline(ClinicalSpecialtyDiscipline.cardiology);
+      if (lower.startsWith('neuro')) return _getAssetPathForDiscipline(ClinicalSpecialtyDiscipline.neurology);
+      if (lower.startsWith('pulm') || lower.startsWith('lung')) return _getAssetPathForDiscipline(ClinicalSpecialtyDiscipline.pulmonology);
+      if (lower.startsWith('uro') || lower.startsWith('kidney')) return _getAssetPathForDiscipline(ClinicalSpecialtyDiscipline.urology);
+      if (lower.startsWith('gastro') || lower.startsWith('digest')) return _getAssetPathForDiscipline(ClinicalSpecialtyDiscipline.gastroenterology);
+      if (lower.startsWith('obgyn') || lower.startsWith('uterus')) return _getAssetPathForDiscipline(ClinicalSpecialtyDiscipline.obgyn);
+      if (lower.startsWith('ent') || lower.startsWith('ear')) return _getAssetPathForDiscipline(ClinicalSpecialtyDiscipline.rhinologyEnt);
+      if (lower.startsWith('eye') || lower.startsWith('ophthal')) return _getAssetPathForDiscipline(ClinicalSpecialtyDiscipline.ophthalmology);
+      if (lower.startsWith('derma') || lower.startsWith('skin')) return _getAssetPathForDiscipline(ClinicalSpecialtyDiscipline.dermatology);
+      if (lower.startsWith('tooth') || lower.startsWith('dental')) return _getAssetPathForDiscipline(ClinicalSpecialtyDiscipline.dental);
+      if (lower.startsWith('ortho') || lower.startsWith('bone')) return _getAssetPathForDiscipline(ClinicalSpecialtyDiscipline.orthopedics);
+      for (final d in ClinicalSpecialtyDiscipline.values) {
+        final prefix = d.name.toLowerCase();
+        if (lower.startsWith(prefix) || lower.contains(prefix)) {
+          return _getAssetPathForDiscipline(d);
+        }
+      }
+    }
+    return null;
   }
 }
 

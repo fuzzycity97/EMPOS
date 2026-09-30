@@ -96,14 +96,8 @@ class Specialty3dAnatomicalModels {
     bool isSoloMode = false,
     String? soloPartKey,
   }) {
-    if (SpecialtyGlbMeshLibrary.isLoaded(discipline)) {
-      return SpecialtyGlbMeshLibrary.getMesh(
-        discipline,
-        isSoloMode: isSoloMode,
-        soloPartKey: soloPartKey,
-      );
-    }
-    SpecialtyGlbMeshLibrary.preload(discipline);
+    // Procedural generator produces rich clinical structures, age stages, and surgical tools.
+    // Real GLB models are rendered with hardware acceleration via GpuGlbViewer on the GPU.
     return null;
   }
   // ─────────────────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import '../../../../core/localization/app_language.dart';
 import '../../domain/entities/clinical_anatomy_status_entry.dart';
 import 'specialty_3d_anatomical_models.dart';
 import 'specialty_glb_mesh_library.dart';
+import 'gpu_glb_viewer.dart';
 
 /// Universal Clinical Age Progression Stages for all medical disciplines
 enum ClinicalAgeStage {
@@ -158,7 +159,7 @@ class MeshFace3D {
 
 /// High-performance flat vertex buffer produced once at GLB load time.
 /// The painter reads directly from typed arrays — zero per-frame allocations,
-/// no List<Point3D> construction, no depth sort (budget is kept small enough
+/// no `List<Point3D>` construction, no depth sort (budget is kept small enough
 /// that painter-order is visually acceptable).
 class GlbMeshBuffer {
   /// Flat vertex array: [x0,y0,z0, x1,y1,z1, x2,y2,z2, ...] per triangle
@@ -209,6 +210,7 @@ class Clinical3dSceneViewer extends StatefulWidget {
   final double height;
   final List<SpecialtyInstrument> availableInstruments;
   final Widget? overlayBottomWidget;
+  final String? glbAssetPath;
 
   const Clinical3dSceneViewer({
     super.key,
@@ -228,6 +230,7 @@ class Clinical3dSceneViewer extends StatefulWidget {
     this.height = 370,
     this.availableInstruments = const [],
     this.overlayBottomWidget,
+    this.glbAssetPath,
   });
 
   @override
@@ -252,6 +255,97 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
   late final AnimationController _autoRotController;
   Timer? _singleTapTimer;
   Offset? _pendingTapPos;
+  bool _useGpuViewer = true;
+  String? _resolvedGlbAsset;
+
+  /// Global repository of dedicated standalone 3D models for isolated solo viewing across all specialties
+  static const Map<String, String> _dedicatedSpecialtySoloGlbs = {
+    // 1. Dental / Dentistry (Individual standalone teeth GLBs)
+    'canine': 'assets/models/teeth/canine.glb',
+    'incisor': 'assets/models/teeth/incisor.glb',
+    'premolar': 'assets/models/teeth/premolar.glb',
+    'molar_second': 'assets/models/teeth/molar_second.glb',
+    'molar_third': 'assets/models/teeth/molar_third.glb',
+    'molar': 'assets/models/teeth/molar.glb',
+    'tooth_11': 'assets/models/teeth/incisor.glb',
+    'tooth_12': 'assets/models/teeth/incisor.glb',
+    'tooth_13': 'assets/models/teeth/canine.glb',
+    'tooth_14': 'assets/models/teeth/premolar.glb',
+    'tooth_15': 'assets/models/teeth/premolar.glb',
+    'tooth_16': 'assets/models/teeth/molar.glb',
+    'tooth_17': 'assets/models/teeth/molar_second.glb',
+    'tooth_18': 'assets/models/teeth/molar_third.glb',
+    'tooth_21': 'assets/models/teeth/incisor.glb',
+    'tooth_22': 'assets/models/teeth/incisor.glb',
+    'tooth_23': 'assets/models/teeth/canine.glb',
+    'tooth_24': 'assets/models/teeth/premolar.glb',
+    'tooth_25': 'assets/models/teeth/premolar.glb',
+    'tooth_26': 'assets/models/teeth/molar.glb',
+    'tooth_27': 'assets/models/teeth/molar_second.glb',
+    'tooth_28': 'assets/models/teeth/molar_third.glb',
+    'tooth_31': 'assets/models/teeth/incisor.glb',
+    'tooth_32': 'assets/models/teeth/incisor.glb',
+    'tooth_33': 'assets/models/teeth/canine.glb',
+    'tooth_34': 'assets/models/teeth/premolar.glb',
+    'tooth_35': 'assets/models/teeth/premolar.glb',
+    'tooth_36': 'assets/models/teeth/molar.glb',
+    'tooth_37': 'assets/models/teeth/molar_second.glb',
+    'tooth_38': 'assets/models/teeth/molar_third.glb',
+    'tooth_41': 'assets/models/teeth/incisor.glb',
+    'tooth_42': 'assets/models/teeth/incisor.glb',
+    'tooth_43': 'assets/models/teeth/canine.glb',
+    'tooth_44': 'assets/models/teeth/premolar.glb',
+    'tooth_45': 'assets/models/teeth/premolar.glb',
+    'tooth_46': 'assets/models/teeth/molar.glb',
+    'tooth_47': 'assets/models/teeth/molar_second.glb',
+    'tooth_48': 'assets/models/teeth/molar_third.glb',
+
+    // 2. Neurology
+    'neuro_nerves': 'assets/models/neurology/nerves_skeletal_cross_section.glb',
+    'nerves_skeletal': 'assets/models/neurology/nerves_skeletal_cross_section.glb',
+    'nervous_system': 'assets/models/neurology/nervous_system.glb',
+    'neuro_brain': 'assets/models/neurology/brain.glb',
+
+    // 3. ENT / Otolaryngology
+    'inner_ear_apparatus': 'assets/models/ent/inner_ear_apparatus.glb',
+    'inner_ear': 'assets/models/ent/inner_ear.glb',
+
+    // 4. Orthopedics / Musculoskeletal / Physiotherapy / Podiatry
+    'spine': 'assets/models/orthopedics/spine_column.glb',
+    'cervical': 'assets/models/orthopedics/spine_column.glb',
+    'lumbar': 'assets/models/orthopedics/spine_column.glb',
+    'thoracic': 'assets/models/orthopedics/spine_column.glb',
+    'knee': 'assets/models/orthopedics/knee_bones.glb',
+    'patella': 'assets/models/orthopedics/knee_bones.glb',
+    'foot': 'assets/models/orthopedics/foot_bones.glb',
+    'ankle': 'assets/models/orthopedics/foot_bones.glb',
+    'hand': 'assets/models/orthopedics/hand_bones.glb',
+    'wrist': 'assets/models/orthopedics/hand_bones.glb',
+    'rotator': 'assets/models/orthopedics/rotator_cuff.glb',
+    'scapula': 'assets/models/orthopedics/rotator_cuff.glb',
+    'shoulder': 'assets/models/orthopedics/rotator_cuff.glb',
+    'elbow': 'assets/models/orthopedics/elbow_joint.glb',
+    'hip': 'assets/models/orthopedics/hip_bone.glb',
+    'pelvis': 'assets/models/orthopedics/hip_bone.glb',
+  };
+
+  bool _hasDedicatedSoloGlb(String? partKey) {
+    if (partKey == null) return false;
+    final lower = partKey.toLowerCase();
+    for (final k in _dedicatedSpecialtySoloGlbs.keys) {
+      if (lower.contains(k)) return true;
+    }
+    return false;
+  }
+
+  String? _resolveDedicatedSoloGlb(String? partKey) {
+    if (partKey == null) return null;
+    final lower = partKey.toLowerCase();
+    for (final entry in _dedicatedSpecialtySoloGlbs.entries) {
+      if (lower.contains(entry.key)) return entry.value;
+    }
+    return null;
+  }
 
   void _rebuildFaces() {
     _cachedFaces = widget.sceneMeshBuilder(
@@ -260,6 +354,8 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
       isSoloMode: _isSoloMode,
       soloPartKey: _selectedPartKey,
     );
+    // Auto-resolve GLB model asset path for GPU WebGL 60 FPS viewer
+    _resolvedGlbAsset = widget.glbAssetPath ?? SpecialtyGlbMeshLibrary.findAssetPathForFaces(_cachedFaces);
     // Try to get a pre-built flat buffer from the GLB library for the fast path.
     // We identify the discipline by checking all loaded disciplines and matching
     // against the faces that the scene builder returned.
@@ -426,14 +522,35 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                           if (_isSoloMode) ...[
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                               decoration: BoxDecoration(
-                                color: Colors.amberAccent.withValues(alpha: 0.2),
+                                color: (_hasDedicatedSoloGlb(_selectedPartKey) ? const Color(0xFF059669) : Colors.amberAccent).withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: (_hasDedicatedSoloGlb(_selectedPartKey) ? const Color(0xFF059669) : Colors.amberAccent).withValues(alpha: 0.5),
+                                  width: 0.8,
+                                ),
                               ),
-                              child: const Text(
-                                'SOLO',
-                                style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.amberAccent),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _hasDedicatedSoloGlb(_selectedPartKey) ? LucideIcons.sparkles : LucideIcons.scan,
+                                    size: 10,
+                                    color: _hasDedicatedSoloGlb(_selectedPartKey) ? const Color(0xFF059669) : Colors.amberAccent,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    _hasDedicatedSoloGlb(_selectedPartKey)
+                                        ? (AppLanguage.isArabic ? 'نموذج مخصص' : 'DEDICATED 3D')
+                                        : (AppLanguage.isArabic ? 'عزل تلقائي' : 'SOLO FOCUS'),
+                                    style: TextStyle(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: _hasDedicatedSoloGlb(_selectedPartKey) ? const Color(0xFF059669) : Colors.amberAccent,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -476,6 +593,52 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                     icon: const Icon(LucideIcons.maximize2, size: 13),
                     label: Text(AppLanguage.tr('Solo 3D', 'عرض منفرد 3D')),
                     onPressed: _enterSoloMode,
+                  ),
+
+                if (_resolvedGlbAsset != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: InkWell(
+                      onTap: () => setState(() => _useGpuViewer = !_useGpuViewer),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _useGpuViewer
+                              ? const Color(0xFF10B981).withValues(alpha: 0.18)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _useGpuViewer
+                                ? const Color(0xFF10B981)
+                                : (isDark ? Colors.white24 : Colors.black26),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _useGpuViewer ? LucideIcons.sparkles : LucideIcons.grid,
+                              size: 13,
+                              color: _useGpuViewer
+                                  ? const Color(0xFF10B981)
+                                  : (isDark ? Colors.white70 : Colors.black87),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _useGpuViewer ? 'GPU 60 FPS' : 'CAD Mesh',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: _useGpuViewer
+                                    ? const Color(0xFF10B981)
+                                    : (isDark ? Colors.white70 : Colors.black87),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
 
                 const SizedBox(width: 4),
@@ -603,10 +766,110 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
             ),
           ),
 
-          // 3. MAIN 3D INTERACTIVE CANVAS VIEWPORT
+          // 3. MAIN 3D INTERACTIVE CANVAS VIEWPORT (GPU WebGL 60 FPS or CPU CAD)
           SizedBox(
             height: widget.height,
-            child: LayoutBuilder(
+            child: (_useGpuViewer && _resolvedGlbAsset != null)
+                ? () {
+                    final dedicatedSoloModel = (_isSoloMode && _selectedPartKey != null)
+                        ? _resolveDedicatedSoloGlb(_selectedPartKey)
+                        : null;
+                    final activeGlbAsset = dedicatedSoloModel ?? _resolvedGlbAsset!;
+                    final hasDedicated = dedicatedSoloModel != null;
+
+                    return GpuGlbViewer(
+                      key: ValueKey('gpu_viewer_${activeGlbAsset}_${_isSoloMode}_${hasDedicated ? "" : _selectedPartKey}'),
+                      glbAsset: activeGlbAsset,
+                      primaryColor: widget.primaryColor,
+                      title: widget.specialtyTitle,
+                      isDark: isDark,
+                      height: widget.height,
+                      isSolo: _isSoloMode,
+                      soloBoneId: hasDedicated ? null : _selectedPartKey,
+                      pins: widget.activeStatuses?.entries.map((e) {
+                        final entry = e.value;
+                        final c = entry.visualColor;
+                        final hex = '#${(c.r * 255).round().toRadixString(16).padLeft(2, '0')}${(c.g * 255).round().toRadixString(16).padLeft(2, '0')}${(c.b * 255).round().toRadixString(16).padLeft(2, '0')}';
+                        return {
+                          'id': e.key,
+                          'type': 'clinicalPin',
+                          'color': hex,
+                          'label': AppLanguage.isArabic ? entry.status.titleAr : entry.status.title,
+                          'x': 0.0,
+                          'y': 0.0,
+                          'z': 0.0,
+                        };
+                      }).toList(),
+                      onPinTapped: (pinId) {
+                        final entry = widget.activeStatuses?[pinId];
+                        if (entry != null) {
+                          final nameEn = entry.status.title;
+                          final nameAr = entry.status.titleAr;
+                          setState(() {
+                            _selectedPartKey = pinId;
+                            _selectedPartNameEn = nameEn;
+                            _selectedPartNameAr = nameAr;
+                          });
+                          widget.onPartSelected?.call(pinId, nameEn, nameAr);
+                        }
+                      },
+                      onPartTapped: (partName) {
+                        final lower = partName.toLowerCase();
+                        MeshFace3D? match;
+                        for (final f in faces) {
+                          if (f.partNameEn?.toLowerCase().contains(lower) == true ||
+                              f.partNameAr?.toLowerCase().contains(lower) == true ||
+                              f.partKey?.toLowerCase().contains(lower) == true) {
+                            match = f;
+                            break;
+                          }
+                        }
+                        final key = match?.partKey ?? 'gpu_$partName';
+                        final nameEn = match?.partNameEn ?? partName;
+                        final nameAr = match?.partNameAr ?? partName;
+                        setState(() {
+                          _selectedPartKey = key;
+                          _selectedPartNameEn = nameEn;
+                          _selectedPartNameAr = nameAr;
+                        });
+                        widget.onPartSelected?.call(key, nameEn, nameAr);
+                      },
+                      onPartDoubleTapped: (partName) {
+                        if (_isSoloMode) {
+                          _exitSoloMode();
+                          return;
+                        }
+                        if (partName.isNotEmpty) {
+                          final lower = partName.toLowerCase();
+                          MeshFace3D? match;
+                          for (final f in faces) {
+                            if (f.partNameEn?.toLowerCase().contains(lower) == true ||
+                                f.partNameAr?.toLowerCase().contains(lower) == true ||
+                                f.partKey?.toLowerCase().contains(lower) == true) {
+                              match = f;
+                              break;
+                            }
+                          }
+                          final key = match?.partKey ?? 'gpu_$partName';
+                          final nameEn = match?.partNameEn ?? partName;
+                          final nameAr = match?.partNameAr ?? partName;
+                          setState(() {
+                            _selectedPartKey = key;
+                            _selectedPartNameEn = nameEn;
+                            _selectedPartNameAr = nameAr;
+                            _isSoloMode = true;
+                          });
+                          widget.onPartSelected?.call(key, nameEn, nameAr);
+                        }
+                      },
+                      onFallbackRequested: () {
+                        setState(() {
+                          _useGpuViewer = false;
+                        });
+                      },
+                    );
+                  }()
+                : LayoutBuilder(
               builder: (context, constraints) {
                 final actualW = (constraints.maxWidth.isFinite && constraints.maxWidth > 0)
                     ? constraints.maxWidth

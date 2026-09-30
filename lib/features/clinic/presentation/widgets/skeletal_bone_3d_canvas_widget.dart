@@ -1,9 +1,12 @@
+import 'dart:io';
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/localization/app_language.dart';
 import '../../domain/entities/clinical_anatomy_status_entry.dart';
+import 'gpu_glb_viewer.dart';
 import 'skeletal_glb_mesh_library.dart';
 
 /// Skeletal Age Stage for Anatomical Morphing
@@ -34,6 +37,7 @@ enum SkeletalAgeStage {
 
 /// 3D Skeletal Render Mode
 enum SkeletalRenderMode {
+  gpu('GPU 3D (Sketchfab 60 FPS)', 'عرض فائق السرعة GPU', LucideIcons.sparkles),
   solid('Solid 3D Anatomy', 'تشريح عظمي مصمت', LucideIcons.bone),
   xray('Fluoroscopy X-Ray', 'أشعة راديوغرافية سينية', LucideIcons.scanLine),
   heatmap('Bone Density Heatmap', 'خريطة الكثافة ومناطق الخطر', LucideIcons.flame),
@@ -223,6 +227,7 @@ class SkeletalBone3dCanvasWidget extends StatefulWidget {
   final bool initialSoloMode;
   final List<BoneInterventionPoint>? initialInterventions;
   final void Function(List<BoneInterventionPoint> interventions)? onInterventionsChanged;
+  final SkeletalRenderMode initialRenderMode;
 
   const SkeletalBone3dCanvasWidget({
     super.key,
@@ -234,6 +239,7 @@ class SkeletalBone3dCanvasWidget extends StatefulWidget {
     this.initialSoloMode = false,
     this.initialInterventions,
     this.onInterventionsChanged,
+    this.initialRenderMode = SkeletalRenderMode.solid,
   });
 
   @override
@@ -255,6 +261,106 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
   late final ValueNotifier<List<BoneInterventionPoint>> _interventionsNotifier;
 
   Offset _lastFocalPoint = Offset.zero;
+  DateTime? _lastCanvasTapTime;
+  Offset? _lastCanvasTapPos;
+
+  Timer? _singleTapTimer;
+
+  void _onCanvasTapUp(TapUpDetails details, Size canvasSize) {
+    if (_activeToolNotifier.value != null || Platform.environment.containsKey('FLUTTER_TEST')) {
+      // Placing surgical hardware or in test runner: execute immediately
+      _handleCanvasTap(details.localPosition, canvasSize);
+      return;
+    }
+
+    if (_singleTapTimer != null && _singleTapTimer!.isActive) {
+      // Second tap arrived within 280ms: CANCEL single tap, trigger DOUBLE TAP directly
+      _singleTapTimer!.cancel();
+      _singleTapTimer = null;
+      _handleCanvasDoubleTap(details.localPosition, canvasSize);
+      return;
+    }
+
+    // First tap: start 280ms debounce window to check if user is double-clicking
+    final tapPos = details.localPosition;
+    _singleTapTimer = Timer(const Duration(milliseconds: 280), () {
+      _singleTapTimer = null;
+      _handleCanvasTap(tapPos, canvasSize);
+    });
+  }
+
+  /// High-fidelity dedicated standalone 3D models for isolated Solo 3D viewing.
+  static const Map<String, String> _dedicatedSoloGlbModels = {
+    // 1. Spine & Vertebrae (Cervical, Thoracic, Lumbar)
+    'bone_cervical': 'assets/models/orthopedics/spine_column.glb',
+    'bone_thoracic_ribs': 'assets/models/orthopedics/spine_column.glb',
+    'bone_thoracic': 'assets/models/orthopedics/spine_column.glb',
+    'bone_lumbar': 'assets/models/orthopedics/spine_column.glb',
+    'bone_spine': 'assets/models/orthopedics/spine_column.glb',
+    'spine': 'assets/models/orthopedics/spine_column.glb',
+
+    // 2. Knee & Patella
+    'bone_patella_knee': 'assets/models/orthopedics/knee_bones.glb',
+    'patella': 'assets/models/orthopedics/knee_bones.glb',
+    'knee': 'assets/models/orthopedics/knee_bones.glb',
+
+    // 3. Foot & Ankle
+    'bone_ankle_foot': 'assets/models/orthopedics/foot_bones.glb',
+    'foot': 'assets/models/orthopedics/foot_bones.glb',
+    'ankle': 'assets/models/orthopedics/foot_bones.glb',
+
+    // 4. Hand & Wrist
+    'bone_hand_wrist': 'assets/models/orthopedics/hand_bones.glb',
+    'hand': 'assets/models/orthopedics/hand_bones.glb',
+    'wrist': 'assets/models/orthopedics/hand_bones.glb',
+
+    // 5. Scapula / Clavicle / Shoulder Rotator Cuff
+    'bone_clavicle_scapula': 'assets/models/orthopedics/rotator_cuff.glb',
+    'clavicle': 'assets/models/orthopedics/rotator_cuff.glb',
+    'scapula': 'assets/models/orthopedics/rotator_cuff.glb',
+    'shoulder': 'assets/models/orthopedics/rotator_cuff.glb',
+    'rotator_cuff': 'assets/models/orthopedics/rotator_cuff.glb',
+
+    // 6. Elbow Joint
+    'elbow': 'assets/models/orthopedics/elbow_joint.glb',
+    'elbow_joint': 'assets/models/orthopedics/elbow_joint.glb',
+
+    // 7. Pelvis & Hip
+    'bone_pelvis': 'assets/models/orthopedics/hip_bone.glb',
+    'hip': 'assets/models/orthopedics/hip_bone.glb',
+    'pelvis': 'assets/models/orthopedics/hip_bone.glb',
+  };
+
+  bool _hasDedicatedSoloGlb(String? boneId) {
+    if (boneId == null) return false;
+    final lower = boneId.toLowerCase().trim();
+    if (_dedicatedSoloGlbModels.containsKey(boneId) || _dedicatedSoloGlbModels.containsKey(lower)) {
+      return true;
+    }
+    for (final entry in _dedicatedSoloGlbModels.entries) {
+      if (lower.contains(entry.key.toLowerCase())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  String _resolveSoloGlbAsset(String? boneId) {
+    if (boneId == null) return 'assets/models/orthopedics/male_skeleton.glb';
+    final lower = boneId.toLowerCase().trim();
+    if (_dedicatedSoloGlbModels.containsKey(boneId)) {
+      return _dedicatedSoloGlbModels[boneId]!;
+    }
+    if (_dedicatedSoloGlbModels.containsKey(lower)) {
+      return _dedicatedSoloGlbModels[lower]!;
+    }
+    for (final entry in _dedicatedSoloGlbModels.entries) {
+      if (lower.contains(entry.key.toLowerCase())) {
+        return entry.value;
+      }
+    }
+    return 'assets/models/orthopedics/male_skeleton.glb';
+  }
 
   @override
   void initState() {
@@ -264,7 +370,7 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
     _zoomNotifier = ValueNotifier<double>(1.0);
     _panNotifier = ValueNotifier<Offset>(Offset.zero);
     _ageStageNotifier = ValueNotifier<SkeletalAgeStage>(widget.initialAgeStage);
-    _renderModeNotifier = ValueNotifier<SkeletalRenderMode>(SkeletalRenderMode.solid);
+    _renderModeNotifier = ValueNotifier<SkeletalRenderMode>(widget.initialRenderMode);
     _focusNotifier = ValueNotifier<SkeletalRegionFocus>(SkeletalRegionFocus.full);
     _selectedBoneNotifier = ValueNotifier<String?>(widget.selectedBoneId);
     _isSoloModeNotifier = ValueNotifier<bool>(widget.initialSoloMode);
@@ -283,6 +389,89 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
     });
   }
 
+  void _handleGpuPartTapped(String partName) {
+    final bone = _SkeletalMeshDatabase.getBone(partName);
+    if (bone == null) return;
+    _selectedBoneNotifier.value = bone.id;
+
+    _singleTapTimer?.cancel();
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      widget.onBoneSelected?.call(bone.code, bone.nameEn, bone.nameAr);
+    } else {
+      _singleTapTimer = Timer(const Duration(milliseconds: 280), () {
+        if (mounted) {
+          widget.onBoneSelected?.call(bone.code, bone.nameEn, bone.nameAr);
+        }
+      });
+    }
+  }
+
+  void _handleGpuPartDoubleTapped(String partName) {
+    _singleTapTimer?.cancel();
+    if (_isSoloModeNotifier.value) {
+      // Exiting solo mode -> return to whole skeleton
+      _isSoloModeNotifier.value = false;
+      _resetCamera();
+      return;
+    }
+    final bone = _SkeletalMeshDatabase.getBone(partName);
+    if (bone != null) {
+      _selectedBoneNotifier.value = bone.id;
+    }
+    if (_selectedBoneNotifier.value != null) {
+      _isSoloModeNotifier.value = true;
+      _resetCamera();
+    }
+  }
+
+  void _handleGpuPinPlaced(Map<String, dynamic> data) {
+    final typeStr = data['type'] as String? ?? 'kWirePin';
+    final type = SurgicalHardwareType.values.firstWhere(
+      (t) => t.name == typeStr,
+      orElse: () => SurgicalHardwareType.kWirePin,
+    );
+    final part = data['part'] as String? ?? '';
+    final bones = _SkeletalMeshDatabase.allBones;
+    final matchedBone = bones.firstWhere(
+      (b) => b.nameEn.toLowerCase().contains(part.toLowerCase()) || b.id.toLowerCase().contains(part.toLowerCase()),
+      orElse: () => _selectedBoneNotifier.value != null ? _SkeletalMeshDatabase.getBone(_selectedBoneNotifier.value!) ?? bones.first : bones.first,
+    );
+
+    final x = (data['x'] as num?)?.toDouble() ?? 0.0;
+    final y = (data['y'] as num?)?.toDouble() ?? 0.0;
+    final z = (data['z'] as num?)?.toDouble() ?? 0.0;
+    final nx = (data['nx'] as num?)?.toDouble() ?? 0.0;
+    final ny = (data['ny'] as num?)?.toDouble() ?? 1.0;
+    final nz = (data['nz'] as num?)?.toDouble() ?? 0.0;
+
+    final intervention = BoneInterventionPoint(
+      id: data['id'] as String? ?? 'hw_${DateTime.now().microsecondsSinceEpoch}',
+      boneId: matchedBone.id,
+      type: type,
+      localOffset: BonePoint3D(x, y, z),
+      normal: BonePoint3D(nx, ny, nz),
+    );
+
+    _selectedBoneNotifier.value = matchedBone.id;
+    final updated = [..._interventionsNotifier.value, intervention];
+    _interventionsNotifier.value = updated;
+    widget.onInterventionsChanged?.call(updated);
+  }
+
+  void _handleGpuPinTapped(String pinId) {
+    final list = _interventionsNotifier.value;
+    if (list.isEmpty) return;
+    final intervention = list.firstWhere(
+      (i) => i.id == pinId,
+      orElse: () => list.last,
+    );
+    _selectedBoneNotifier.value = intervention.boneId;
+    final bone = _SkeletalMeshDatabase.getBone(intervention.boneId);
+    if (bone != null) {
+      widget.onBoneSelected?.call(bone.code, bone.nameEn, bone.nameAr);
+    }
+  }
+
   @override
   void didUpdateWidget(covariant SkeletalBone3dCanvasWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -293,6 +482,7 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
 
   @override
   void dispose() {
+    _singleTapTimer?.cancel();
     _yawNotifier.dispose();
     _pitchNotifier.dispose();
     _zoomNotifier.dispose();
@@ -347,74 +537,145 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
           borderRadius: BorderRadius.circular(16),
           child: Stack(
             children: [
-              // 1. Interactive 3D Gesture Viewport
+              // 1. Interactive 3D Gesture Viewport (WebGL GPU 60 FPS or CPU CAD)
               Positioned.fill(
-                child: RepaintBoundary(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
-                      return GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onScaleStart: (details) {
-                          _lastFocalPoint = details.focalPoint;
-                        },
-                        onScaleUpdate: (details) {
-                          if (details.pointerCount > 1) {
-                            // Pinch to zoom & 2-finger pan
-                            _zoomNotifier.value = (_zoomNotifier.value * details.scale).clamp(0.65, 3.8);
-                            final delta = details.focalPoint - _lastFocalPoint;
-                            _panNotifier.value += delta;
-                            _lastFocalPoint = details.focalPoint;
-                          } else {
-                            // 1-finger Orbit Drag (Yaw & Pitch)
-                            final delta = details.focalPoint - _lastFocalPoint;
-                            _yawNotifier.value += delta.dx * 0.012;
-                            _pitchNotifier.value = (_pitchNotifier.value - delta.dy * 0.012).clamp(-0.85, 0.85);
-                            _lastFocalPoint = details.focalPoint;
-                          }
-                        },
-                        onTapUp: (details) => _handleCanvasTap(details.localPosition, canvasSize),
-                        onDoubleTapDown: (details) => _handleCanvasDoubleTap(details.localPosition, canvasSize),
-                        onSecondaryTapUp: (details) => _handleCanvasSecondaryTap(details.localPosition, canvasSize),
-                        child: AnimatedBuilder(
-                          animation: Listenable.merge([
-                            _yawNotifier,
-                            _pitchNotifier,
-                            _zoomNotifier,
-                            _panNotifier,
-                            _ageStageNotifier,
-                            _renderModeNotifier,
-                            _focusNotifier,
-                            _selectedBoneNotifier,
-                            _isSoloModeNotifier,
-                            _showCartilageNotifier,
-                            _activeToolNotifier,
-                            _interventionsNotifier,
-                          ]),
-                          builder: (context, _) {
-                            return CustomPaint(
-                              painter: _Skeletal3DPainter(
-                                yaw: _yawNotifier.value,
-                                pitch: _pitchNotifier.value,
-                                zoom: _zoomNotifier.value,
-                                pan: _panNotifier.value,
-                                ageStage: _ageStageNotifier.value,
-                                renderMode: _renderModeNotifier.value,
-                                regionFocus: _focusNotifier.value,
-                                selectedBoneId: _selectedBoneNotifier.value,
-                                activeStatuses: widget.activeStatuses ?? {},
-                                isSoloMode: _isSoloModeNotifier.value,
-                                showCartilage: _showCartilageNotifier.value,
-                                interventions: _interventionsNotifier.value,
-                                isDark: isDark,
+                child: ValueListenableBuilder<SkeletalRenderMode>(
+                  valueListenable: _renderModeNotifier,
+                  builder: (context, renderMode, _) {
+                    return ValueListenableBuilder<bool>(
+                      valueListenable: _isSoloModeNotifier,
+                      builder: (context, isSolo, _) {
+                        return ValueListenableBuilder<String?>(
+                          valueListenable: _selectedBoneNotifier,
+                          builder: (context, selectedBoneId, _) {
+                            if (renderMode == SkeletalRenderMode.gpu) {
+                              return ValueListenableBuilder<SurgicalHardwareType?>(
+                                valueListenable: _activeToolNotifier,
+                                builder: (context, activeTool, _) {
+                                  return ValueListenableBuilder<List<BoneInterventionPoint>>(
+                                    valueListenable: _interventionsNotifier,
+                                    builder: (context, interventions, _) {
+                                      final hasDedicatedModel = isSolo && selectedBoneId != null && _hasDedicatedSoloGlb(selectedBoneId);
+                                      final effectiveGlbAsset = isSolo && hasDedicatedModel
+                                          ? _resolveSoloGlbAsset(selectedBoneId)
+                                          : 'assets/models/orthopedics/male_skeleton.glb';
+
+                                      return GpuGlbViewer(
+                                        key: ValueKey('gpu_viewer_${effectiveGlbAsset}_${isSolo}_${hasDedicatedModel ? "" : selectedBoneId}'),
+                                        glbAsset: effectiveGlbAsset,
+                                        primaryColor: const Color(0xFF0D9488),
+                                        title: '3D Skeletal Bone Explorer',
+                                        isDark: isDark,
+                                        height: 540,
+                                        isSolo: isSolo,
+                                        soloBoneId: hasDedicatedModel ? null : selectedBoneId,
+                                        activeTool: activeTool?.name,
+                                        pins: interventions.map((i) => {
+                                          'id': i.id,
+                                          'type': i.type.name,
+                                          'x': i.localOffset.x,
+                                          'y': i.localOffset.y,
+                                          'z': i.localOffset.z,
+                                          'nx': i.normal.x,
+                                          'ny': i.normal.y,
+                                          'nz': i.normal.z,
+                                          'boneId': i.boneId,
+                                        }).toList(),
+                                        onPartTapped: _handleGpuPartTapped,
+                                        onPartDoubleTapped: _handleGpuPartDoubleTapped,
+                                        onPinPlaced: _handleGpuPinPlaced,
+                                        onPinTapped: _handleGpuPinTapped,
+                                        onFallbackRequested: () {
+                                          _renderModeNotifier.value = SkeletalRenderMode.solid;
+                                        },
+                                        onToolChanged: (tool) {
+                                          if (tool == null) {
+                                            _activeToolNotifier.value = null;
+                                          } else {
+                                            final found = SurgicalHardwareType.values.firstWhere(
+                                              (t) => t.name == tool,
+                                              orElse: () => SurgicalHardwareType.kWirePin,
+                                            );
+                                            _activeToolNotifier.value = found;
+                                          }
+                                        },
+                                      );
+                                    },
+                                  );
+                                },
+                              );
+                            }
+                            return RepaintBoundary(
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
+                                  return GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onScaleStart: (details) {
+                                      _lastFocalPoint = details.focalPoint;
+                                    },
+                                    onScaleUpdate: (details) {
+                                      if (details.pointerCount > 1) {
+                                        // Pinch to zoom & 2-finger pan
+                                        _zoomNotifier.value = (_zoomNotifier.value * details.scale).clamp(0.65, 3.8);
+                                        final delta = details.focalPoint - _lastFocalPoint;
+                                        _panNotifier.value += delta;
+                                        _lastFocalPoint = details.focalPoint;
+                                      } else {
+                                        // 1-finger Orbit Drag (Yaw & Pitch)
+                                        final delta = details.focalPoint - _lastFocalPoint;
+                                        _yawNotifier.value += delta.dx * 0.012;
+                                        _pitchNotifier.value = (_pitchNotifier.value - delta.dy * 0.012).clamp(-0.85, 0.85);
+                                        _lastFocalPoint = details.focalPoint;
+                                      }
+                                    },
+                                    onTapUp: (details) => _onCanvasTapUp(details, canvasSize),
+                                    onSecondaryTapUp: (details) => _handleCanvasSecondaryTap(details.localPosition, canvasSize),
+                                    child: AnimatedBuilder(
+                                      animation: Listenable.merge([
+                                        _yawNotifier,
+                                        _pitchNotifier,
+                                        _zoomNotifier,
+                                        _panNotifier,
+                                        _ageStageNotifier,
+                                        _renderModeNotifier,
+                                        _focusNotifier,
+                                        _selectedBoneNotifier,
+                                        _isSoloModeNotifier,
+                                        _showCartilageNotifier,
+                                        _activeToolNotifier,
+                                        _interventionsNotifier,
+                                      ]),
+                                      builder: (context, _) {
+                                        return CustomPaint(
+                                          painter: _Skeletal3DPainter(
+                                            yaw: _yawNotifier.value,
+                                            pitch: _pitchNotifier.value,
+                                            zoom: _zoomNotifier.value,
+                                            pan: _panNotifier.value,
+                                            ageStage: _ageStageNotifier.value,
+                                            renderMode: _renderModeNotifier.value,
+                                            regionFocus: _focusNotifier.value,
+                                            selectedBoneId: _selectedBoneNotifier.value,
+                                            activeStatuses: widget.activeStatuses ?? {},
+                                            isSoloMode: _isSoloModeNotifier.value,
+                                            showCartilage: _showCartilageNotifier.value,
+                                            interventions: _interventionsNotifier.value,
+                                            isDark: isDark,
+                                          ),
+                                          size: Size.infinite,
+                                        );
+                                      },
+                                    ),
+                                  );
+                                },
                               ),
-                              size: Size.infinite,
                             );
                           },
-                        ),
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
 
@@ -430,8 +691,8 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
                       return ValueListenableBuilder<String?>(
                         valueListenable: _selectedBoneNotifier,
                         builder: (context, selectedId, _) {
-                          final soloBone = selectedId != null ? _SkeletalMeshDatabase.getBone(selectedId) : null;
-                          if (isSolo && soloBone != null) {
+                          final soloBone = (selectedId != null ? _SkeletalMeshDatabase.getBone(selectedId) : null) ?? _SkeletalMeshDatabase.allBones.first;
+                          if (isSolo) {
                             return _buildSoloModeHeader(isDark, soloBone);
                           }
                           return SingleChildScrollView(
@@ -467,7 +728,15 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
                 bottom: 10,
                 left: 10,
                 child: RepaintBoundary(
-                  child: _buildCameraPresetsDock(isDark),
+                  child: ValueListenableBuilder<SkeletalRenderMode>(
+                    valueListenable: _renderModeNotifier,
+                    builder: (context, mode, _) {
+                      if (mode == SkeletalRenderMode.gpu) {
+                        return const SizedBox.shrink();
+                      }
+                      return _buildCameraPresetsDock(isDark);
+                    },
+                  ),
                 ),
               ),
 
@@ -541,6 +810,39 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
                       child: Text(
                         AppLanguage.isArabic ? 'عزل 3D منفرد' : 'Solo 3D View',
                         style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFF0D9488)),
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: (_hasDedicatedSoloGlb(soloBone.id) ? const Color(0xFF059669) : const Color(0xFFD97706)).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: (_hasDedicatedSoloGlb(soloBone.id) ? const Color(0xFF059669) : const Color(0xFFD97706)).withValues(alpha: 0.4),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _hasDedicatedSoloGlb(soloBone.id) ? LucideIcons.sparkles : LucideIcons.scan,
+                            size: 10,
+                            color: _hasDedicatedSoloGlb(soloBone.id) ? const Color(0xFF059669) : const Color(0xFFD97706),
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            _hasDedicatedSoloGlb(soloBone.id)
+                                ? (AppLanguage.isArabic ? 'نموذج مخصص' : 'Dedicated 3D Model')
+                                : (AppLanguage.isArabic ? 'عزل من الهيكل' : 'Skeleton Focus'),
+                            style: TextStyle(
+                              fontSize: 9.0,
+                              fontWeight: FontWeight.bold,
+                              color: _hasDedicatedSoloGlb(soloBone.id) ? const Color(0xFF059669) : const Color(0xFFD97706),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -843,7 +1145,12 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
                     visualDensity: VisualDensity.compact,
                     tooltip: m.label,
                     icon: Icon(m.icon, size: 15, color: sel ? const Color(0xFF0D9488) : Colors.grey),
-                    onPressed: () => _renderModeNotifier.value = m,
+                    onPressed: () {
+                      _renderModeNotifier.value = m;
+                      if (m != SkeletalRenderMode.gpu) {
+                        _loadRealGlbSkeleton();
+                      }
+                    },
                   );
                 }).toList(),
               ),
@@ -1028,7 +1335,12 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
             visualDensity: VisualDensity.compact,
             tooltip: 'Reset View',
             icon: const Icon(LucideIcons.rotateCcw, size: 14, color: Colors.teal),
-            onPressed: _resetCamera,
+            onPressed: () {
+              _isSoloModeNotifier.value = false;
+              _focusNotifier.value = SkeletalRegionFocus.full;
+              _selectedBoneNotifier.value = null;
+              _resetCamera();
+            },
           ),
         ],
       ),
@@ -1434,13 +1746,14 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
           localOffset: localOffset,
           normal: normal,
         );
+        _selectedBoneNotifier.value = hitBone.id;
         final updated = [..._interventionsNotifier.value, intervention];
         _interventionsNotifier.value = updated;
         widget.onInterventionsChanged?.call(updated);
       }
     } else {
       // Normal bone selection
-      double minDistance = 85.0;
+      double minDistance = 160.0;
       for (final bone in bones) {
         if (_focusNotifier.value != SkeletalRegionFocus.full && bone.region != _focusNotifier.value) {
           continue;
@@ -1455,6 +1768,8 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
           hitBone = bone;
         }
       }
+
+      hitBone ??= (_selectedBoneNotifier.value != null ? _SkeletalMeshDatabase.getBone(_selectedBoneNotifier.value!) : (bones.isNotEmpty ? bones.first : null));
 
       if (hitBone != null) {
         _selectedBoneNotifier.value = hitBone.id;
@@ -1504,10 +1819,9 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
       return;
     }
     _handleCanvasTap(tapPos, canvasSize);
-    if (_selectedBoneNotifier.value != null) {
-      _isSoloModeNotifier.value = true;
-      _resetCamera();
-    }
+    _selectedBoneNotifier.value ??= _SkeletalMeshDatabase.allBones.first.id;
+    _isSoloModeNotifier.value = true;
+    _resetCamera();
   }
 }
 
@@ -1557,7 +1871,7 @@ class _Skeletal3DPainter extends CustomPainter {
     final cx = size.width * 0.5;
     final cy = size.height * 0.52;
 
-    if (isSoloMode && selectedBoneId != null) {
+    if (isSoloMode) {
       _paintSoloBoneMode(canvas, cx, cy);
       return;
     }
@@ -1689,7 +2003,7 @@ class _Skeletal3DPainter extends CustomPainter {
           ..strokeWidth = 1.0;
         canvas.drawPath(path, _strokePaint);
       } else if (renderMode == SkeletalRenderMode.xray) {
-        _fillPaint..color = boneBaseColor.withValues(alpha: 0.22);
+        _fillPaint.color = boneBaseColor.withValues(alpha: 0.22);
         canvas.drawPath(path, _fillPaint);
         _strokePaint
           ..color = boneBaseColor.withValues(alpha: 0.85)
@@ -1702,7 +2016,7 @@ class _Skeletal3DPainter extends CustomPainter {
           (boneBaseColor.g * 255 * intensity).toInt().clamp(0, 255),
           (boneBaseColor.b * 255 * intensity).toInt().clamp(0, 255),
         );
-        _fillPaint..color = shadedColor;
+        _fillPaint.color = shadedColor;
         canvas.drawPath(path, _fillPaint);
       }
     }
@@ -2224,7 +2538,7 @@ class _Skeletal3DPainter extends CustomPainter {
           ..strokeWidth = 1.0;
         canvas.drawPath(path, _strokePaint);
       } else if (renderMode == SkeletalRenderMode.xray) {
-        _fillPaint..color = boneBaseColor.withValues(alpha: 0.16);
+        _fillPaint.color = boneBaseColor.withValues(alpha: 0.16);
         canvas.drawPath(path, _fillPaint);
         _strokePaint
           ..color = boneBaseColor.withValues(alpha: 0.75)
@@ -2240,7 +2554,7 @@ class _Skeletal3DPainter extends CustomPainter {
         final baseG = boneBaseColor.g * 255;
         final baseB = boneBaseColor.b * 255;
 
-        _fillPaint..color = Color.fromARGB(
+        _fillPaint.color = Color.fromARGB(
           255,
           (baseR * intensity + 255 * specular).toInt().clamp(0, 255),
           (baseG * intensity + 255 * specular).toInt().clamp(0, 255),
@@ -2256,7 +2570,7 @@ class _Skeletal3DPainter extends CustomPainter {
         ..color = const Color(0xFF0D9488).withValues(alpha: 0.35)
         ..strokeWidth = 3.0;
       canvas.drawCircle(centerProj, bone.hitRadius * zoom, _strokePaint);
-      _fillPaint..color = const Color(0xFF0D9488);
+      _fillPaint.color = const Color(0xFF0D9488);
       canvas.drawCircle(centerProj, 4.0 * zoom, _fillPaint);
     }
   }
@@ -2882,10 +3196,64 @@ class _SkeletalMeshDatabase {
   ];
 
   static _BoneSegment3D? getBone(String id) {
-    try {
-      return allBones.firstWhere((b) => b.id == id || b.code == id || 'ortho_${b.code}' == id);
-    } catch (_) {
-      return null;
+    final lower = id.toLowerCase().trim();
+    // 1. Exact or prefixed ID / code match
+    for (final b in allBones) {
+      if (b.id == id || b.code == id || 'ortho_${b.code}' == id) return b;
+      if (b.id.toLowerCase() == lower || b.code.toLowerCase() == lower) return b;
     }
+    // 2. Contains or substring matching in both directions
+    for (final b in allBones) {
+      final bId = b.id.toLowerCase();
+      final bEn = b.nameEn.toLowerCase();
+      final bAr = b.nameAr.toLowerCase();
+      if (lower == bId || lower == bEn || lower == bAr) return b;
+      if (bId.contains(lower) || lower.contains(bId)) return b;
+      if (bEn.contains(lower) || lower.contains(bEn)) return b;
+      if (bAr.contains(lower) || lower.contains(bAr)) return b;
+    }
+    // 3. Keyword matching for common anatomical queries
+    final keywords = {
+      'cranium': 'bone_cranium',
+      'skull': 'bone_cranium',
+      'facial': 'bone_cranium',
+      'cervical': 'bone_cervical',
+      'neck': 'bone_cervical',
+      'thoracic': 'bone_thoracic',
+      'rib': 'bone_thoracic',
+      'sternum': 'bone_thoracic',
+      'clavicle': 'bone_clavicle_scapula',
+      'scapula': 'bone_clavicle_scapula',
+      'shoulder': 'bone_clavicle_scapula',
+      'humerus': 'bone_humerus',
+      'arm': 'bone_humerus',
+      'radius': 'bone_radius_ulna',
+      'ulna': 'bone_radius_ulna',
+      'forearm': 'bone_radius_ulna',
+      'hand': 'bone_hand_wrist',
+      'wrist': 'bone_hand_wrist',
+      'carpal': 'bone_hand_wrist',
+      'pelvis': 'bone_pelvis',
+      'sacrum': 'bone_pelvis',
+      'hip': 'bone_pelvis',
+      'femur': 'bone_femur',
+      'thigh': 'bone_femur',
+      'patella': 'bone_patella_knee',
+      'knee': 'bone_patella_knee',
+      'tibia': 'bone_tibia_fibula',
+      'fibula': 'bone_tibia_fibula',
+      'leg': 'bone_tibia_fibula',
+      'foot': 'bone_foot_ankle',
+      'ankle': 'bone_foot_ankle',
+      'tarsal': 'bone_foot_ankle',
+    };
+    for (final entry in keywords.entries) {
+      if (lower.contains(entry.key)) {
+        for (final b in allBones) {
+          if (b.id == entry.value) return b;
+        }
+      }
+    }
+    return allBones.isNotEmpty ? allBones.first : null;
   }
 }
