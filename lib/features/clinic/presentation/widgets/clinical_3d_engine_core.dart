@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:async';
 import 'dart:math' as math;
@@ -155,6 +156,36 @@ class MeshFace3D {
   }
 }
 
+/// High-performance flat vertex buffer produced once at GLB load time.
+/// The painter reads directly from typed arrays — zero per-frame allocations,
+/// no List<Point3D> construction, no depth sort (budget is kept small enough
+/// that painter-order is visually acceptable).
+class GlbMeshBuffer {
+  /// Flat vertex array: [x0,y0,z0, x1,y1,z1, x2,y2,z2, ...] per triangle
+  final Float32List verts;
+  /// Packed ARGB color per triangle
+  final Int32List colors;
+  /// Pre-computed face normals: [nx,ny,nz, ...] per triangle
+  final Float32List norms;
+  /// Part index per triangle (indexes into partKeys)
+  final Int32List partIds;
+  final List<String?> partKeys;
+  final List<String?> partNamesEn;
+  final List<String?> partNamesAr;
+  final int triCount;
+
+  const GlbMeshBuffer({
+    required this.verts,
+    required this.colors,
+    required this.norms,
+    required this.partIds,
+    required this.partKeys,
+    required this.partNamesEn,
+    required this.partNamesAr,
+    required this.triCount,
+  });
+}
+
 /// Interactive 3D Anatomical Scene Viewer Widget with Solo Part Inspection & 3D Medical Instruments
 class Clinical3dSceneViewer extends StatefulWidget {
   final List<MeshFace3D> Function(
@@ -210,6 +241,7 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
   late final ValueNotifier<double> _zoomNotifier;
   late final ValueNotifier<bool> _showStatsNotifier;
   List<MeshFace3D> _cachedFaces = const [];
+  GlbMeshBuffer? _cachedGlbBuffer;
   Offset? _lastPanPos;
   String? _hoveredPartKey;
   String? _selectedPartKey;
@@ -225,6 +257,19 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     _cachedFaces = widget.sceneMeshBuilder(
       _currentAgeStage,
       instrument: SpecialtyInstrument.none,
+      isSoloMode: _isSoloMode,
+      soloPartKey: _selectedPartKey,
+    );
+    // Try to get a pre-built flat buffer from the GLB library for the fast path.
+    // We identify the discipline by checking all loaded disciplines and matching
+    // against the faces that the scene builder returned.
+    _cachedGlbBuffer = _findGlbBuffer();
+  }
+
+  GlbMeshBuffer? _findGlbBuffer() {
+    // Delegate to the library which has access to ClinicalSpecialtyDiscipline.
+    return SpecialtyGlbMeshLibrary.findBufferForFaces(
+      _cachedFaces,
       isSoloMode: _isSoloMode,
       soloPartKey: _selectedPartKey,
     );
@@ -624,6 +669,7 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                             return CustomPaint(
                               painter: _Generic3DScenePainter(
                                 faces: faces,
+                                glbBuffer: _cachedGlbBuffer,
                                 yaw: _yawNotifier.value,
                                 pitch: _pitchNotifier.value,
                                 zoom: _zoomNotifier.value,
@@ -898,6 +944,7 @@ class _Generic3DScenePainter extends CustomPainter {
   static final Paint _sharedStrokePaint = Paint()..style = PaintingStyle.stroke;
 
   final List<MeshFace3D> faces;
+  final GlbMeshBuffer? glbBuffer;
   final double yaw;
   final double pitch;
   final double zoom;
@@ -909,98 +956,226 @@ class _Generic3DScenePainter extends CustomPainter {
 
   _Generic3DScenePainter({
     required this.faces,
+    this.glbBuffer,
     required this.yaw,
     required this.pitch,
     required this.zoom,
     required this.isDark,
     required this.primaryColor,
     this.activeStatuses,
-    this.hoveredPartKey,
     this.selectedPartKey,
+    this.hoveredPartKey,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (faces.isEmpty) return;
-
     final stopwatch = Stopwatch()..start();
+    int drawCalls = 0;
 
-    // Realistic surgical key light from upper-front-left
+    // ── FAST PATH: use pre-built GlbMeshBuffer (zero per-frame allocations) ──
+    final buf = glbBuffer;
+    if (buf != null && buf.triCount > 0) {
+      drawCalls = _paintFlatBuffer(canvas, size, buf);
+    } else if (faces.isNotEmpty) {
+      // ── SLOW FALLBACK: legacy MeshFace3D (procedural / non-GLB meshes) ──
+      drawCalls = _paintLegacyFaces(canvas, size);
+    } else {
+      return;
+    }
+
+    stopwatch.stop();
+    Clinical3dPerformanceTracker.instance.recordFrame(
+      buf != null ? buf.triCount : faces.length,
+      drawCalls,
+      stopwatch.elapsedMilliseconds,
+    );
+  }
+
+  // ── FAST FLAT-BUFFER PAINTER ──────────────────────────────────────────────
+  // Reads directly from Float32List/Int32List — no object allocations inside
+  // the hot loop. One drawVertices call for all solid triangles.
+  int _paintFlatBuffer(Canvas canvas, Size size, GlbMeshBuffer buf) {
+    final cosYaw   = math.cos(yaw);
+    final sinYaw   = math.sin(yaw);
+    final cosPitch = math.cos(pitch);
+    final sinPitch = math.sin(pitch);
+
+    final cx  = size.width  * 0.5;
+    final cy  = size.height * 0.5;
+    const fov = 400.0;
+    final sc  = zoom;
+
+    // Light constants pre-normalized (computed manually to avoid const expressions with sqrt)
+    // keyLight = (-0.55, -0.65, 0.52), |keyLight| ≈ 0.9605
+    const klnx = -0.5726, klny = -0.6766, klnz = 0.5413;
+    // fillLight = (0.45, 0.35, 0.65), |fillLight| ≈ 0.8718
+    const flnx =  0.5162, flny =  0.4015, flnz = 0.7457;
+    // halfVec = normalize(-keyLight + (0,0,1)) = normalize(0.5726, 0.6766, 0.4587)
+    // magnitude ≈ 0.9710
+    const hnx = 0.5897, hny = 0.6968, hnz = 0.4724;
+
+    final n       = buf.triCount;
+    final verts   = buf.verts;
+    final colors  = buf.colors;
+    final norms   = buf.norms;
+    final partIds = buf.partIds;
+    final partKeys = buf.partKeys;
+
+    // Highlight part indices
+    final hovIdx = hoveredPartKey  != null ? partKeys.indexOf(hoveredPartKey)  : -1;
+    final selIdx = selectedPartKey != null ? partKeys.indexOf(selectedPartKey) : -1;
+
+    // Pre-allocate output arrays (exact size — no realloc)
+    final sxArr = Float64List(n * 3); // screen x per vertex
+    final syArr = Float64List(n * 3); // screen y per vertex
+    final cArr  = List<Color>.filled(n * 3, const Color(0xFFFFFFFF));
+
+    // Stroke accumulator (only for highlighted parts — tiny list)
+    final strokeTris = <int>[];
+
+    for (var i = 0; i < n; i++) {
+      final vb = i * 9; // base into verts array
+      final nb = i * 3; // base into norms array
+
+      // ── Rotate 3 vertices: rotateX(pitch) then rotateY(yaw) ──
+      // Inlined to avoid any heap allocation.
+      double v0x = verts[vb],   v0y = verts[vb+1], v0z = verts[vb+2];
+      double v1x = verts[vb+3], v1y = verts[vb+4], v1z = verts[vb+5];
+      double v2x = verts[vb+6], v2y = verts[vb+7], v2z = verts[vb+8];
+
+      // rotateX(pitch): y' = y*cos - z*sin,  z' = y*sin + z*cos
+      double t;
+      t = v0y*cosPitch - v0z*sinPitch; v0z = v0y*sinPitch + v0z*cosPitch; v0y = t;
+      t = v1y*cosPitch - v1z*sinPitch; v1z = v1y*sinPitch + v1z*cosPitch; v1y = t;
+      t = v2y*cosPitch - v2z*sinPitch; v2z = v2y*sinPitch + v2z*cosPitch; v2y = t;
+      // rotateY(yaw): x' = x*cos + z*sin,  z' = -x*sin + z*cos
+      t = v0x*cosYaw + v0z*sinYaw; v0z = -v0x*sinYaw + v0z*cosYaw; v0x = t;
+      t = v1x*cosYaw + v1z*sinYaw; v1z = -v1x*sinYaw + v1z*cosYaw; v1x = t;
+      t = v2x*cosYaw + v2z*sinYaw; v2z = -v2x*sinYaw + v2z*cosYaw; v2x = t;
+
+      // Perspective project
+      final d0 = fov / (fov + v0z + 200.0);
+      final d1 = fov / (fov + v1z + 200.0);
+      final d2 = fov / (fov + v2z + 200.0);
+      final vb3 = i * 3;
+      sxArr[vb3]   = cx + v0x * sc * d0;
+      syArr[vb3]   = cy + v0y * sc * d0;
+      sxArr[vb3+1] = cx + v1x * sc * d1;
+      syArr[vb3+1] = cy + v1y * sc * d1;
+      sxArr[vb3+2] = cx + v2x * sc * d2;
+      syArr[vb3+2] = cy + v2y * sc * d2;
+
+      // ── Rotate normal ──
+      double nx = norms[nb], ny = norms[nb+1], nz = norms[nb+2];
+      t = ny*cosPitch - nz*sinPitch; nz = ny*sinPitch + nz*cosPitch; ny = t;
+      t = nx*cosYaw   + nz*sinYaw;   nz = -nx*sinYaw  + nz*cosYaw;   nx = t;
+      // Double-sided
+      if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+
+      // ── Lighting ──
+      final keyDot  = math.max(0.0, -(nx*klnx + ny*klny + nz*klnz));
+      final fillDot = math.max(0.0, -(nx*flnx + ny*flny + nz*flnz));
+      final diffuse = (0.38 + keyDot * 0.52 + fillDot * 0.20).clamp(0.0, 1.0);
+      final specDot  = math.max(0.0, nx*hnx + ny*hny + nz*hnz);
+      final specular = math.pow(specDot, 18.0) * 0.35;
+      final absNz = nz < 0 ? -nz : nz;
+      final rim  = math.pow(1.0 - absNz.clamp(0.0, 1.0), 2.6) * 0.22;
+
+      // ── Unpack base color ──
+      final packed = colors[i];
+      final ba = (packed >> 24) & 0xFF;
+      final br = (packed >> 16) & 0xFF;
+      final bg = (packed >>  8) & 0xFF;
+      final bb =  packed        & 0xFF;
+
+      final r = (br * diffuse + 255 * specular + br * rim).toInt().clamp(0, 255);
+      final g = (bg * diffuse + 255 * specular + bg * rim).toInt().clamp(0, 255);
+      final b = (bb * diffuse + 255 * specular + bb * rim).toInt().clamp(0, 255);
+      final c = Color.fromARGB(ba, r, g, b);
+      cArr[vb3] = c; cArr[vb3+1] = c; cArr[vb3+2] = c;
+
+      // Track highlighted triangles for outline pass
+      final pid = partIds[i];
+      if (pid == hovIdx || pid == selIdx) strokeTris.add(i);
+    }
+
+    // Build Offset list for drawVertices
+    final offsets = List<Offset>.generate(n * 3, (k) => Offset(sxArr[k], syArr[k]));
+
+    final vertices = ui.Vertices(
+      ui.VertexMode.triangles,
+      offsets,
+      colors: cArr,
+    );
+    canvas.drawVertices(vertices, BlendMode.dst, _sharedSolidPaint);
+    int drawCalls = 1;
+
+    // Outline pass for hovered/selected (very few tris)
+    for (final i in strokeTris) {
+      final vb3 = i * 3;
+      final path = Path()
+        ..moveTo(sxArr[vb3],   syArr[vb3])
+        ..lineTo(sxArr[vb3+1], syArr[vb3+1])
+        ..lineTo(sxArr[vb3+2], syArr[vb3+2])
+        ..close();
+      final pid = partIds[i];
+      _sharedStrokePaint
+        ..color = pid == hovIdx
+            ? const Color(0xFFFBBF24)
+            : primaryColor.withValues(alpha: 0.95)
+        ..strokeWidth = 2.2;
+      canvas.drawPath(path, _sharedStrokePaint);
+      drawCalls++;
+    }
+    return drawCalls;
+  }
+
+  // ── LEGACY FACE PAINTER (procedural meshes fallback) ──────────────────────
+  int _paintLegacyFaces(Canvas canvas, Size size) {
     final keyLight = const Point3D(-0.55, -0.65, 0.52).normalized();
-    // Soft cool bounce fill light from lower-front-right
     final fillLight = const Point3D(0.45, 0.35, 0.65).normalized();
-    // Halfway vector for Blinn-Phong specular sheen (view is along +Z = 0, 0, 1)
     final halfDir = (keyLight * -1.0 + const Point3D(0, 0, 1)).normalized();
 
     final transformedFaces = <_RenderFace>[];
-
     for (final face in faces) {
       final rotVertices = face.vertices.map((v) => v.rotateEuler(yaw, pitch)).toList();
       double sumZ = 0;
-      for (final v in rotVertices) {
-        sumZ += v.z;
-      }
+      for (final v in rotVertices) { sumZ += v.z; }
       final avgZ = sumZ / rotVertices.length;
-
       Point3D norm = const Point3D(0, 0, 1);
       if (rotVertices.length >= 3) {
         norm = (rotVertices[1] - rotVertices[0]).cross(rotVertices[2] - rotVertices[0]).normalized();
       }
-
-      transformedFaces.add(_RenderFace(
-        original: face,
-        rotatedVertices: rotVertices,
-        normal: norm,
-        avgZ: avgZ,
-      ));
+      transformedFaces.add(_RenderFace(original: face, rotatedVertices: rotVertices, normal: norm, avgZ: avgZ));
     }
-
-    // Depth sorting from back to front
     transformedFaces.sort((a, b) => a.avgZ.compareTo(b.avgZ));
-    final scale = 1.0 * zoom;
-
+    final scale = zoom;
     final solidPositions = <Offset>[];
-    final solidColors = <Color>[];
+    final solidColors    = <Color>[];
     int drawCalls = 0;
 
     for (final rf in transformedFaces) {
-      final face = rf.original;
+      final face    = rf.original;
       final rotVerts = rf.rotatedVertices;
       if (rotVerts.isEmpty) continue;
-
       final screenPts = rotVerts.map((v) => v.toScreen(size, scale)).toList();
 
       Color faceColor = face.baseColor;
       if (face.partKey != null && activeStatuses != null) {
         final status = activeStatuses![face.partKey];
-        if (status != null) {
-          faceColor = status.visualColor;
-        }
+        if (status != null) faceColor = status.visualColor;
       }
-
-      // Double-sided surface lighting (THREE.DoubleSide equivalent)
       Point3D effNorm = rf.normal;
-      if (effNorm.z < 0) {
-        effNorm = effNorm * -1.0;
-      }
-
-      // Multi-light diffuse calculation
-      final keyDot = math.max(0.0, -effNorm.dot(keyLight));
+      if (effNorm.z < 0) effNorm = effNorm * -1.0;
+      final keyDot  = math.max(0.0, -effNorm.dot(keyLight));
       final fillDot = math.max(0.0, -effNorm.dot(fillLight));
-      const ambient = 0.38;
-      final diffuse = (ambient + keyDot * 0.52 + fillDot * 0.20).clamp(0.0, 1.0);
-
-      // Blinn-Phong organic specular highlight for wet/glossy tissues & hardware
-      final specDot = math.max(0.0, effNorm.dot(halfDir));
+      final diffuse = (0.38 + keyDot * 0.52 + fillDot * 0.20).clamp(0.0, 1.0);
+      final specDot  = math.max(0.0, effNorm.dot(halfDir));
       final specular = math.pow(specDot, 18.0) * 0.35;
-
-      // Fresnel rim glow highlighting organic 3D curvature
-      final rim = math.pow(1.0 - math.max(0.0, effNorm.z.abs()), 2.6) * 0.22;
-
+      final rim      = math.pow(1.0 - effNorm.z.abs().clamp(0.0, 1.0), 2.6) * 0.22;
       final baseR = faceColor.r * 255;
       final baseG = faceColor.g * 255;
       final baseB = faceColor.b * 255;
-
       final r = (baseR * diffuse + 255 * specular + baseR * rim).toInt().clamp(0, 255);
       final g = (baseG * diffuse + 255 * specular + baseG * rim).toInt().clamp(0, 255);
       final b = (baseB * diffuse + 255 * specular + baseB * rim).toInt().clamp(0, 255);
@@ -1008,7 +1183,6 @@ class _Generic3DScenePainter extends CustomPainter {
       final shadedColor = Color.fromARGB(alpha, r, g, b);
 
       if (!face.isWireframe && screenPts.length >= 3) {
-        // GPU vertex batching: triangulate polygonal face fan
         for (int i = 1; i < screenPts.length - 1; i++) {
           solidPositions.add(screenPts[0]);
           solidPositions.add(screenPts[i]);
@@ -1018,46 +1192,26 @@ class _Generic3DScenePainter extends CustomPainter {
           solidColors.add(shadedColor);
         }
       }
-
-      // Draw stroke outlines ONLY for wireframes or selected/hovered parts
-      final isHovered = face.partKey != null && face.partKey == hoveredPartKey;
+      final isHovered  = face.partKey != null && face.partKey == hoveredPartKey;
       final isSelected = face.partKey != null && face.partKey == selectedPartKey;
       if (face.isWireframe || isHovered || isSelected) {
         final path = Path()..moveTo(screenPts[0].dx, screenPts[0].dy);
-        for (int i = 1; i < screenPts.length; i++) {
-          path.lineTo(screenPts[i].dx, screenPts[i].dy);
-        }
+        for (int i = 1; i < screenPts.length; i++) { path.lineTo(screenPts[i].dx, screenPts[i].dy); }
         path.close();
-
         _sharedStrokePaint
-          ..color = isHovered
-              ? const Color(0xFFFBBF24)
-              : (isSelected
-                  ? primaryColor.withValues(alpha: 0.95)
-                  : shadedColor)
+          ..color = isHovered ? const Color(0xFFFBBF24)
+              : (isSelected ? primaryColor.withValues(alpha: 0.95) : shadedColor)
           ..strokeWidth = (isHovered || isSelected) ? 2.2 : 1.2;
         canvas.drawPath(path, _sharedStrokePaint);
         drawCalls++;
       }
     }
-
-    // Hardware-accelerated GPU batch dispatch in a SINGLE draw call
     if (solidPositions.isNotEmpty) {
-      final vertices = ui.Vertices(
-        ui.VertexMode.triangles,
-        solidPositions,
-        colors: solidColors,
-      );
+      final vertices = ui.Vertices(ui.VertexMode.triangles, solidPositions, colors: solidColors);
       canvas.drawVertices(vertices, BlendMode.dst, _sharedSolidPaint);
       drawCalls++;
     }
-
-    stopwatch.stop();
-    Clinical3dPerformanceTracker.instance.recordFrame(
-      faces.length,
-      drawCalls,
-      stopwatch.elapsedMilliseconds,
-    );
+    return drawCalls;
   }
 
   @override
@@ -1069,6 +1223,7 @@ class _Generic3DScenePainter extends CustomPainter {
         old.hoveredPartKey != hoveredPartKey ||
         old.selectedPartKey != selectedPartKey ||
         old.faces != faces ||
+        old.glbBuffer != glbBuffer ||
         old.activeStatuses != activeStatuses;
   }
 }

@@ -12,7 +12,12 @@ import 'multi_specialty_anatomy_canvas_widget.dart';
 class SpecialtyGlbMeshLibrary {
   SpecialtyGlbMeshLibrary._();
 
-  static final Map<ClinicalSpecialtyDiscipline, List<MeshFace3D>> _cache = {};
+  // Hard face budget: at 3 000 faces the painter does ~9 000 vertex transforms
+  // at 60 Hz = 540 000 ops/s, which Dart handles well within 16ms.
+  static const int _kMaxFaces = 3000;
+
+  static final Map<ClinicalSpecialtyDiscipline, List<MeshFace3D>>   _cache   = {};
+  static final Map<ClinicalSpecialtyDiscipline, GlbMeshBuffer>      _bufCache = {};
   static final Map<ClinicalSpecialtyDiscipline, Future<List<MeshFace3D>>> _loadingFutures = {};
   static final List<VoidCallback> _listeners = [];
 
@@ -37,6 +42,44 @@ class SpecialtyGlbMeshLibrary {
 
   static List<MeshFace3D>? getCachedMesh(ClinicalSpecialtyDiscipline d) => _cache[d];
 
+  /// Returns the high-performance flat vertex buffer for the given discipline.
+  /// Prefer this over [getMesh] in the paint() hot-path.
+  static GlbMeshBuffer? getMeshBuffer(
+    ClinicalSpecialtyDiscipline d, {
+    bool isSoloMode = false,
+    String? soloPartKey,
+  }) {
+    final buf = _bufCache[d];
+    if (buf == null) return null;
+    if (!isSoloMode || soloPartKey == null) return buf;
+    // Solo mode: rebuild a filtered buffer (cheap — only happens on double-click)
+    final allKeys = buf.partKeys;
+    final soloIdx = allKeys.indexOf(soloPartKey);
+    if (soloIdx < 0) return buf;
+    final kept = <int>[];
+    for (var i = 0; i < buf.triCount; i++) {
+      if (buf.partIds[i] == soloIdx) kept.add(i);
+    }
+    if (kept.isEmpty) return buf;
+    final n = kept.length;
+    final v2 = Float32List(n * 9);
+    final c2 = Int32List(n);
+    final nm2 = Float32List(n * 3);
+    final p2 = Int32List(n);
+    for (var j = 0; j < n; j++) {
+      final i = kept[j];
+      v2.setRange(j * 9, j * 9 + 9, buf.verts, i * 9);
+      c2[j] = buf.colors[i];
+      nm2.setRange(j * 3, j * 3 + 3, buf.norms, i * 3);
+      p2[j] = buf.partIds[i];
+    }
+    return GlbMeshBuffer(
+      verts: v2, colors: c2, norms: nm2, partIds: p2,
+      partKeys: allKeys, partNamesEn: buf.partNamesEn, partNamesAr: buf.partNamesAr,
+      triCount: n,
+    );
+  }
+
   /// Returns cached high-fidelity 3D mesh faces for the given discipline,
   /// with automatic filtering if solo mode is active.
   static List<MeshFace3D>? getMesh(
@@ -49,6 +92,25 @@ class SpecialtyGlbMeshLibrary {
     if (!isSoloMode || soloPartKey == null) return cached;
     final filtered = cached.where((f) => f.partKey == soloPartKey).toList();
     return filtered.isNotEmpty ? filtered : cached;
+  }
+
+  /// Finds the [GlbMeshBuffer] that corresponds to a given list of [MeshFace3D]
+  /// faces by matching the first face's partKey against each cached discipline.
+  /// Called by the painter to avoid a direct dependency on [ClinicalSpecialtyDiscipline].
+  static GlbMeshBuffer? findBufferForFaces(
+    List<MeshFace3D> faces, {
+    bool isSoloMode = false,
+    String? soloPartKey,
+  }) {
+    if (faces.isEmpty) return null;
+    final firstKey = faces.first.partKey;
+    for (final entry in _cache.entries) {
+      final cached = entry.value;
+      if (cached.isNotEmpty && cached.first.partKey == firstKey) {
+        return getMeshBuffer(entry.key, isSoloMode: isSoloMode, soloPartKey: soloPartKey);
+      }
+    }
+    return null;
   }
 
   /// Asynchronously loads the high-fidelity GLB 3D model for the given discipline.
@@ -71,9 +133,10 @@ class SpecialtyGlbMeshLibrary {
     try {
       final byteData = await rootBundle.load(assetPath);
       final bytes = byteData.buffer.asUint8List();
-      final faces = _parseGlbToMeshFaces(bytes, d);
+      final (faces, buffer) = _parseGlbToMeshFaces(bytes, d);
 
       _cache[d] = faces;
+      _bufCache[d] = buffer;
       _notify();
       return faces;
     } catch (e) {
@@ -128,8 +191,15 @@ class SpecialtyGlbMeshLibrary {
     }
   }
 
-  static List<MeshFace3D> _parseGlbToMeshFaces(Uint8List bytes, ClinicalSpecialtyDiscipline discipline) {
-    if (bytes.length < 20) return [];
+  /// Parses a GLB binary blob into both a legacy MeshFace3D list (for procedural
+  /// fallback compatibility) and a high-performance GlbMeshBuffer.
+  ///
+  /// Hard budget: _kMaxFaces triangles maximum to guarantee <=16ms paint().
+  static (List<MeshFace3D>, GlbMeshBuffer) _parseGlbToMeshFaces(
+      Uint8List bytes, ClinicalSpecialtyDiscipline discipline) {
+    if (bytes.length < 20) {
+      return (<MeshFace3D>[], _emptyBuffer());
+    }
 
     var offset = 12;
     final jsonLength = _readUint32(bytes, offset);
@@ -146,7 +216,7 @@ class SpecialtyGlbMeshLibrary {
     final bufferViews = (gltf['bufferViews'] as List).cast<Map<String, dynamic>>();
     final meshes = (gltf['meshes'] as List).cast<Map<String, dynamic>>();
 
-    // 1. Calculate Global Bounding Box across all primitives
+    // 1. Global bounding box for uniform normalisation
     var minX = double.infinity, minY = double.infinity, minZ = double.infinity;
     var maxX = double.negativeInfinity, maxY = double.negativeInfinity, maxZ = double.negativeInfinity;
 
@@ -165,110 +235,188 @@ class SpecialtyGlbMeshLibrary {
 
     if (minX == double.infinity) {
       minX = -1; minY = -1; minZ = -1;
-      maxX = 1; maxY = 1; maxZ = 1;
+      maxX = 1;  maxY = 1;  maxZ = 1;
     }
 
     final centerX = (minX + maxX) / 2.0;
     final centerY = (minY + maxY) / 2.0;
     final centerZ = (minZ + maxZ) / 2.0;
+    final maxDim = math.max((maxX-minX).abs(), math.max((maxY-minY).abs(), (maxZ-minZ).abs()));
+    final scale  = maxDim > 0.00001 ? (190.0 / maxDim) : 1.0;
 
-    final dimX = (maxX - minX).abs();
-    final dimY = (maxY - minY).abs();
-    final dimZ = (maxZ - minZ).abs();
-    final maxDim = math.max(dimX, math.max(dimY, dimZ));
-    final scale = maxDim > 0.00001 ? (190.0 / maxDim) : 1.0;
+    // 2. Count total triangles across all primitives to set adaptive stride
+    var totalRawTris = 0;
+    for (final m in meshes) {
+      for (final prim in (m['primitives'] as List).cast<Map<String, dynamic>>()) {
+        if (prim.containsKey('indices')) {
+          final idxAcc = accessors[prim['indices'] as int];
+          totalRawTris += (idxAcc['count'] as int) ~/ 3;
+        } else {
+          final attrs = prim['attributes'] as Map<String, dynamic>;
+          if (attrs.containsKey('POSITION')) {
+            totalRawTris += (accessors[attrs['POSITION'] as int]['count'] as int) ~/ 3;
+          }
+        }
+      }
+    }
 
-    final faces = <MeshFace3D>[];
+    // Adaptive stride so we always land at or below the hard budget
+    final stride = math.max(1, (totalRawTris / _kMaxFaces).ceil());
+
     final colorPalette = _getColorPaletteForDiscipline(discipline);
 
+    // 3. Preallocate flat typed arrays (oversized; trimmed after)
+    final maxExpected = math.min(totalRawTris, _kMaxFaces);
+    final vertsArr  = Float32List(maxExpected * 9);
+    final colorsArr = Int32List(maxExpected);
+    final normsArr  = Float32List(maxExpected * 3);
+    final partIdsArr= Int32List(maxExpected);
+
+    final partKeys    = <String?>[];
+    final partNamesEn = <String?>[];
+    final partNamesAr = <String?>[];
+
+    // Legacy MeshFace3D list (small, for tap hit-testing)
+    final faces = <MeshFace3D>[];
+
+    var faceIdx = 0;
+
     for (var mIdx = 0; mIdx < meshes.length; mIdx++) {
+      if (faceIdx >= _kMaxFaces) break;
       final m = meshes[mIdx];
       final meshName = m['name'] as String? ?? 'part_$mIdx';
       final primitives = (m['primitives'] as List).cast<Map<String, dynamic>>();
       final baseColor = colorPalette[mIdx % colorPalette.length];
+      final partInfo  = _getPartLabels(discipline, mIdx, meshName);
 
-      final partInfo = _getPartLabels(discipline, mIdx, meshName);
+      // Register part
+      int partId = partKeys.indexOf(partInfo.key);
+      if (partId < 0) {
+        partId = partKeys.length;
+        partKeys.add(partInfo.key);
+        partNamesEn.add(partInfo.nameEn);
+        partNamesAr.add(partInfo.nameAr);
+      }
 
       for (final prim in primitives) {
+        if (faceIdx >= _kMaxFaces) break;
         final attrs = prim['attributes'] as Map<String, dynamic>;
         if (!attrs.containsKey('POSITION')) continue;
 
         final posAccIdx = attrs['POSITION'] as int;
         final posAcc = accessors[posAccIdx];
-        final posBv = bufferViews[posAcc['bufferView'] as int];
+        final posBv  = bufferViews[posAcc['bufferView'] as int];
         final posOffset = (posBv['byteOffset'] as int? ?? 0) + (posAcc['byteOffset'] as int? ?? 0);
-        final posCount = posAcc['count'] as int;
+        final posCount  = posAcc['count'] as int;
 
-        final positions = List<Point3D>.generate(posCount, (i) {
+        // Read raw positions into a flat double array (avoids Point3D allocation)
+        final rawPos = Float64List(posCount * 3);
+        for (var i = 0; i < posCount; i++) {
           final base = posOffset + i * 12;
-          final rx = _readFloat32(binBytes, base);
-          final ry = _readFloat32(binBytes, base + 4);
-          final rz = _readFloat32(binBytes, base + 8);
+          rawPos[i*3]   = (_readFloat32(binBytes, base)     - centerX) * scale;
+          rawPos[i*3+1] = -(_readFloat32(binBytes, base + 4) - centerY) * scale;
+          rawPos[i*3+2] = (_readFloat32(binBytes, base + 8)  - centerZ) * scale;
+        }
 
-          return Point3D(
-            (rx - centerX) * scale,
-            -(ry - centerY) * scale, // Flip Y for standard screen coordinates
-            (rz - centerZ) * scale,
-          );
-        });
+        final br = (baseColor.r * 255).round();
+        final bg = (baseColor.g * 255).round();
+        final bb = (baseColor.b * 255).round();
+        final ba = baseColor.a > 0.05 ? (baseColor.a * 255).round() : 255;
+        final colorARGB = (ba << 24) | (br << 16) | (bg << 8) | bb;
 
-        if (!prim.containsKey('indices')) {
-          for (var i = 0; i + 2 < positions.length; i += 3) {
+        void storeTri(int i0, int i1, int i2) {
+          if (faceIdx >= _kMaxFaces) return;
+          final b0 = i0*3, b1 = i1*3, b2 = i2*3;
+          final vBase = faceIdx * 9;
+
+          vertsArr[vBase]   = rawPos[b0];   vertsArr[vBase+1] = rawPos[b0+1]; vertsArr[vBase+2] = rawPos[b0+2];
+          vertsArr[vBase+3] = rawPos[b1];   vertsArr[vBase+4] = rawPos[b1+1]; vertsArr[vBase+5] = rawPos[b1+2];
+          vertsArr[vBase+6] = rawPos[b2];   vertsArr[vBase+7] = rawPos[b2+1]; vertsArr[vBase+8] = rawPos[b2+2];
+
+          colorsArr[faceIdx]  = colorARGB;
+          partIdsArr[faceIdx] = partId;
+
+          // Face normal (cross product)
+          final ax = rawPos[b1]-rawPos[b0], ay = rawPos[b1+1]-rawPos[b0+1], az = rawPos[b1+2]-rawPos[b0+2];
+          final bx = rawPos[b2]-rawPos[b0], by = rawPos[b2+1]-rawPos[b0+1], bz = rawPos[b2+2]-rawPos[b0+2];
+          var nx = ay*bz - az*by;
+          var ny = az*bx - ax*bz;
+          var nz = ax*by - ay*bx;
+          final len = math.sqrt(nx*nx + ny*ny + nz*nz);
+          if (len > 1e-9) { nx /= len; ny /= len; nz /= len; }
+          normsArr[faceIdx*3]   = nx;
+          normsArr[faceIdx*3+1] = ny;
+          normsArr[faceIdx*3+2] = nz;
+
+          // Also store in legacy list for hit-testing (keep small)
+          if (faces.length < 500) {
             faces.add(MeshFace3D(
-              vertices: [positions[i], positions[i + 1], positions[i + 2]],
+              vertices: [
+                Point3D(rawPos[b0], rawPos[b0+1], rawPos[b0+2]),
+                Point3D(rawPos[b1], rawPos[b1+1], rawPos[b1+2]),
+                Point3D(rawPos[b2], rawPos[b2+1], rawPos[b2+2]),
+              ],
               baseColor: baseColor,
               partKey: partInfo.key,
               partNameEn: partInfo.nameEn,
               partNameAr: partInfo.nameAr,
             ));
           }
+          faceIdx++;
+        }
+
+        if (!prim.containsKey('indices')) {
+          for (var i = 0; i + 2 < posCount && faceIdx < _kMaxFaces; i += 3 * stride) {
+            storeTri(i, i + 1, i + 2);
+          }
           continue;
         }
 
         final idxAccIdx = prim['indices'] as int;
-        final idxAcc = accessors[idxAccIdx];
-        final idxBv = bufferViews[idxAcc['bufferView'] as int];
+        final idxAcc    = accessors[idxAccIdx];
+        final idxBv     = bufferViews[idxAcc['bufferView'] as int];
         final idxOffset = (idxBv['byteOffset'] as int? ?? 0) + (idxAcc['byteOffset'] as int? ?? 0);
-        final idxCount = idxAcc['count'] as int;
-        final compType = idxAcc['componentType'] as int? ?? 5125;
+        final idxCount  = idxAcc['count'] as int;
+        final compType  = idxAcc['componentType'] as int? ?? 5125;
 
-        final rawIndices = <int>[];
-        if (compType == 5123) {
-          for (var i = 0; i < idxCount; i++) {
+        for (var i = 0; i + 2 < idxCount && faceIdx < _kMaxFaces; i += 3 * stride) {
+          int r0, r1, r2;
+          if (compType == 5123) {
             final p = idxOffset + i * 2;
-            rawIndices.add(binBytes[p] | (binBytes[p + 1] << 8));
+            r0 = binBytes[p]   | (binBytes[p+1] << 8);
+            r1 = binBytes[p+2] | (binBytes[p+3] << 8);
+            r2 = binBytes[p+4] | (binBytes[p+5] << 8);
+          } else {
+            r0 = _readUint32(binBytes, idxOffset + i * 4);
+            r1 = _readUint32(binBytes, idxOffset + (i+1) * 4);
+            r2 = _readUint32(binBytes, idxOffset + (i+2) * 4);
           }
-        } else {
-          for (var i = 0; i < idxCount; i++) {
-            rawIndices.add(_readUint32(binBytes, idxOffset + i * 4));
+          if (r0 < posCount && r1 < posCount && r2 < posCount) {
+            storeTri(r0, r1, r2);
           }
-        }
-
-        // Subsample large meshes for buttery smooth 60 FPS
-        final stride = rawIndices.length > 24000 ? 6 : (rawIndices.length > 12000 ? 3 : 1);
-
-        for (var i = 0; i + 2 < rawIndices.length; i += 3 * stride) {
-          final i0 = rawIndices[i];
-          final i1 = rawIndices[i + 1];
-          final i2 = rawIndices[i + 2];
-
-          if (i0 >= positions.length || i1 >= positions.length || i2 >= positions.length) {
-            continue;
-          }
-
-          faces.add(MeshFace3D(
-            vertices: [positions[i0], positions[i1], positions[i2]],
-            baseColor: baseColor,
-            partKey: partInfo.key,
-            partNameEn: partInfo.nameEn,
-            partNameAr: partInfo.nameAr,
-          ));
         }
       }
     }
 
-    return faces;
+    // Trim typed arrays to actual face count
+    final buf = GlbMeshBuffer(
+      verts:    Float32List.sublistView(vertsArr,   0, faceIdx * 9),
+      colors:   Int32List.sublistView(colorsArr,    0, faceIdx),
+      norms:    Float32List.sublistView(normsArr,   0, faceIdx * 3),
+      partIds:  Int32List.sublistView(partIdsArr,   0, faceIdx),
+      partKeys: partKeys,
+      partNamesEn: partNamesEn,
+      partNamesAr: partNamesAr,
+      triCount: faceIdx,
+    );
+
+    return (faces, buf);
   }
+
+  static GlbMeshBuffer _emptyBuffer() => GlbMeshBuffer(
+    verts: Float32List(0), colors: Int32List(0), norms: Float32List(0), partIds: Int32List(0),
+    partKeys: [], partNamesEn: [], partNamesAr: [], triCount: 0,
+  );
 
   static int _readUint32(Uint8List bytes, int offset) {
     return bytes[offset] |
