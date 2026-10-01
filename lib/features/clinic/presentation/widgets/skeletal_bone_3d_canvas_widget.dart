@@ -8,6 +8,7 @@ import '../../../../core/localization/app_language.dart';
 import '../../domain/entities/clinical_anatomy_status_entry.dart';
 import 'gpu_glb_viewer.dart';
 import 'skeletal_glb_mesh_library.dart';
+import 'anatomical_model_registry.dart';
 
 /// Skeletal Age Stage for Anatomical Morphing
 enum SkeletalAgeStage {
@@ -263,6 +264,7 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
   Offset _lastFocalPoint = Offset.zero;
   DateTime? _lastCanvasTapTime;
   Offset? _lastCanvasTapPos;
+  String? _customSelectedModelAsset;
 
   Timer? _singleTapTimer;
 
@@ -291,7 +293,20 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
 
   /// High-fidelity dedicated standalone 3D models for isolated Solo 3D viewing.
   static const Map<String, String> _dedicatedSoloGlbModels = {
-    // 1. Spine & Vertebrae (Cervical, Thoracic, Lumbar)
+    // 1. Skull / Cranium / Facial
+    'cranium': 'assets/models/orthopedics/skull_anatomy.glb',
+    'skull': 'assets/models/orthopedics/skull_anatomy.glb',
+    'facial': 'assets/models/orthopedics/skull_anatomy.glb',
+    'mandible': 'assets/models/orthopedics/skull_anatomy.glb',
+    'bone_cranium': 'assets/models/orthopedics/skull_anatomy.glb',
+    'bone_facial': 'assets/models/orthopedics/skull_anatomy.glb',
+
+    // 2. Rib Cage / Thoracic Skeleton
+    'rib': 'assets/models/orthopedics/rib_cage.glb',
+    'sternum': 'assets/models/orthopedics/rib_cage.glb',
+    'rib_cage': 'assets/models/orthopedics/rib_cage.glb',
+
+    // 3. Spine & Vertebrae (Cervical, Thoracic, Lumbar)
     'bone_cervical': 'assets/models/orthopedics/spine_column.glb',
     'bone_thoracic_ribs': 'assets/models/orthopedics/spine_column.glb',
     'bone_thoracic': 'assets/models/orthopedics/spine_column.glb',
@@ -299,33 +314,52 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
     'bone_spine': 'assets/models/orthopedics/spine_column.glb',
     'spine': 'assets/models/orthopedics/spine_column.glb',
 
-    // 2. Knee & Patella
+    // 4. Knee & Patella
     'bone_patella_knee': 'assets/models/orthopedics/knee_bones.glb',
     'patella': 'assets/models/orthopedics/knee_bones.glb',
     'knee': 'assets/models/orthopedics/knee_bones.glb',
 
-    // 3. Foot & Ankle
+    // 5. Femur (Thigh)
+    'femur': 'assets/models/orthopedics/femur.glb',
+    'bone_femur': 'assets/models/orthopedics/femur.glb',
+    'thigh': 'assets/models/orthopedics/femur.glb',
+
+    // 6. Tibia & Fibula (Lower Leg)
+    'tibia': 'assets/models/orthopedics/tibia_fibula.glb',
+    'fibula': 'assets/models/orthopedics/tibia_fibula.glb',
+    'bone_tibia_fibula': 'assets/models/orthopedics/tibia_fibula.glb',
+
+    // 7. Foot & Ankle
     'bone_ankle_foot': 'assets/models/orthopedics/foot_bones.glb',
     'foot': 'assets/models/orthopedics/foot_bones.glb',
     'ankle': 'assets/models/orthopedics/foot_bones.glb',
 
-    // 4. Hand & Wrist
+    // 8. Hand & Wrist
     'bone_hand_wrist': 'assets/models/orthopedics/hand_bones.glb',
     'hand': 'assets/models/orthopedics/hand_bones.glb',
     'wrist': 'assets/models/orthopedics/hand_bones.glb',
 
-    // 5. Scapula / Clavicle / Shoulder Rotator Cuff
+    // 9. Scapula / Clavicle / Shoulder Rotator Cuff
     'bone_clavicle_scapula': 'assets/models/orthopedics/rotator_cuff.glb',
     'clavicle': 'assets/models/orthopedics/rotator_cuff.glb',
     'scapula': 'assets/models/orthopedics/rotator_cuff.glb',
     'shoulder': 'assets/models/orthopedics/rotator_cuff.glb',
     'rotator_cuff': 'assets/models/orthopedics/rotator_cuff.glb',
 
-    // 6. Elbow Joint
+    // 10. Humerus
+    'humerus': 'assets/models/orthopedics/humerus.glb',
+    'bone_humerus': 'assets/models/orthopedics/humerus.glb',
+
+    // 11. Elbow Joint
     'elbow': 'assets/models/orthopedics/elbow_joint.glb',
     'elbow_joint': 'assets/models/orthopedics/elbow_joint.glb',
 
-    // 7. Pelvis & Hip
+    // 12. Radius & Ulna
+    'radius': 'assets/models/orthopedics/radius_ulna.glb',
+    'ulna': 'assets/models/orthopedics/radius_ulna.glb',
+    'radius_ulna': 'assets/models/orthopedics/radius_ulna.glb',
+
+    // 13. Pelvis & Hip
     'bone_pelvis': 'assets/models/orthopedics/hip_bone.glb',
     'hip': 'assets/models/orthopedics/hip_bone.glb',
     'pelvis': 'assets/models/orthopedics/hip_bone.glb',
@@ -556,19 +590,21 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
                                     valueListenable: _interventionsNotifier,
                                     builder: (context, interventions, _) {
                                       final hasDedicatedModel = isSolo && selectedBoneId != null && _hasDedicatedSoloGlb(selectedBoneId);
-                                      final effectiveGlbAsset = isSolo && hasDedicatedModel
-                                          ? _resolveSoloGlbAsset(selectedBoneId)
-                                          : 'assets/models/orthopedics/male_skeleton.glb';
+                                      final effectiveGlbAsset = _customSelectedModelAsset ??
+                                          (isSolo && hasDedicatedModel
+                                              ? _resolveSoloGlbAsset(selectedBoneId)
+                                              : 'assets/models/orthopedics/male_skeleton.glb');
+                                      final hasDedicated = (hasDedicatedModel || _customSelectedModelAsset != null);
 
                                       return GpuGlbViewer(
-                                        key: ValueKey('gpu_viewer_${effectiveGlbAsset}_${isSolo}_${hasDedicatedModel ? "" : selectedBoneId}'),
+                                        key: ValueKey('gpu_viewer_${effectiveGlbAsset}_${isSolo}_${hasDedicated ? "" : selectedBoneId}'),
                                         glbAsset: effectiveGlbAsset,
                                         primaryColor: const Color(0xFF0D9488),
                                         title: '3D Skeletal Bone Explorer',
                                         isDark: isDark,
                                         height: 540,
                                         isSolo: isSolo,
-                                        soloBoneId: hasDedicatedModel ? null : selectedBoneId,
+                                        soloBoneId: hasDedicated ? null : selectedBoneId,
                                         activeTool: activeTool?.name,
                                         pins: interventions.map((i) => {
                                           'id': i.id,
@@ -854,6 +890,86 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
                         color: isDark ? Colors.white : Colors.black87,
                       ),
                     ),
+                    if (AnatomicalModelRegistry.hasMultipleModelsForSkeletalPart(soloBone.id)) ...[
+                      const SizedBox(width: 6),
+                      PopupMenuButton<AnatomicalModelOption>(
+                        key: const ValueKey('btn_solo_model_switcher_popup'),
+                        tooltip: AppLanguage.isArabic ? 'تبديل النموذج العظمي' : 'Switch 3D Bone Model',
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                        onSelected: (opt) {
+                          setState(() {
+                            _customSelectedModelAsset = opt.assetPath;
+                          });
+                        },
+                        itemBuilder: (context) {
+                          final currentAsset = _customSelectedModelAsset ?? _resolveSoloGlbAsset(soloBone.id);
+                          final models = AnatomicalModelRegistry.getModelsForSkeletalPart(soloBone.id);
+                          return models.map((opt) {
+                            final isSel = (opt.assetPath == currentAsset);
+                            return PopupMenuItem<AnatomicalModelOption>(
+                              value: opt,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    opt.icon,
+                                    size: 14,
+                                    color: isSel ? const Color(0xFF0D9488) : (isDark ? Colors.white70 : Colors.black87),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          opt.localizedLabel,
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                                            color: isSel ? const Color(0xFF0D9488) : (isDark ? Colors.white : Colors.black87),
+                                          ),
+                                        ),
+                                        if (opt.localizedSubtitle != null)
+                                          Text(
+                                            opt.localizedSubtitle!,
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              color: isDark ? Colors.white38 : Colors.black45,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isSel)
+                                    const Icon(Icons.check, size: 14, color: Color(0xFF0D9488)),
+                                ],
+                              ),
+                            );
+                          }).toList();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0D9488).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFF0D9488).withValues(alpha: 0.4), width: 0.8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(LucideIcons.layers, size: 10, color: Color(0xFF0D9488)),
+                              const SizedBox(width: 3),
+                              Text(
+                                AppLanguage.isArabic ? 'النماذج المتاحة' : 'Models',
+                                style: const TextStyle(fontSize: 9.0, fontWeight: FontWeight.bold, color: Color(0xFF0D9488)),
+                              ),
+                              const Icon(Icons.arrow_drop_down, size: 14, color: Color(0xFF0D9488)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 Text(
@@ -879,6 +995,9 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
               ),
               onPressed: () {
                 _isSoloModeNotifier.value = false;
+                setState(() {
+                  _customSelectedModelAsset = null;
+                });
                 _resetCamera();
               },
             ),
@@ -1195,6 +1314,85 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
               ),
             );
           },
+        ),
+        const SizedBox(width: 8),
+
+        // Whole Skeleton 3D Model Switcher
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: (isDark ? const Color(0xFF0F172A) : Colors.white).withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white24),
+          ),
+          child: PopupMenuButton<AnatomicalModelOption>(
+            key: const ValueKey('btn_whole_skeleton_model_switcher'),
+            tooltip: AppLanguage.isArabic ? 'اختيار نموذج الهيكل العظمي' : 'Select Skeleton 3D Model',
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            onSelected: (opt) {
+              setState(() {
+                _customSelectedModelAsset = opt.assetPath;
+              });
+            },
+            itemBuilder: (context) {
+              final currentAsset = _customSelectedModelAsset ?? 'assets/models/orthopedics/male_skeleton.glb';
+              return AnatomicalModelRegistry.wholeSkeletonModels.map((opt) {
+                final isSel = (opt.assetPath == currentAsset);
+                return PopupMenuItem<AnatomicalModelOption>(
+                  value: opt,
+                  child: Row(
+                    children: [
+                      Icon(
+                        opt.icon,
+                        size: 15,
+                        color: isSel ? const Color(0xFF0D9488) : (isDark ? Colors.white70 : Colors.black87),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              opt.localizedLabel,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                                color: isSel ? const Color(0xFF0D9488) : (isDark ? Colors.white : Colors.black87),
+                              ),
+                            ),
+                            if (opt.localizedSubtitle != null)
+                              Text(
+                                opt.localizedSubtitle!,
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: isDark ? Colors.white38 : Colors.black45,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (isSel)
+                        const Icon(Icons.check_circle, size: 14, color: Color(0xFF0D9488)),
+                    ],
+                  ),
+                );
+              }).toList();
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(LucideIcons.layers, size: 13, color: Color(0xFF0D9488)),
+                const SizedBox(width: 4),
+                Text(
+                  AppLanguage.isArabic ? 'النموذج' : 'Model',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0D9488)),
+                ),
+                const Icon(Icons.arrow_drop_down, size: 15, color: Color(0xFF0D9488)),
+              ],
+            ),
+          ),
         ),
         const SizedBox(width: 8),
 

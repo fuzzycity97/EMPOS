@@ -9,6 +9,8 @@ import '../../domain/entities/clinical_anatomy_status_entry.dart';
 import 'specialty_3d_anatomical_models.dart';
 import 'specialty_glb_mesh_library.dart';
 import 'gpu_glb_viewer.dart';
+import 'anatomical_model_registry.dart';
+import 'multi_specialty_anatomy_canvas_widget.dart';
 
 /// Universal Clinical Age Progression Stages for all medical disciplines
 enum ClinicalAgeStage {
@@ -211,6 +213,7 @@ class Clinical3dSceneViewer extends StatefulWidget {
   final List<SpecialtyInstrument> availableInstruments;
   final Widget? overlayBottomWidget;
   final String? glbAssetPath;
+  final ClinicalSpecialtyDiscipline? discipline;
 
   const Clinical3dSceneViewer({
     super.key,
@@ -231,6 +234,7 @@ class Clinical3dSceneViewer extends StatefulWidget {
     this.availableInstruments = const [],
     this.overlayBottomWidget,
     this.glbAssetPath,
+    this.discipline,
   });
 
   @override
@@ -257,10 +261,52 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
   Offset? _pendingTapPos;
   bool _useGpuViewer = true;
   String? _resolvedGlbAsset;
+  String? _customSelectedModelAsset;
+
+  ClinicalSpecialtyDiscipline _deduceDiscipline() {
+    if (widget.discipline != null) return widget.discipline!;
+    final title = widget.specialtyTitle.toLowerCase();
+    if (title.contains('cardio') || title.contains('heart') || title.contains('vascular')) {
+      return ClinicalSpecialtyDiscipline.cardiology;
+    }
+    if (title.contains('dental') || title.contains('oral') || title.contains('tooth') || title.contains('teeth')) {
+      return ClinicalSpecialtyDiscipline.dental;
+    }
+    if (title.contains('neuro') || title.contains('brain')) {
+      return ClinicalSpecialtyDiscipline.neurology;
+    }
+    if (title.contains('ent') || title.contains('ear') || title.contains('sinus') || title.contains('rhino') || title.contains('otology') || title.contains('larynx')) {
+      return ClinicalSpecialtyDiscipline.rhinologyEnt;
+    }
+    if (title.contains('pulmon') || title.contains('lung') || title.contains('respir') || title.contains('chest')) {
+      return ClinicalSpecialtyDiscipline.pulmonology;
+    }
+    if (title.contains('gastro') || title.contains('digest') || title.contains('liver') || title.contains('pancrea') || title.contains('colon') || title.contains('bowel')) {
+      return ClinicalSpecialtyDiscipline.gastroenterology;
+    }
+    if (title.contains('uro') || title.contains('kidney') || title.contains('bladder') || title.contains('prostate')) {
+      return ClinicalSpecialtyDiscipline.urology;
+    }
+    if (title.contains('obgyn') || title.contains('gynec') || title.contains('uterus') || title.contains('pelvic') || title.contains('obstetric')) {
+      return ClinicalSpecialtyDiscipline.obgyn;
+    }
+    if (title.contains('ophthalm') || title.contains('eye') || title.contains('retina') || title.contains('vision')) {
+      return ClinicalSpecialtyDiscipline.ophthalmology;
+    }
+    if (title.contains('derma') || title.contains('skin') || title.contains('aesthetic') || title.contains('plastic')) {
+      return ClinicalSpecialtyDiscipline.dermatology;
+    }
+    if (title.contains('ortho') || title.contains('bone') || title.contains('skelet')) {
+      return ClinicalSpecialtyDiscipline.orthopedics;
+    }
+    return ClinicalSpecialtyDiscipline.general;
+  }
 
   /// Global repository of dedicated standalone 3D models for isolated solo viewing across all specialties
   static const Map<String, String> _dedicatedSpecialtySoloGlbs = {
     // 1. Dental / Dentistry (Individual standalone teeth GLBs)
+    'arch': 'assets/models/teeth/lower_dental_arch.glb',
+    'dentition': 'assets/models/teeth/upper_lower_permanent_teeth.glb',
     'canine': 'assets/models/teeth/canine.glb',
     'incisor': 'assets/models/teeth/incisor.glb',
     'premolar': 'assets/models/teeth/premolar.glb',
@@ -300,17 +346,120 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     'tooth_47': 'assets/models/teeth/molar_second.glb',
     'tooth_48': 'assets/models/teeth/molar_third.glb',
 
-    // 2. Neurology
+    // 2. Cardiology & Vascular
+    'coronary': 'assets/models/cardiology/coronary_arteries.glb',
+    'lad': 'assets/models/cardiology/coronary_arteries.glb',
+    'rca': 'assets/models/cardiology/coronary_arteries.glb',
+    'lcx': 'assets/models/cardiology/coronary_arteries.glb',
+    'aorta': 'assets/models/cardiology/aortic_arch.glb',
+    'aortic_arch': 'assets/models/cardiology/aortic_arch.glb',
+    'valve': 'assets/models/cardiology/aortic_valve.glb',
+    'aortic_valve': 'assets/models/cardiology/aortic_valve.glb',
+    'artery': 'assets/models/cardiology/artery_vein_system.glb',
+    'vein': 'assets/models/cardiology/artery_vein_system.glb',
+    'vascular': 'assets/models/cardiology/artery_vein_system.glb',
+    'varicose': 'assets/models/cardiology/varicose_veins.glb',
+    'saphenous': 'assets/models/cardiology/varicose_veins.glb',
+
+    // 3. Neurology
+    'circle_of_willis': 'assets/models/neurology/circle_of_willis.glb',
+    'willis': 'assets/models/neurology/circle_of_willis.glb',
+    'cranial_nerve': 'assets/models/neurology/cranial_nerves.glb',
+    'cranial': 'assets/models/neurology/cranial_nerves.glb',
+    'foramina': 'assets/models/neurology/cranial_nerves_foramina.glb',
+    'skull_base': 'assets/models/neurology/cranial_nerves_foramina.glb',
     'neuro_nerves': 'assets/models/neurology/nerves_skeletal_cross_section.glb',
     'nerves_skeletal': 'assets/models/neurology/nerves_skeletal_cross_section.glb',
     'nervous_system': 'assets/models/neurology/nervous_system.glb',
     'neuro_brain': 'assets/models/neurology/brain.glb',
+    'brain': 'assets/models/neurology/brain.glb',
 
-    // 3. ENT / Otolaryngology
+    // 4. ENT / Otolaryngology
+    'cochlea': 'assets/models/ent/inner_ear.glb',
     'inner_ear_apparatus': 'assets/models/ent/inner_ear_apparatus.glb',
+    'labyrinth': 'assets/models/ent/inner_ear_apparatus.glb',
+    'semicircular': 'assets/models/ent/inner_ear_apparatus.glb',
     'inner_ear': 'assets/models/ent/inner_ear.glb',
+    'ossicle': 'assets/models/ent/middle_ear_ossicles.glb',
+    'malleus': 'assets/models/ent/middle_ear_ossicles.glb',
+    'incus': 'assets/models/ent/middle_ear_ossicles.glb',
+    'stapes': 'assets/models/ent/middle_ear_ossicles.glb',
+    'middle_ear': 'assets/models/ent/middle_ear_ossicles.glb',
+    'ear': 'assets/models/ent/ear_structures.glb',
+    'sinus': 'assets/models/ent/paranasal_sinuses.glb',
+    'paranasal': 'assets/models/ent/paranasal_sinuses.glb',
+    'larynx': 'assets/models/ent/larynx_muscles_ligaments.glb',
+    'vocal': 'assets/models/ent/larynx_muscles_ligaments.glb',
+    'epiglottis': 'assets/models/ent/larynx_anatomy.glb',
 
-    // 4. Orthopedics / Musculoskeletal / Physiotherapy / Podiatry
+    // 5. Respiratory / Pulmonology
+    'trachea': 'assets/models/respiratory/tracheobronchial_tree.glb',
+    'bronchi': 'assets/models/respiratory/tracheobronchial_tree.glb',
+    'bronchiole': 'assets/models/respiratory/bronchioles_alveoli.glb',
+    'alveoli': 'assets/models/respiratory/bronchioles_alveoli.glb',
+    'alveolar': 'assets/models/respiratory/alveolar_sacs.glb',
+    'lungs': 'assets/models/respiratory/lungs.glb',
+
+    // 6. Gastroenterology & Hepatobiliary
+    'liver': 'assets/models/gastroenterology/liver_gallbladder.glb',
+    'hepatic': 'assets/models/gastroenterology/liver_gallbladder.glb',
+    'gallbladder': 'assets/models/gastroenterology/gallbladder.glb',
+    'biliary': 'assets/models/gastroenterology/gallbladder.glb',
+    'spleen': 'assets/models/gastroenterology/pancreas_duodenum_spleen.glb',
+    'pancreas': 'assets/models/gastroenterology/pancreas_duodenum.glb',
+    'duodenum': 'assets/models/gastroenterology/pancreas_duodenum.glb',
+    'colon': 'assets/models/gastroenterology/colon_anatomy.glb',
+    'large_intestine': 'assets/models/gastroenterology/large_intestine.glb',
+    'bowel': 'assets/models/gastroenterology/bowel_anatomy.glb',
+    'jejunum': 'assets/models/gastroenterology/bowel_anatomy.glb',
+    'ileum': 'assets/models/gastroenterology/bowel_anatomy.glb',
+    'digestive': 'assets/models/gastroenterology/digestive.glb',
+
+    // 7. Urology & Nephrology
+    'kidney': 'assets/models/urology/kidney.glb',
+    'renal': 'assets/models/urology/kidney.glb',
+    'urinary_system': 'assets/models/urology/urinary_system.glb',
+    'urinary': 'assets/models/urology/urinary_tract.glb',
+    'ureter': 'assets/models/urology/urinary_tract.glb',
+    'bladder': 'assets/models/urology/bladder_prostate.glb',
+    'prostate': 'assets/models/urology/bladder_prostate_cross_section.glb',
+
+    // 8. Obstetrics & Gynecology (OB/GYN)
+    'uterus': 'assets/models/obgyn/uterus_cross_section.glb',
+    'endometrium': 'assets/models/obgyn/uterus_endometrium.glb',
+    'pelvic_floor': 'assets/models/obgyn/pelvic_floor_muscles_3d.glb',
+    'levator': 'assets/models/obgyn/pelvic_floor_muscles_3d.glb',
+    'perineal': 'assets/models/obgyn/pelvic_floor_muscles.glb',
+    'female_reproductive': 'assets/models/obgyn/female_reproductive.glb',
+
+    // 9. Ophthalmology
+    'eye_muscle': 'assets/models/ophthalmology/extraocular_muscles.glb',
+    'extraocular': 'assets/models/ophthalmology/extraocular_muscles.glb',
+    'retina': 'assets/models/ophthalmology/retinal_layers.glb',
+    'macula': 'assets/models/ophthalmology/stargardt_macula.glb',
+    'stargardt': 'assets/models/ophthalmology/stargardt_macula.glb',
+    'cornea': 'assets/models/ophthalmology/eye_model_unmc.glb',
+    'unmc': 'assets/models/ophthalmology/eye_model_unmc.glb',
+    'eye': 'assets/models/ophthalmology/eye.glb',
+
+    // 10. Aesthetics & Dermatology
+    'skin': 'assets/models/dermatology/skin_anatomy.glb',
+    'hair': 'assets/models/dermatology/hair_follicle.glb',
+    'follicle': 'assets/models/dermatology/hair_follicle.glb',
+    'facial_expression': 'assets/models/aesthetics/facial_expression_muscles.glb',
+    'facial_muscle': 'assets/models/aesthetics/facial_expression_muscles.glb',
+    'botox': 'assets/models/aesthetics/facial_expression_muscles.glb',
+    'head_muscle': 'assets/models/aesthetics/head_muscles.glb',
+
+    // 11. Orthopedics / Musculoskeletal
+    'skull': 'assets/models/orthopedics/skull_anatomy.glb',
+    'cranium': 'assets/models/orthopedics/skull_anatomy.glb',
+    'rib': 'assets/models/orthopedics/rib_cage.glb',
+    'sternum': 'assets/models/orthopedics/rib_cage.glb',
+    'femur': 'assets/models/orthopedics/femur.glb',
+    'thigh': 'assets/models/orthopedics/femur.glb',
+    'tibia': 'assets/models/orthopedics/tibia_fibula.glb',
+    'fibula': 'assets/models/orthopedics/tibia_fibula.glb',
     'spine': 'assets/models/orthopedics/spine_column.glb',
     'cervical': 'assets/models/orthopedics/spine_column.glb',
     'lumbar': 'assets/models/orthopedics/spine_column.glb',
@@ -324,7 +473,10 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
     'rotator': 'assets/models/orthopedics/rotator_cuff.glb',
     'scapula': 'assets/models/orthopedics/rotator_cuff.glb',
     'shoulder': 'assets/models/orthopedics/rotator_cuff.glb',
+    'humerus': 'assets/models/orthopedics/humerus.glb',
     'elbow': 'assets/models/orthopedics/elbow_joint.glb',
+    'radius': 'assets/models/orthopedics/radius_ulna.glb',
+    'ulna': 'assets/models/orthopedics/radius_ulna.glb',
     'hip': 'assets/models/orthopedics/hip_bone.glb',
     'pelvis': 'assets/models/orthopedics/hip_bone.glb',
   };
@@ -595,6 +747,118 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                     onPressed: _enterSoloMode,
                   ),
 
+                // Model Switcher (available when specialty or part has multiple models)
+                Builder(
+                  builder: (context) {
+                    final currentDiscipline = _deduceDiscipline();
+                    final models = _isSoloMode && _selectedPartKey != null
+                        ? AnatomicalModelRegistry.getModelsForSpecialtyPart(currentDiscipline, _selectedPartKey)
+                        : AnatomicalModelRegistry.getModelsForDiscipline(currentDiscipline);
+
+                    if (models.length <= 1) return const SizedBox.shrink();
+
+                    final dedicatedSoloModel = (_isSoloMode && _selectedPartKey != null)
+                        ? _resolveDedicatedSoloGlb(_selectedPartKey)
+                        : null;
+                    final activeAsset = _customSelectedModelAsset ?? dedicatedSoloModel ?? _resolvedGlbAsset;
+                    final selectedOption = models.firstWhere(
+                      (m) => m.assetPath == activeAsset,
+                      orElse: () => models.first,
+                    );
+
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: PopupMenuButton<AnatomicalModelOption>(
+                        key: const ValueKey('btn_model_switcher_popup'),
+                        tooltip: AppLanguage.isArabic ? 'اختيار النموذج ثلاثي الأبعاد' : 'Select 3D Model Variant',
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                        onSelected: (option) {
+                          setState(() {
+                            _customSelectedModelAsset = option.assetPath;
+                          });
+                        },
+                        itemBuilder: (context) {
+                          return models.map((opt) {
+                            final isSelected = (opt.assetPath == activeAsset);
+                            return PopupMenuItem<AnatomicalModelOption>(
+                              value: opt,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    opt.icon,
+                                    size: 16,
+                                    color: isSelected ? const Color(0xFF10B981) : (isDark ? Colors.white70 : Colors.black87),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          opt.localizedLabel,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                            color: isSelected ? const Color(0xFF10B981) : (isDark ? Colors.white : Colors.black87),
+                                          ),
+                                        ),
+                                        if (opt.localizedSubtitle != null)
+                                          Text(
+                                            opt.localizedSubtitle!,
+                                            style: TextStyle(
+                                              fontSize: 9.5,
+                                              color: isDark ? Colors.white38 : Colors.black45,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    const Icon(Icons.check_circle, size: 14, color: Color(0xFF10B981)),
+                                ],
+                              ),
+                            );
+                          }).toList();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: widget.primaryColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: widget.primaryColor.withValues(alpha: 0.4),
+                              width: 1.0,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(LucideIcons.layers, size: 13, color: widget.primaryColor),
+                              const SizedBox(width: 5),
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 130),
+                                child: Text(
+                                  selectedOption.localizedLabel,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: widget.primaryColor,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 2),
+                              Icon(Icons.arrow_drop_down, size: 16, color: widget.primaryColor),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
                 if (_resolvedGlbAsset != null)
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
@@ -774,8 +1038,8 @@ class _Clinical3dSceneViewerState extends State<Clinical3dSceneViewer> with Sing
                     final dedicatedSoloModel = (_isSoloMode && _selectedPartKey != null)
                         ? _resolveDedicatedSoloGlb(_selectedPartKey)
                         : null;
-                    final activeGlbAsset = dedicatedSoloModel ?? _resolvedGlbAsset!;
-                    final hasDedicated = dedicatedSoloModel != null;
+                    final activeGlbAsset = _customSelectedModelAsset ?? dedicatedSoloModel ?? _resolvedGlbAsset!;
+                    final hasDedicated = (dedicatedSoloModel != null || _customSelectedModelAsset != null);
 
                     return GpuGlbViewer(
                       key: ValueKey('gpu_viewer_${activeGlbAsset}_${_isSoloMode}_${hasDedicated ? "" : _selectedPartKey}'),
