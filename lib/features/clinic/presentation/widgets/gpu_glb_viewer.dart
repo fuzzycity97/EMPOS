@@ -736,7 +736,26 @@ class _GpuGlbViewerState extends State<GpuGlbViewer> {
         'bone_foot_ankle': { cx: 0.15, cy: -0.92, cz: 0, dist: 0.42, meshKeywords: ['hip', 'leg'] },
       };
 
-      const focus = targets[boneId] || targets['bone_cranium'];
+      // Check if this model is already an isolated dedicated model (not the whole multi-bone skeleton)
+      let meshCount = 0;
+      loadedModel.traverse((node) => { if (node.isMesh && node.parent !== pinsGroup) meshCount++; });
+      const isSoloDedicatedModel = meshCount < 10;
+
+      if (isSoloDedicatedModel) {
+        loadedModel.traverse((node) => {
+          if (node.isMesh && node.parent !== pinsGroup) {
+            node.visible = true;
+            if (node.material) {
+              node.material.transparent = isXray;
+              node.material.opacity = isXray ? 0.38 : 1.0;
+            }
+          }
+        });
+        controls.target.set(0, 0, 0);
+        camera.position.set(0, 0, 2.5);
+        controls.update();
+        return;
+      }
 
       loadedModel.traverse((node) => {
         if (node.isMesh && node.parent !== pinsGroup) {
@@ -779,8 +798,40 @@ class _GpuGlbViewerState extends State<GpuGlbViewer> {
         const m = gltf.scene;
         loadedModel = m;
 
-        const box = new THREE.Box3().setFromObject(m);
-        const sz = box.getSize(new THREE.Vector3());
+        // 1. Auto-remove any enclosing room/skybox cubes or flat shadow quads
+        // (common in raw Sketchfab rips e.g. 12-face cube bounding boxes, 24 verts)
+        const toRemove = [];
+        m.traverse((node) => {
+          if (node.isMesh) {
+            const geo = node.geometry;
+            if (geo) {
+              const posAttr = geo.attributes.position;
+              const vCount = posAttr ? posAttr.count : 0;
+              const idxCount = geo.index ? geo.index.count : 0;
+              if ((vCount === 24 || vCount === 8 || vCount === 36) && (idxCount === 36 || idxCount === 12)) {
+                toRemove.push(node);
+              } else if (vCount === 4 && (idxCount === 6 || idxCount === 2)) {
+                toRemove.push(node);
+              }
+            }
+          }
+        });
+        toRemove.forEach((n) => {
+          if (n.parent) n.parent.remove(n);
+        });
+
+        // 2. Compute clean bounding box of anatomical structure
+        let box = new THREE.Box3().setFromObject(m);
+        let sz = box.getSize(new THREE.Vector3());
+
+        // Orient long bones standing upright along vertical Y axis if modeled along Z
+        if (sz.z > sz.y * 1.5 && sz.z > sz.x * 1.5) {
+          m.rotation.x = -Math.PI / 2;
+          m.updateMatrixWorld(true);
+          box = new THREE.Box3().setFromObject(m);
+          sz = box.getSize(new THREE.Vector3());
+        }
+
         const center = box.getCenter(new THREE.Vector3());
         const maxDim = Math.max(sz.x, sz.y, sz.z) || 1.0;
         const scale = 2.0 / maxDim;
@@ -795,6 +846,7 @@ class _GpuGlbViewerState extends State<GpuGlbViewer> {
             if (node.material) {
               node.material.roughness = 0.35;
               node.material.metalness = 0.1;
+              node.material.side = THREE.DoubleSide;
             }
           }
         });
@@ -838,6 +890,24 @@ class _GpuGlbViewerState extends State<GpuGlbViewer> {
     });
 
     function identifyBoneFromMeshAndCoords(hitObj, pt) {
+      if ($initSoloBoneIdSafe) {
+        const soloCatalog = {
+          'bone_humerus': { id: 'bone_humerus', code: '24500', nameEn: 'Humerus (Arm)', nameAr: 'عظم العضد' },
+          'bone_tibia_fibula': { id: 'bone_tibia_fibula', code: '27750', nameEn: 'Tibia & Fibula (Leg)', nameAr: 'القصبة والشظية' },
+          'bone_femur': { id: 'bone_femur', code: '27236', nameEn: 'Femur (Thigh)', nameAr: 'عظم الفخذ' },
+          'bone_radius_ulna': { id: 'bone_radius_ulna', code: '25500', nameEn: 'Radius & Ulna (Forearm)', nameAr: 'الكعبرة والزند' },
+          'bone_cranium': { id: 'bone_cranium', code: '21310', nameEn: 'Cranium & Facial Bones', nameAr: 'الجمجمة وعظام الوجه' },
+          'bone_cervical': { id: 'bone_cervical', code: '22551', nameEn: 'Cervical Spine (C1-C7)', nameAr: 'الفقرات العنقية' },
+          'bone_thoracic': { id: 'bone_thoracic', code: '22800', nameEn: 'Thoracic Spine & Ribs', nameAr: 'الفقرات الصدرية والأضلاع' },
+          'bone_pelvis': { id: 'bone_pelvis', code: '27130', nameEn: 'Pelvis & Sacrum', nameAr: 'الحوض والعجز' },
+          'bone_clavicle_scapula': { id: 'bone_clavicle_scapula', code: '23500', nameEn: 'Clavicle & Scapula', nameAr: 'الترقوة والكتف' },
+          'bone_patella_knee': { id: 'bone_patella_knee', code: '27520', nameEn: 'Patella & Knee Joint', nameAr: 'الرضفة ومفصل الركبة' },
+          'bone_hand_wrist': { id: 'bone_hand_wrist', code: '26600', nameEn: 'Hand & Carpal Bones', nameAr: 'عظام الرسغ واليد' },
+          'bone_foot_ankle': { id: 'bone_foot_ankle', code: '28400', nameEn: 'Foot & Tarsal Bones', nameAr: 'عظام الكاحل والقدم' },
+        };
+        if (soloCatalog[$initSoloBoneIdSafe]) return soloCatalog[$initSoloBoneIdSafe];
+      }
+
       const objName = (hitObj && (hitObj.name || (hitObj.parent && hitObj.parent.name) || (hitObj.geometry && hitObj.geometry.name) || '')) || '';
       const name = objName.toLowerCase();
       const y = pt.y;

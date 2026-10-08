@@ -262,8 +262,6 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
   late final ValueNotifier<List<BoneInterventionPoint>> _interventionsNotifier;
 
   Offset _lastFocalPoint = Offset.zero;
-  DateTime? _lastCanvasTapTime;
-  Offset? _lastCanvasTapPos;
   String? _customSelectedModelAsset;
 
   Timer? _singleTapTimer;
@@ -604,7 +602,7 @@ class _SkeletalBone3dCanvasWidgetState extends State<SkeletalBone3dCanvasWidget>
                                         isDark: isDark,
                                         height: 540,
                                         isSolo: isSolo,
-                                        soloBoneId: hasDedicated ? null : selectedBoneId,
+                                        soloBoneId: selectedBoneId,
                                         activeTool: activeTool?.name,
                                         pins: interventions.map((i) => {
                                           'id': i.id,
